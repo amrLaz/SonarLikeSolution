@@ -1011,6 +1011,7 @@ def collect_real_sast_metrics() -> dict:
         "reported_bugs":                  bugs,
         "reported_code_coverage":         code_coverage,
         "affected_files":                 affected_files,
+        "findings":                       all_findings,  # Include detailed findings for API submission
     }
 
 
@@ -1298,6 +1299,26 @@ def run_analysis(api_url: str, token: str | None) -> int:
     
     # Store analysis_id for potential downstream tests
     os.environ["PLATFORM_ANALYSIS_ID"] = analysis_id
+
+    # Send detected vulnerabilities/findings to the API
+    if "findings" in metrics_payload and metrics_payload["findings"]:
+        print(f"\nSending {len(metrics_payload['findings'])} detected findings to API...")
+        vuln_endpoint = f"{endpoint}/{analysis_id}/vulnerabilities"
+        for finding in metrics_payload["findings"]:
+            vuln_payload = {
+                "file_path": finding.file_path,
+                "line_number": finding.start_line,
+                "end_line": finding.end_line,
+                "severity": finding.severity,
+                "rule_id": finding.rule_id,
+                "message": finding.message,
+                "category": finding.category,
+            }
+            try:
+                api_request(vuln_endpoint, "POST", token, vuln_payload)
+            except Exception as e:
+                print(f"  Warning: Could not submit vulnerability {finding.rule_id}: {e}")
+        print("Findings submitted successfully")
 
     timeout_seconds  = int(os.getenv("PLATFORM_ANALYSIS_TIMEOUT_SECONDS", "120"))
     interval_seconds = int(os.getenv("PLATFORM_ANALYSIS_POLL_SECONDS", "5"))
