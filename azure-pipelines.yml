@@ -1,12 +1,14 @@
 trigger:
   branches:
     include:
+      - master
       - main
       - testdecoration
 
 pr:
   branches:
     include:
+      - master
       - main
       - testdecoration
 
@@ -20,7 +22,7 @@ variables:
   PLATFORM_REPO_PROVIDER: "azure-devops"
   PLATFORM_PIPELINE_PROVIDER: "azure-devops"
   PLATFORM_SCAN_TARGET: "apps"
-  PLATFORM_SCAN_IGNORE: "scripts/ci_platform_scan.py,src/ci_platform_scan.py,**/ci_platform_scan.py"
+  PLATFORM_SCAN_IGNORE: "scripts/ci_platform_scan.py,**/ci_platform_scan.py"
 
 stages:
   - stage: Analysis
@@ -53,7 +55,7 @@ stages:
             displayName: "Install SAST scanners"
 
           - script: |
-              python src/ci_platform_scan.py full-test
+              python scripts/ci_platform_scan.py full-test
             displayName: "Platform: Prepare + Analyze + Test"
             env:
               PLATFORM_API_URL: $(PLATFORM_API_URL)
