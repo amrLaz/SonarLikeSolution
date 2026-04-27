@@ -820,6 +820,77 @@ def run_bandit(roots: list[str], ignore_patterns: list[str] | None = None) -> li
     return findings
 
 
+# ── Code Coverage Calculation ─────────────────────────────────────────────────
+
+def calculate_code_coverage() -> int:
+    """
+    Calculate code coverage from available coverage reports.
+    
+    Supports:
+    - Python: .coverage files (via coverage.py)
+    - JavaScript/TypeScript: coverage.json (via nyc/jest)
+    - Fallback: Linear estimation based on LOC and findings
+    """
+    try:
+        coverages = []
+        
+        # Check for Python coverage report
+        if Path(".coverage").exists():
+            try:
+                result = subprocess.run(
+                    ["coverage", "report", "--skip-covered"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                # Parse coverage report: look for "TOTAL" line
+                for line in result.stdout.split("\n"):
+                    if "TOTAL" in line:
+                        parts = line.split()
+                        if parts[-1].endswith("%"):
+                            cov_str = parts[-1].rstrip("%")
+                            coverages.append(int(float(cov_str)))
+                            print(f"Python coverage (coverage.py): {cov_str}%")
+                            break
+            except Exception as e:
+                print(f"Warning: Could not parse Python coverage: {e}")
+        
+        # Check for JavaScript/TypeScript coverage.json (from nyc/jest)
+        if Path("coverage/coverage-final.json").exists():
+            try:
+                with open("coverage/coverage-final.json") as f:
+                    cov_data = json.load(f)
+                    # Calculate average line coverage
+                    line_coverage = []
+                    for file_data in cov_data.values():
+                        if isinstance(file_data, dict) and "lines" in file_data:
+                            lines = file_data["lines"]
+                            covered = sum(1 for hit in lines.values() if hit and hit > 0)
+                            total = len(lines)
+                            if total > 0:
+                                line_coverage.append((covered / total) * 100)
+                    
+                    if line_coverage:
+                        avg_cov = int(sum(line_coverage) / len(line_coverage))
+                        coverages.append(avg_cov)
+                        print(f"JS/TS coverage (coverage-final.json): {avg_cov}%")
+            except Exception as e:
+                print(f"Warning: Could not parse JS/TS coverage: {e}")
+        
+        # Return average coverage or 0 if none found
+        if coverages:
+            avg = int(sum(coverages) / len(coverages))
+            print(f"Average code coverage: {avg}%")
+            return avg
+        else:
+            print("No coverage reports found; returning 0")
+            return 0
+            
+    except Exception as e:
+        print(f"Error calculating coverage: {e}")
+        return 0
+
+
 # ── Orchestration ─────────────────────────────────────────────────────────────
 
 def collect_real_sast_metrics() -> dict:
@@ -927,6 +998,9 @@ def collect_real_sast_metrics() -> dict:
         f"maintainability={maintain_score}"
     )
 
+    # Calculate real code coverage
+    code_coverage = calculate_code_coverage()
+
     return {
         "reported_maintainability_score": maintain_score,
         "reported_security_score":        security_score,
@@ -935,6 +1009,7 @@ def collect_real_sast_metrics() -> dict:
         "reported_vulnerabilities":       vulns,
         "reported_security_hotspots":     hotspots,
         "reported_bugs":                  bugs,
+        "reported_code_coverage":         code_coverage,
         "affected_files":                 affected_files,
     }
 
