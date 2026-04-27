@@ -1,0 +1,81 @@
+{
+    "notification": {
+        "distributorRef": "UPFRANCE",
+        "interfaceVersion": 19,
+        "message": {
+            "funderContractRef": "GENERIQUE",
+            "productRef": "PRDCADEAUUPFRANCE",
+            "messageId": 80844678,
+            "messageDate": "2024-09-12T14:51:52.323+00:00",
+            "beneficiaryServiceRef": "f06b864e98824b0e9c2e3809ee61bd12",
+            "contextData": {
+                "operationDateTime": "2024-09-12T14:51:49+00:00",
+                "operationType": "AUTHORIZATION",
+                "operationNature": "PURCHASE",
+                "operationAmount": {
+                    "amount": 2500,
+                    "exponent": 2,
+                    "currency": "978"
+                },
+                "accountBalance": {
+                    "amount": 4638,
+                    "exponent": 2,
+                    "currency": "978"
+                },
+                "accountAvailable": {
+                    "amount": 0,
+                    "exponent": 2,
+                    "currency": "978"
+                },
+                "codeMCC": "5812",
+                "canalAcceptationValue": "pdp",
+                "nomMarchand": "SAINTANE",
+                "dateTransaction": "2024-09-12T14:51:36+00:00",
+                "dateTransmissionTransaction": "0912145136",
+                "saeTimeSpent": 317,
+                "idContratAffilie": "UP-A1-00023582",
+                "idAcceptation": "92500010000",
+                "idMarchand": "1008390",
+                "villeMarchand": "PARIS",
+                "codepostalMarchand": "75001",
+                "numAut": "252709",
+                "cardId": "2000000048806389",
+                "psn": 0,
+                "truncatedPAN": "519303******7261   ",
+                "codeRetour": "00",
+                "idTerminal": "QS03BDF2",
+                "traceNumber": "000010",
+                "posEntryMode": "000072",
+                "amount": {
+                    "amount": 2500,
+                    "exponent": 2,
+                    "currency": "978"
+                },
+                "countryCode": "250",
+                "respPartialApprovalFlag": "N",
+                "respCardStatus": "ACTIVE",
+                "voucherImpacts": {
+                    "voucherImpact": [
+                        {
+                            "externalReference": "1a55969cb10f44019c0acdc8cc569a29",
+                            "amountImpact": {
+                                "amount": -2500,
+                                "exponent": 2,
+                                "currency": "978"
+                            },
+                            "voucherReason": "DEMAHYBR|WEB|6"
+                        }
+                    ]
+                },
+                "authorizationReference": "9226ab31c12c4da8840bbe7d6081492d",
+                "xpay": {},
+                "cardSchemeCode": "PRI",
+                "mask": "MCHIP",
+                "indCheckCvx2": "N",
+                "prdCheckCvx2": "N",
+                "indPresenceCvx2": "N",
+                "addMerchantData": {}
+            }
+        }
+    }
+}

@@ -1,0 +1,67 @@
+trigger:
+  branches:
+    include:
+      - master
+      - develop
+      - release/milestone-*
+      - refs/tags/v*
+  paths:
+    include:
+      - src/notebooks
+
+variables:
+  poolName: 'ManagedDevOpsPoolsLinux24'
+  python_version: '3.10'
+
+stages:
+  - stage: lint
+    displayName: 'Lint'
+    jobs:
+      - job: 'code_check'
+        displayName: 'Code check'
+        pool:
+          name: $(poolName)
+        strategy:
+          matrix:
+            Python39:
+              python.version: $(python_version)
+
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(python.version)'
+
+          - script: |
+              python -m pip install -U pip --cache-dir ./.pipcache &&
+              make setup-all-ci
+            displayName: 'Install dependencies'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/src/notebooks'
+
+          - script: |
+              python -m compileall .
+            displayName: 'Compile solution'
+            workingDirectory: '$(System.DefaultWorkingDirectory)/src/notebooks'
+
+          - script: |
+              black --check .
+            displayName: Checks code formatted properly
+            workingDirectory: '$(System.DefaultWorkingDirectory)/src/notebooks'
+
+          - script: |
+              python -m flake8 --config=src/notebooks/.flake8
+            displayName: 'Static code linting'
+          
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: '$(Build.SourcesDirectory)/src/notebooks'
+              contents: |
+                **
+                !**/ci
+                !**/.gitignore
+                !**/.pipcache/**
+              targetFolder: '$(Build.ArtifactStagingDirectory)/src/notebooks'
+              
+          # save formatted code to use later avoiding git clone again
+          - publish: '$(Build.ArtifactStagingDirectory)'
+            artifact: '$(Build.SourceBranchName)_$(Build.BuildId)'
+            displayName: 'Publish formatted code with dependencies'

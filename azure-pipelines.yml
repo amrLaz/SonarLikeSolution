@@ -1,0 +1,78 @@
+trigger:
+  branches:
+    include:
+      - main
+      - testdecoration
+
+pr:
+  branches:
+    include:
+      - main
+      - testdecoration
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  PLATFORM_PROJECT_KEY: "TESTPROJECT"
+  PLATFORM_API_URL: "https://purchase-banner-hacked.ngrok-free.dev"
+  PLATFORM_API_TOKEN: "Lq_LR3rERrYteDAHFFulBODlGe5xiNWwNsCqWy8oXM4"
+  PLATFORM_REPO_PROVIDER: "azure-devops"
+  PLATFORM_PIPELINE_PROVIDER: "azure-devops"
+  PLATFORM_SCAN_TARGET: "apps"
+  PLATFORM_SCAN_IGNORE: "scripts/ci_platform_scan.py,src/ci_platform_scan.py,**/ci_platform_scan.py"
+
+stages:
+  - stage: Analysis
+    displayName: "Platform Analysis"
+    jobs:
+      - job: PrepareAndRun
+        displayName: "Prepare + Run Analysis"
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+
+          - script: |
+              if [ -z "$PLATFORM_API_URL" ] || [ -z "$PLATFORM_API_TOKEN" ]; then
+                echo "ERROR: PLATFORM_API_URL and PLATFORM_API_TOKEN must be set as pipeline variables."
+                exit 1
+              fi
+              echo "Platform credentials present. URL: $PLATFORM_API_URL"
+            displayName: "Validate Platform credentials"
+            env:
+              PLATFORM_API_URL: $(PLATFORM_API_URL)
+              PLATFORM_API_TOKEN: $(PLATFORM_API_TOKEN)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install semgrep bandit pylint radon
+            displayName: "Install SAST scanners"
+
+          - script: |
+              python src/ci_platform_scan.py full-test
+            displayName: "Platform: Prepare + Analyze + Test"
+            env:
+              PLATFORM_API_URL: $(PLATFORM_API_URL)
+              PLATFORM_API_TOKEN: $(PLATFORM_API_TOKEN)
+              PLATFORM_PROJECT_KEY: $(PLATFORM_PROJECT_KEY)
+              PLATFORM_REPO_PROVIDER: $(PLATFORM_REPO_PROVIDER)
+              PLATFORM_PIPELINE_PROVIDER: $(PLATFORM_PIPELINE_PROVIDER)
+              PLATFORM_REPO_URL: $(Build.Repository.Uri)
+              PLATFORM_PIPELINE_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=results
+              CI_PROVIDER: azure-devops
+              PLATFORM_SCAN_TARGET: $(PLATFORM_SCAN_TARGET)
+              PLATFORM_SCAN_IGNORE: $(PLATFORM_SCAN_IGNORE)
+              PLATFORM_REAL_SAST: "true"
+              # PR decoration context (populated automatically by ADO in PR builds)
+              SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+              SYSTEM_TEAMPROJECT: $(System.TeamProject)
+              BUILD_REPOSITORY_ID: $(Build.Repository.ID)
+              SYSTEM_PULLREQUEST_TARGETBRANCHNAME: $(System.PullRequest.TargetBranchName)
+              SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+              BUILD_SOURCEBRANCH: $(Build.SourceBranch)
+              BUILD_REASON: $(Build.Reason)
+              SYSTEM_COLLECTIONURI: $(System.CollectionUri)

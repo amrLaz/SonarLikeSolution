@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\Up.France.ODI.Loyalty.AspNetCore\Up.France.ODI.Loyalty.AspNetCore.csproj" />
+    <ProjectReference Include="..\Up.France.ODI.Loyalty.Hosting\Up.France.ODI.Loyalty.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>
+

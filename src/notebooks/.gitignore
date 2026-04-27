@@ -1,0 +1,8 @@
+*/TestResults
+**/.coverage
+**/coverage.*
+**/__pycache__
+**/build
+**/*.egg-info
+**/.databricks/
+**/.pipcache

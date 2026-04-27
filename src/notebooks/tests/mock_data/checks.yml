@@ -1,0 +1,8 @@
+- criticality: error
+  check:
+    function: is_not_null
+    arguments:
+      col_names:
+        - column1
+        - column2
+

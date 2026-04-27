@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Up.France.Benefits.Functions": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7178",
+      "launchBrowser": false,
+    }
+  }
+}

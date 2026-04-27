@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.nupkg
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data / secrets
+*.csv
+*.env
+.env
+*.db
+*.sqlite
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# ===== CRITICAL: BLOCK ALL PLATFORM SOURCE CODE =====
+# @COPILOT: NEVER COMMIT apps/, infra/, or platform code to this repo!
+# ALLOWED FILES ONLY:
+#  - /scripts/**
+#  - /src/**
+#  - /azure-pipelines.yml
+#  - /.agents/**
+#
+apps/
+infra/
+docs/
+docker-compose.yml
+Dockerfile*
+
+# ===== WHITELIST ALLOWED PATHS =====
+!/scripts/
+!/src/
+!/azure-pipelines.yml
+!/.agents/
+

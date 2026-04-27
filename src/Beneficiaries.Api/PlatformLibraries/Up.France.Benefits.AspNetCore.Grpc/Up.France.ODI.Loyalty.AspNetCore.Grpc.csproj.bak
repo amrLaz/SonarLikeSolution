@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.42.0" />
+    <PackageReference Include="Grpc.AspNetCore.Web" Version="2.42.0" />
+    <PackageReference Include="protobuf-net.Grpc.AspNetCore" Version="1.0.152" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\..\Up.France.ODI.Loyalty.AspNetCore\Up.France.ODI.Loyalty.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\SharedLibraries\Up.France.ODI.Loyalty.Hosting\Up.France.ODI.Loyalty.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>
+

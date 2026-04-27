@@ -1,0 +1,60 @@
+[project]
+version = "1.0.0"
+name = "benefits"
+description = "Benefits Data"
+dynamic = ["readme"]
+requires-python = ">=3.10"
+keywords = ["benefits", "droits"]
+classifiers = [
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "pyspark~=3.5.0",
+    "delta-spark~=3.2.0"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+  "nutter~=0.1.35",
+  "databricks-labs-dqx~=0.1.9",
+  "black~=22.12.0",
+  "flake8~=6.0.0",
+  "pre-commit~=3.0.4"
+]
+test = ["unittest-xml-reporting~=3.0.2", "parameterized~=0.8.1", "coverage[toml]~=7.1.0"]
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "tests"]
+extend_skip = [".md", ".json", "yml"]
+line_length = 120
+wrap_length = 120
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.mypy_cache
+  | build
+  | dist
+  | blib2to3
+  | tests/data
+)/
+'''
+
+[tool.setuptools.dynamic]
+readme = { file = ["Readme.md"] }
+
+[tool.pyright]
+reportGeneralTypeIssues = false
