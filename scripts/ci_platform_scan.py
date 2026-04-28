@@ -1379,6 +1379,9 @@ def run_analysis(api_url: str, token: str | None) -> int:
     )
     pr_ado_org_url = os.getenv("SYSTEM_COLLECTIONURI", "").rstrip("/")
 
+    # Extract findings before merging metrics (findings are not JSON-serializable as Finding objects)
+    all_findings = metrics_payload.pop("findings", [])
+
     payload: dict = {
         "project_key": project_key,
         "commit_sha":  commit_sha,
@@ -1409,10 +1412,10 @@ def run_analysis(api_url: str, token: str | None) -> int:
     os.environ["PLATFORM_ANALYSIS_ID"] = analysis_id
 
     # Send detected vulnerabilities/findings to the API
-    if "findings" in metrics_payload and metrics_payload["findings"]:
-        print(f"\nSending {len(metrics_payload['findings'])} detected findings to API...")
+    if all_findings:
+        print(f"\nSending {len(all_findings)} detected findings to API...")
         vuln_endpoint = f"{endpoint}/{analysis_id}/vulnerabilities"
-        for finding in metrics_payload["findings"]:
+        for finding in all_findings:
             vuln_payload = {
                 "file_path": finding.file_path,
                 "line_number": finding.start_line,
