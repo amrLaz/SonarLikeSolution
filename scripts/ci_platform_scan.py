@@ -826,15 +826,21 @@ def calculate_code_coverage() -> int:
     """
     Calculate code coverage from available coverage reports.
     
-    Supports:
-    - Python: .coverage files (via coverage.py)
-    - JavaScript/TypeScript: coverage.json (via nyc/jest)
-    - Fallback: Linear estimation based on LOC and findings
+    Supports multiple languages/tools:
+    - Python: .coverage files (via coverage.py) OR .coverage.xml (via pytest-cov)
+    - JavaScript/TypeScript: coverage.json (via nyc/jest/vitest)
+    - Java: coverage.xml (via JaCoCo)
+    - C#/.NET: coverage.xml (via OpenCover/coverlet)
+    - Ruby: coverage/.resultset.json (via SimpleCov)
+    - PHP: coverage.xml (via PHPUnit/PCOV)
+    - Go: coverage.out (via go test -coverprofile)
+    
+    Returns: average coverage percentage across available reports, or 0
     """
     try:
         coverages = []
         
-        # Check for Python coverage report
+        # Python coverage (coverage.py)
         if Path(".coverage").exists():
             try:
                 result = subprocess.run(
@@ -843,7 +849,6 @@ def calculate_code_coverage() -> int:
                     text=True,
                     timeout=30
                 )
-                # Parse coverage report: look for "TOTAL" line
                 for line in result.stdout.split("\n"):
                     if "TOTAL" in line:
                         parts = line.split()
@@ -855,12 +860,25 @@ def calculate_code_coverage() -> int:
             except Exception as e:
                 print(f"Warning: Could not parse Python coverage: {e}")
         
-        # Check for JavaScript/TypeScript coverage.json (from nyc/jest)
+        # Python coverage XML (pytest-cov)
+        if Path("coverage.xml").exists():
+            try:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse("coverage.xml")
+                root = tree.getroot()
+                line_rate = root.get("line-rate")
+                if line_rate:
+                    cov_pct = int(float(line_rate) * 100)
+                    coverages.append(cov_pct)
+                    print(f"Python coverage (coverage.xml): {cov_pct}%")
+            except Exception as e:
+                print(f"Warning: Could not parse Python coverage.xml: {e}")
+        
+        # JavaScript/TypeScript coverage.json (nyc/jest/vitest)
         if Path("coverage/coverage-final.json").exists():
             try:
                 with open("coverage/coverage-final.json") as f:
                     cov_data = json.load(f)
-                    # Calculate average line coverage
                     line_coverage = []
                     for file_data in cov_data.values():
                         if isinstance(file_data, dict) and "lines" in file_data:
@@ -877,10 +895,100 @@ def calculate_code_coverage() -> int:
             except Exception as e:
                 print(f"Warning: Could not parse JS/TS coverage: {e}")
         
-        # Return average coverage or 0 if none found
+        # Java/C#/.NET/PHP coverage XML (JaCoCo, OpenCover, coverlet, PHPUnit)
+        for coverage_file in Path(".").glob("**/coverage.xml"):
+            if str(coverage_file) in ["coverage.xml"]:  # Skip if already parsed as Python
+                continue
+            try:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse(str(coverage_file))
+                root = tree.getroot()
+                
+                # Try JaCoCo format (Java)
+                if root.tag == "report":
+                    counters = root.findall(".//counter[@type='LINE']")
+                    if counters:
+                        counter = counters[0]
+                        covered = int(counter.get("covered", 0))
+                        missed = int(counter.get("missed", 0))
+                        total = covered + missed
+                        if total > 0:
+                            cov_pct = int((covered / total) * 100)
+                            coverages.append(cov_pct)
+                            print(f"Java/C# coverage (coverage.xml): {cov_pct}%")
+                
+                # Try OpenCover format (.NET)
+                elif root.tag == "CoverageSession":
+                    coverage_elem = root.find(".//Summary")
+                    if coverage_elem is not None:
+                        numSequencePoints = int(coverage_elem.get("numSequencePoints", 0))
+                        visitedSequencePoints = int(coverage_elem.get("visitedSequencePoints", 0))
+                        if numSequencePoints > 0:
+                            cov_pct = int((visitedSequencePoints / numSequencePoints) * 100)
+                            coverages.append(cov_pct)
+                            print(f".NET coverage (OpenCover): {cov_pct}%")
+            except Exception as e:
+                print(f"Warning: Could not parse coverage.xml: {e}")
+        
+        # Ruby coverage (SimpleCov)
+        if Path("coverage/.resultset.json").exists():
+            try:
+                with open("coverage/.resultset.json") as f:
+                    cov_data = json.load(f)
+                    # SimpleCov format: { "RSpec" => { coverage.json => [...] } }
+                    for test_framework, framework_data in cov_data.items():
+                        if isinstance(framework_data, dict):
+                            line_coverage = []
+                            for file_path, line_data in framework_data.items():
+                                if isinstance(line_data, list):
+                                    covered = sum(1 for hit in line_data if hit and hit > 0)
+                                    total = len(line_data)
+                                    if total > 0:
+                                        line_coverage.append((covered / total) * 100)
+                            
+                            if line_coverage:
+                                avg_cov = int(sum(line_coverage) / len(line_coverage))
+                                coverages.append(avg_cov)
+                                print(f"Ruby coverage (SimpleCov): {avg_cov}%")
+                                break
+            except Exception as e:
+                print(f"Warning: Could not parse Ruby coverage: {e}")
+        
+        # Go coverage
+        if Path("coverage.out").exists():
+            try:
+                result = subprocess.run(
+                    ["go", "tool", "cover", "-html=coverage.out", "-o=/tmp/coverage.html"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                # Parse coverage.out directly
+                covered_blocks = 0
+                total_blocks = 0
+                with open("coverage.out") as f:
+                    for line in f:
+                        if line.startswith("mode:"):
+                            continue
+                        parts = line.strip().split()
+                        if len(parts) >= 3:
+                            block_count = int(parts[2])
+                            count = int(parts[3])
+                            total_blocks += block_count
+                            if count > 0:
+                                covered_blocks += block_count
+                
+                if total_blocks > 0:
+                    cov_pct = int((covered_blocks / total_blocks) * 100)
+                    coverages.append(cov_pct)
+                    print(f"Go coverage (coverage.out): {cov_pct}%")
+            except Exception as e:
+                print(f"Warning: Could not parse Go coverage: {e}")
+        
+        # Return average coverage or 0
         if coverages:
             avg = int(sum(coverages) / len(coverages))
-            print(f"Average code coverage: {avg}%")
+            print(f"Average code coverage across {len(coverages)} report(s): {avg}%")
             return avg
         else:
             print("No coverage reports found; returning 0")
@@ -1009,7 +1117,7 @@ def collect_real_sast_metrics() -> dict:
         "reported_vulnerabilities":       vulns,
         "reported_security_hotspots":     hotspots,
         "reported_bugs":                  bugs,
-        "reported_code_coverage":         code_coverage,
+        "reported_coverage":              code_coverage,
         "affected_files":                 affected_files,
         "findings":                       all_findings,  # Include detailed findings for API submission
     }
