@@ -881,12 +881,21 @@ def calculate_code_coverage() -> int:
                     cov_data = json.load(f)
                     line_coverage = []
                     for file_data in cov_data.values():
-                        if isinstance(file_data, dict) and "lines" in file_data:
-                            lines = file_data["lines"]
-                            covered = sum(1 for hit in lines.values() if hit and hit > 0)
-                            total = len(lines)
-                            if total > 0:
-                                line_coverage.append((covered / total) * 100)
+                        if isinstance(file_data, dict):
+                            # nyc format: "lines" key contains line coverage data
+                            if "lines" in file_data:
+                                lines = file_data["lines"]
+                                covered = sum(1 for hit in lines.values() if hit and hit > 0)
+                                total = len(lines)
+                                if total > 0:
+                                    line_coverage.append((covered / total) * 100)
+                            # v8/Istanbul format (vitest): "s" key contains statement coverage
+                            elif "s" in file_data:
+                                statements = file_data["s"]
+                                covered = sum(1 for hit in statements.values() if hit and hit > 0)
+                                total = len(statements)
+                                if total > 0:
+                                    line_coverage.append((covered / total) * 100)
                     
                     if line_coverage:
                         avg_cov = int(sum(line_coverage) / len(line_coverage))
