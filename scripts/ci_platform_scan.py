@@ -1526,6 +1526,13 @@ def run_analysis(api_url: str, token: str | None) -> int:
         "reported_platform_url": api_url,
         **metrics_payload,
     }
+    
+    # Debug: Log the payload
+    print(f"\n📋 Analysis Payload Summary:")
+    print(f"  reported_duplication: {payload.get('reported_duplication', 'NOT FOUND')}")
+    print(f"  reported_coverage: {payload.get('reported_coverage', 'NOT FOUND')}")
+    print(f"  reported_code_smells: {payload.get('reported_code_smells', 'NOT FOUND')}")
+    
     if pr_id or build_reason.lower() == "pullrequest":
         print(f"PR build detected: PR#{pr_id or '?'} -> {pr_ado_project}/{pr_target_branch or build_source_branch}")
         payload.update({
