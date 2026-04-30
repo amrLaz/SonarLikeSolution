@@ -1169,12 +1169,14 @@ def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
     Returns: Duplication percentage (0-100)
     """
     # Try jscpd first (best option, detects block duplicates like SonarQube)
+    # Use npx to run jscpd without requiring global installation
     try:
         import subprocess
         import json
         
+        # Try npx jscpd first (works if npm is available)
         result = subprocess.run(
-            ["jscpd", "--json-report", ".", "--reporters", "json"],
+            ["npx", "jscpd", "--json-report", ".", "--reporters", "json"],
             capture_output=True,
             timeout=30,
             cwd=roots[0] if roots else "."
@@ -1188,12 +1190,12 @@ def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
                     total_lines = data.get('totalLines', 1)
                     if total_lines > 0:
                         duplication = min(100, int((duplicated_lines / total_lines) * 100))
-                        print(f"  ✅ jscpd detected {duplication}% duplication ({duplicated_lines}/{total_lines} lines)")
+                        print(f"  ✅ npx jscpd detected {duplication}% duplication ({duplicated_lines}/{total_lines} lines)")
                         return duplication
             except (json.JSONDecodeError, KeyError):
                 pass  # Fall through to line comparison
     except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        pass  # jscpd not available, use fallback
+        pass  # npx jscpd not available, use fallback
     
     # Fallback: Line-based duplication detection
     print("  📊 Using line-based duplication detection...")

@@ -62,9 +62,7 @@ stages:
           - script: |
               echo "=== Generating Coverage Reports ==="
               
-              # Install jscpd globally for duplication detection
-              echo "📦 Installing jscpd for duplication analysis..."
-              npm install -g jscpd 2>&1 | tail -5 || echo "⚠️ jscpd install had issues"
+              # Note: jscpd will be invoked via npx (automatic download and cache)
               
               # Python coverage (if pytest available)
               if [ -f "pytest.ini" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
