@@ -1159,11 +1159,44 @@ def collect_real_sast_metrics() -> dict:
         f"maintainability={maintain_score}"
     )
 
-    # Calculate real code coverage
-    code_coverage = calculate_code_coverage()
+def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
+    """
+    Calculate code duplication using jscpd (if available) or fallback to line comparison.
     
-    # Calculate duplication metric - similar to SonarQube's CPD (Copy Paste Detector)
-    # Count duplicate lines vs total lines
+    jscpd: Detects duplicated blocks (100+ tokens, any language)
+    Fallback: Detects identical lines (>10 chars)
+    
+    Returns: Duplication percentage (0-100)
+    """
+    # Try jscpd first (best option, detects block duplicates like SonarQube)
+    try:
+        import subprocess
+        import json
+        
+        result = subprocess.run(
+            ["jscpd", "--json-report", ".", "--reporters", "json"],
+            capture_output=True,
+            timeout=30,
+            cwd=roots[0] if roots else "."
+        )
+        
+        if result.returncode == 0:
+            try:
+                data = json.loads(result.stdout.decode('utf-8'))
+                if isinstance(data, dict) and 'duplicates' in data:
+                    duplicated_lines = data.get('duplicatedLines', 0)
+                    total_lines = data.get('totalLines', 1)
+                    if total_lines > 0:
+                        duplication = min(100, int((duplicated_lines / total_lines) * 100))
+                        print(f"  ✅ jscpd detected {duplication}% duplication ({duplicated_lines}/{total_lines} lines)")
+                        return duplication
+            except (json.JSONDecodeError, KeyError):
+                pass  # Fall through to line comparison
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        pass  # jscpd not available, use fallback
+    
+    # Fallback: Line-based duplication detection
+    print("  📊 Using line-based duplication detection...")
     total_lines = 0
     line_occurrences = {}
     
@@ -1192,13 +1225,23 @@ def collect_real_sast_metrics() -> dict:
                 except (IOError, UnicodeDecodeError):
                     pass
     
-    # Count lines that appear more than once (duplicated lines = extra occurrences)
+    # Count lines that appear more than once
     duplicated_lines = sum(count - 1 for count in line_occurrences.values() if count > 1)
     
     if total_lines > 0:
         duplication = min(100, int((duplicated_lines / total_lines) * 100))
-    else:
-        duplication = 0
+        print(f"  ✅ Line-based detection: {duplication}% duplication ({duplicated_lines}/{total_lines} lines)")
+        return duplication
+    
+    return 0
+
+
+
+    # Calculate real code coverage
+    code_coverage = calculate_code_coverage()
+    
+    # Calculate duplication using jscpd or line-based detection
+    duplication = calculate_duplication(roots, ignore_patterns)
 
     return {
         "reported_maintainability_score": maintain_score,
