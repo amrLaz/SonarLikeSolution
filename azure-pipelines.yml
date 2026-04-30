@@ -61,14 +61,22 @@ stages:
               if [ -f "pytest.ini" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
                 echo "Generating Python coverage..."
                 pip install pytest pytest-cov coverage 2>/dev/null || true
-                pytest --cov=. --cov-report=term --cov-report=html .  2>/dev/null || echo "pytest not available or tests failed"
+                pytest --cov=scripts --cov-report=term --cov-report=html --cov-report=xml 2>/dev/null || echo "pytest not available or tests failed"
               fi
               
-              # JavaScript/TypeScript coverage (if package.json available)
-              if [ -f "package.json" ]; then
+              # JavaScript/TypeScript coverage (web app)
+              if [ -d "apps/web" ] && [ -f "apps/web/package.json" ]; then
                 echo "Generating JS/TS coverage..."
-                npm install --save-dev nyc @istanbuljs/nyc-config-typescript 2>/dev/null || true
-                npm test -- --coverage 2>/dev/null || echo "npm test not available or failed"
+                cd apps/web
+                npm install 2>/dev/null || true
+                npm test 2>/dev/null || echo "npm test failed"
+                # Copy coverage report to project root coverage directory
+                if [ -f "coverage/coverage-final.json" ]; then
+                  mkdir -p ../../coverage
+                  cp coverage/coverage-final.json ../../coverage/coverage-final.json
+                  echo "✅ JS/TS coverage report copied to project root"
+                fi
+                cd ../../
               fi
               
               echo "Coverage generation complete"
