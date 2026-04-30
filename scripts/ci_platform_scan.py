@@ -1162,18 +1162,41 @@ def collect_real_sast_metrics() -> dict:
     # Calculate real code coverage
     code_coverage = calculate_code_coverage()
     
-    # Calculate duplication metric (approximation based on affected files density)
-    # Duplication increases when many files have issues relative to total findings
-    num_affected_files = len(affected_files)
-    total_issues = len(all_findings)
-    # Formula: density of issues * baseline = estimate of duplication
-    # Low density (few files affected relative to issues) = low duplication
-    # High density (many files affected) = higher duplication
-    if num_affected_files > 0 and total_issues > 0:
-        # If issues are spread across many files, it's less likely to be duplication
-        # If issues are concentrated in few files, more likely duplication
-        concentration = total_issues / max(num_affected_files, 1)
-        duplication = min(100, max(0, int(concentration * 3)))
+    # Calculate duplication metric - similar to SonarQube's CPD (Copy Paste Detector)
+    # Count duplicate lines vs total lines
+    total_lines = 0
+    line_occurrences = {}
+    
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            # Skip ignored directories
+            dirnames[:] = [d for d in dirnames if d not in {'.git', '__pycache__', 'node_modules', '.venv', 'venv', 'dist', 'build'}]
+            
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if _is_ignored(filepath, ignore_patterns):
+                    continue
+                
+                # Only analyze source files
+                if not filename.endswith(('.py', '.js', '.ts', '.tsx', '.jsx', '.java', '.cs', '.go', '.rb', '.c', '.cpp', '.h')):
+                    continue
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        for line in f:
+                            stripped = line.strip()
+                            # Count non-empty, non-comment lines with some substance
+                            if stripped and not stripped.startswith('#') and not stripped.startswith('//') and len(stripped) > 10:
+                                total_lines += 1
+                                line_occurrences[stripped] = line_occurrences.get(stripped, 0) + 1
+                except (IOError, UnicodeDecodeError):
+                    pass
+    
+    # Count lines that appear more than once (duplicated lines = extra occurrences)
+    duplicated_lines = sum(count - 1 for count in line_occurrences.values() if count > 1)
+    
+    if total_lines > 0:
+        duplication = min(100, int((duplicated_lines / total_lines) * 100))
     else:
         duplication = 0
 
