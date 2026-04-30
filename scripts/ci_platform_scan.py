@@ -1468,7 +1468,8 @@ def prepare(api_url: str, token: str | None) -> int:
 
     providers_endpoint = f"{api_url.rstrip('/')}/api/v1/integrations/providers"
     providers = api_request(providers_endpoint, "GET", token)
-    provider_ids = {p.get("provider_id") for p in providers}
+    # providers is a list of strings like ["azure-devops", "github", "gitlab"]
+    provider_ids = set(providers) if isinstance(providers, list) else {providers}
     if "azure-devops" not in provider_ids:
         print("Provider check failed: 'azure-devops' is not configured in platform")
         return 1
