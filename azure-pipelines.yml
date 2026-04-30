@@ -54,6 +54,12 @@ stages:
               PLATFORM_API_URL: $(PLATFORM_API_URL)
               PLATFORM_API_TOKEN: $(PLATFORM_API_TOKEN)
 
+          - task: npmAuthenticate@0
+            inputs:
+              workingFile: .npmrc
+            displayName: "Authenticate NPM (Azure DevOps Registry)"
+            continueOnError: true
+
           - script: |
               python -m pip install --upgrade pip
               pip install semgrep bandit pylint radon
@@ -88,12 +94,15 @@ stages:
                 exit 0
               fi
               
-              # Install dependencies with verbose output
+              # Install dependencies with error checking
               echo "  Installing dependencies..."
-              if npm install --legacy-peer-deps 2>&1 | tail -10; then
+              npm_log="/tmp/npm-install.log"
+              if npm install --legacy-peer-deps 2>&1 | tee "$npm_log"; then
                 echo "  ✅ Dependencies installed"
               else
-                echo "  ⚠️ npm install failed"
+                echo "  ⚠️  npm install had issues - showing errors:"
+                grep -E "npm (error|ERR)" "$npm_log" | tail -5 || true
+                echo "  ℹ️ Continuing with available dependencies..."
               fi
               
               # Run tests with coverage
