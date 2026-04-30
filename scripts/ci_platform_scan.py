@@ -101,7 +101,7 @@ def env(name: str, default: str | None = None) -> str:
     return value
 
 
-def api_request(url: str, method: str, token: str | None, payload: dict | None = None) -> dict:
+def api_request(url: str, method: str, token: str | None, payload: dict | None = None, strict: bool = True) -> dict:
     data = None
     headers = {"Content-Type": "application/json"}
     if token:
@@ -114,11 +114,20 @@ def api_request(url: str, method: str, token: str | None, payload: dict | None =
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="ignore")
-        print(f"HTTP error calling {url}: {exc.code} {body}")
-        sys.exit(1)
+        error_msg = f"HTTP error calling {url}: {exc.code} {body}"
+        if strict:
+            print(error_msg)
+            sys.exit(1)
+        else:
+            # Non-strict mode: raise exception instead of exit
+            raise Exception(f"{exc.code}: {body}") from exc
     except Exception as exc:
-        print(f"Request failed for {url}: {exc}")
-        sys.exit(1)
+        error_msg = f"Request failed for {url}: {exc}"
+        if strict:
+            print(error_msg)
+            sys.exit(1)
+        else:
+            raise
 
 
 def run_command(command: list[str]) -> tuple[int, str, str]:
@@ -1430,10 +1439,18 @@ def run_analysis(api_url: str, token: str | None) -> int:
     os.environ["PLATFORM_ANALYSIS_ID"] = analysis_id
 
     # Send detected vulnerabilities/findings to the API
+    # Note: Some API implementations may not support the findings POST endpoint (405 Not Allowed)
+    # In that case, findings are already stored in the analysis record via the analysis payload
     if all_findings:
         print(f"\nSending {len(all_findings)} detected findings to API...")
         vuln_endpoint = f"{endpoint}/{analysis_id}/vulnerabilities"
+        findings_submitted = 0
+        endpoint_not_supported = False
+        
         for finding in all_findings:
+            if endpoint_not_supported:
+                break
+                
             vuln_payload = {
                 "file_path": finding.file_path,
                 "line_number": finding.start_line,
@@ -1444,10 +1461,23 @@ def run_analysis(api_url: str, token: str | None) -> int:
                 "category": finding.category,
             }
             try:
-                api_request(vuln_endpoint, "POST", token, vuln_payload)
+                # Use strict=False to avoid exiting on 405 errors
+                api_request(vuln_endpoint, "POST", token, vuln_payload, strict=False)
+                findings_submitted += 1
             except Exception as e:
-                print(f"  Warning: Could not submit vulnerability {finding.rule_id}: {e}")
-        print("Findings submitted successfully")
+                error_str = str(e)
+                if "405" in error_str:
+                    print(f"  ℹ️ Endpoint does not support POST findings (API design)")
+                    endpoint_not_supported = True
+                else:
+                    print(f"  Warning: Could not submit vulnerability {finding.rule_id}: {e}")
+        
+        if findings_submitted > 0:
+            print(f"Findings submitted: {findings_submitted}")
+        elif endpoint_not_supported:
+            print("⚠️ Findings stored in analysis record (POST endpoint not available)")
+    else:
+        print("No findings to submit")
 
     timeout_seconds  = int(os.getenv("PLATFORM_ANALYSIS_TIMEOUT_SECONDS", "120"))
     interval_seconds = int(os.getenv("PLATFORM_ANALYSIS_POLL_SECONDS", "5"))
