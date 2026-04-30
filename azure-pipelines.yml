@@ -59,27 +59,71 @@ stages:
               
               # Python coverage (if pytest available)
               if [ -f "pytest.ini" ] || [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
-                echo "Generating Python coverage..."
+                echo "📦 Generating Python coverage..."
                 pip install pytest pytest-cov coverage 2>/dev/null || true
-                pytest --cov=scripts --cov-report=term --cov-report=html --cov-report=xml 2>/dev/null || echo "pytest not available or tests failed"
+                if pytest --cov=scripts --cov-report=term --cov-report=html --cov-report=xml; then
+                  echo "✅ Python coverage generated"
+                else
+                  echo "⚠️ pytest not available or tests failed"
+                fi
               fi
               
               # JavaScript/TypeScript coverage (web app)
               if [ -d "apps/web" ] && [ -f "apps/web/package.json" ]; then
-                echo "Generating JS/TS coverage..."
+                echo "📦 Generating JS/TS coverage for apps/web..."
                 cd apps/web
-                npm install 2>/dev/null || true
-                npm test 2>/dev/null || echo "npm test failed"
-                # Copy coverage report to project root coverage directory
+                
+                # Install dependencies with verbose output
+                echo "  Installing dependencies..."
+                if npm install --legacy-peer-deps; then
+                  echo "  ✅ Dependencies installed"
+                else
+                  echo "  ⚠️ npm install failed, trying without --legacy-peer-deps..."
+                  npm install || echo "  ❌ npm install failed"
+                fi
+                
+                # Run tests with coverage
+                echo "  Running tests with coverage..."
+                if [ -f "package.json" ]; then
+                  # Check if vitest or jest is available
+                  if grep -q '"vitest"' package.json; then
+                    echo "  📋 Vitest detected"
+                    npx vitest run --coverage 2>&1 | head -30 || echo "  Vitest run completed with status $?"
+                  elif grep -q '"jest"' package.json; then
+                    echo "  📋 Jest detected"
+                    npm test -- --coverage 2>&1 | head -30 || echo "  Jest run completed with status $?"
+                  else
+                    echo "  ⚠️ No vitest or jest found, trying npm test"
+                    npm test 2>&1 | head -30 || echo "  npm test completed with status $?"
+                  fi
+                fi
+                
+                # Check for coverage reports in multiple locations
+                echo "  Looking for coverage reports..."
                 if [ -f "coverage/coverage-final.json" ]; then
                   mkdir -p ../../coverage
                   cp coverage/coverage-final.json ../../coverage/coverage-final.json
-                  echo "✅ JS/TS coverage report copied to project root"
+                  echo "  ✅ coverage/coverage-final.json found and copied"
+                elif [ -f "coverage-jest/coverage-jest.json" ]; then
+                  mkdir -p ../../coverage
+                  cp coverage-jest/coverage-jest.json ../../coverage/coverage-jest.json
+                  echo "  ✅ coverage-jest/coverage-jest.json found and copied"
+                elif [ -d "coverage" ]; then
+                  echo "  ⚠️ coverage/ directory exists but no coverage-final.json"
+                  ls -la coverage/ 2>&1 | head -10
+                elif [ -d "coverage-jest" ]; then
+                  echo "  ⚠️ coverage-jest/ directory exists but no coverage-jest.json"
+                  ls -la coverage-jest/ 2>&1 | head -10
+                else
+                  echo "  ❌ No coverage reports found in apps/web"
+                  echo "    Current directory: $(pwd)"
+                  echo "    Contents: $(ls -la | head -20)"
                 fi
+                
                 cd ../../
               fi
               
-              echo "Coverage generation complete"
+              echo "✅ Coverage generation complete"
             displayName: "Generate Code Coverage Reports"
             continueOnError: true
 

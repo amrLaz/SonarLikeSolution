@@ -848,6 +848,25 @@ def calculate_code_coverage() -> int:
     """
     try:
         coverages = []
+        print("🔍 Searching for coverage reports...")
+        
+        # Debug: list all files in current directory
+        import os
+        all_files = []
+        for root, dirs, files in os.walk("."):
+            # Skip node_modules and hidden directories
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
+            for file in files:
+                filepath = os.path.join(root, file)
+                if any(keyword in file for keyword in ["coverage", ".coverage", "resultset"]):
+                    all_files.append(filepath)
+        
+        if all_files:
+            print(f"  Found {len(all_files)} coverage-related files:")
+            for f in sorted(all_files)[:20]:  # Show first 20
+                print(f"    - {f}")
+        else:
+            print("  ⚠️ No coverage-related files found")
         
         # Python coverage (coverage.py)
         if Path(".coverage").exists():
@@ -864,10 +883,10 @@ def calculate_code_coverage() -> int:
                         if parts[-1].endswith("%"):
                             cov_str = parts[-1].rstrip("%")
                             coverages.append(int(float(cov_str)))
-                            print(f"Python coverage (coverage.py): {cov_str}%")
+                            print(f"  ✅ Python coverage (coverage.py): {cov_str}%")
                             break
             except Exception as e:
-                print(f"Warning: Could not parse Python coverage: {e}")
+                print(f"  ⚠️ Could not parse Python coverage.py: {e}")
         
         # Python coverage XML (pytest-cov)
         if Path("coverage.xml").exists():
@@ -879,9 +898,9 @@ def calculate_code_coverage() -> int:
                 if line_rate:
                     cov_pct = int(float(line_rate) * 100)
                     coverages.append(cov_pct)
-                    print(f"Python coverage (coverage.xml): {cov_pct}%")
+                    print(f"  ✅ Python coverage (coverage.xml): {cov_pct}%")
             except Exception as e:
-                print(f"Warning: Could not parse Python coverage.xml: {e}")
+                print(f"  ⚠️ Could not parse coverage.xml: {e}")
         
         # JavaScript/TypeScript coverage.json (nyc/jest/vitest)
         # Check multiple possible locations: coverage/coverage-final.json (vitest/jest) and coverage-jest/coverage-jest.json (jest)
@@ -917,10 +936,10 @@ def calculate_code_coverage() -> int:
                         if line_coverage:
                             avg_cov = int(sum(line_coverage) / len(line_coverage))
                             coverages.append(avg_cov)
-                            print(f"JS/TS coverage ({coverage_file}): {avg_cov}%")
+                            print(f"  ✅ JS/TS coverage ({coverage_file}): {avg_cov}%")
                             break  # Don't check other files once one is found
                 except Exception as e:
-                    print(f"Warning: Could not parse JS/TS coverage from {coverage_file}: {e}")
+                    print(f"  ⚠️ Could not parse JS/TS coverage from {coverage_file}: {e}")
         
         # Java/C#/.NET/PHP coverage XML (JaCoCo, OpenCover, coverlet, PHPUnit)
         for coverage_file in Path(".").glob("**/coverage.xml"):
@@ -942,7 +961,7 @@ def calculate_code_coverage() -> int:
                         if total > 0:
                             cov_pct = int((covered / total) * 100)
                             coverages.append(cov_pct)
-                            print(f"Java/C# coverage (coverage.xml): {cov_pct}%")
+                            print(f"  ✅ Java/C# coverage (coverage.xml): {cov_pct}%")
                 
                 # Try OpenCover format (.NET)
                 elif root.tag == "CoverageSession":
@@ -953,9 +972,9 @@ def calculate_code_coverage() -> int:
                         if numSequencePoints > 0:
                             cov_pct = int((visitedSequencePoints / numSequencePoints) * 100)
                             coverages.append(cov_pct)
-                            print(f".NET coverage (OpenCover): {cov_pct}%")
+                            print(f"  ✅ .NET coverage (OpenCover): {cov_pct}%")
             except Exception as e:
-                print(f"Warning: Could not parse coverage.xml: {e}")
+                print(f"  ⚠️ Could not parse coverage.xml: {e}")
         
         # Ruby coverage (SimpleCov)
         if Path("coverage/.resultset.json").exists():
@@ -976,10 +995,10 @@ def calculate_code_coverage() -> int:
                             if line_coverage:
                                 avg_cov = int(sum(line_coverage) / len(line_coverage))
                                 coverages.append(avg_cov)
-                                print(f"Ruby coverage (SimpleCov): {avg_cov}%")
+                                print(f"  ✅ Ruby coverage (SimpleCov): {avg_cov}%")
                                 break
             except Exception as e:
-                print(f"Warning: Could not parse Ruby coverage: {e}")
+                print(f"  ⚠️ Could not parse Ruby coverage: {e}")
         
         # Go coverage
         if Path("coverage.out").exists():
@@ -1008,17 +1027,17 @@ def calculate_code_coverage() -> int:
                 if total_blocks > 0:
                     cov_pct = int((covered_blocks / total_blocks) * 100)
                     coverages.append(cov_pct)
-                    print(f"Go coverage (coverage.out): {cov_pct}%")
+                    print(f"  ✅ Go coverage (coverage.out): {cov_pct}%")
             except Exception as e:
-                print(f"Warning: Could not parse Go coverage: {e}")
+                print(f"  ⚠️ Could not parse Go coverage: {e}")
         
         # Return average coverage or 0
         if coverages:
             avg = int(sum(coverages) / len(coverages))
-            print(f"Average code coverage across {len(coverages)} report(s): {avg}%")
+            print(f"📊 Average code coverage across {len(coverages)} report(s): {avg}%")
             return avg
         else:
-            print("No coverage reports found; returning 0")
+            print("❌ No coverage reports found; returning 0")
             return 0
             
     except Exception as e:
