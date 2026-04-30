@@ -1462,7 +1462,7 @@ def prepare(api_url: str, token: str | None) -> int:
         print("Missing PLATFORM_API_TOKEN while PLATFORM_API_TOKEN_REQUIRED=true")
         return 2
 
-    health_endpoint = f"{api_url.rstrip('/')}/health"
+    health_endpoint = f"{api_url.rstrip('/')}/api/v1/health"
     health = api_request(health_endpoint, "GET", token=None)
     print(f"Platform health status: {health.get('status', 'unknown')}")
 
