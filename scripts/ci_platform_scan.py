@@ -875,34 +875,43 @@ def calculate_code_coverage() -> int:
                 print(f"Warning: Could not parse Python coverage.xml: {e}")
         
         # JavaScript/TypeScript coverage.json (nyc/jest/vitest)
-        if Path("coverage/coverage-final.json").exists():
-            try:
-                with open("coverage/coverage-final.json") as f:
-                    cov_data = json.load(f)
-                    line_coverage = []
-                    for file_data in cov_data.values():
-                        if isinstance(file_data, dict):
-                            # nyc format: "lines" key contains line coverage data
-                            if "lines" in file_data:
-                                lines = file_data["lines"]
-                                covered = sum(1 for hit in lines.values() if hit and hit > 0)
-                                total = len(lines)
-                                if total > 0:
-                                    line_coverage.append((covered / total) * 100)
-                            # v8/Istanbul format (vitest): "s" key contains statement coverage
-                            elif "s" in file_data:
-                                statements = file_data["s"]
-                                covered = sum(1 for hit in statements.values() if hit and hit > 0)
-                                total = len(statements)
-                                if total > 0:
-                                    line_coverage.append((covered / total) * 100)
-                    
-                    if line_coverage:
-                        avg_cov = int(sum(line_coverage) / len(line_coverage))
-                        coverages.append(avg_cov)
-                        print(f"JS/TS coverage (coverage-final.json): {avg_cov}%")
-            except Exception as e:
-                print(f"Warning: Could not parse JS/TS coverage: {e}")
+        # Check multiple possible locations: coverage/coverage-final.json (vitest/jest) and coverage-jest/coverage-jest.json (jest)
+        coverage_files = [
+            Path("coverage/coverage-final.json"),
+            Path("coverage-jest/coverage-jest.json"),
+            Path("coverage/coverage-jest.json"),
+        ]
+        
+        for coverage_file in coverage_files:
+            if coverage_file.exists():
+                try:
+                    with open(coverage_file) as f:
+                        cov_data = json.load(f)
+                        line_coverage = []
+                        for file_data in cov_data.values():
+                            if isinstance(file_data, dict):
+                                # nyc format: "lines" key contains line coverage data
+                                if "lines" in file_data:
+                                    lines = file_data["lines"]
+                                    covered = sum(1 for hit in lines.values() if hit and hit > 0)
+                                    total = len(lines)
+                                    if total > 0:
+                                        line_coverage.append((covered / total) * 100)
+                                # v8/Istanbul format (vitest/jest): "s" key contains statement coverage
+                                elif "s" in file_data:
+                                    statements = file_data["s"]
+                                    covered = sum(1 for hit in statements.values() if hit and hit > 0)
+                                    total = len(statements)
+                                    if total > 0:
+                                        line_coverage.append((covered / total) * 100)
+                        
+                        if line_coverage:
+                            avg_cov = int(sum(line_coverage) / len(line_coverage))
+                            coverages.append(avg_cov)
+                            print(f"JS/TS coverage ({coverage_file}): {avg_cov}%")
+                            break  # Don't check other files once one is found
+                except Exception as e:
+                    print(f"Warning: Could not parse JS/TS coverage from {coverage_file}: {e}")
         
         # Java/C#/.NET/PHP coverage XML (JaCoCo, OpenCover, coverlet, PHPUnit)
         for coverage_file in Path(".").glob("**/coverage.xml"):
