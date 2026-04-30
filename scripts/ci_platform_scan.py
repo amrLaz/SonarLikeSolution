@@ -1213,10 +1213,23 @@ def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
                         duplication = min(100, int((duplicated_lines / total_lines) * 100))
                         print(f"  ✅ npx jscpd detected {duplication}% duplication ({duplicated_lines}/{total_lines} lines)")
                         return duplication
-            except (json.JSONDecodeError, KeyError):
-                pass  # Fall through to line comparison
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        pass  # npx jscpd not available, use fallback
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"  ⚠️ jscpd JSON parse error: {e}, falling back to line-based")
+        else:
+            # jscpd failed - log stderr for debugging
+            stderr = result.stderr.decode('utf-8', errors='ignore') if result.stderr else "No error output"
+            print(f"  ⚠️ npx jscpd failed (exit code {result.returncode})")
+            if stderr.strip():
+                print(f"     Error: {stderr[:200]}")  # Show first 200 chars of error
+            print(f"     Falling back to line-based duplication detection...")
+    except FileNotFoundError as e:
+        print(f"  ⚠️ npx not found in PATH: {e}")
+        print(f"     Ensure Node.js is installed. Falling back to line-based detection...")
+    except subprocess.TimeoutExpired:
+        print(f"  ⚠️ npx jscpd timed out (30s limit), falling back to line-based detection...")
+    except Exception as e:
+        print(f"  ⚠️ Unexpected error running jscpd: {e}")
+        print(f"     Falling back to line-based detection...")
     
     # Fallback: Line-based duplication detection
     print("  📊 Using line-based duplication detection...")
