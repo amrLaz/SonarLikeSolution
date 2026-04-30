@@ -1159,6 +1159,27 @@ def collect_real_sast_metrics() -> dict:
         f"maintainability={maintain_score}"
     )
 
+    # Calculate real code coverage
+    code_coverage = calculate_code_coverage()
+    
+    # Calculate duplication using jscpd or line-based detection
+    duplication = calculate_duplication(roots, ignore_patterns)
+
+    return {
+        "reported_maintainability_score": maintain_score,
+        "reported_security_score":        security_score,
+        "reported_reliability_score":     reliability_score,
+        "reported_code_smells":           smells,
+        "reported_vulnerabilities":       vulns,
+        "reported_security_hotspots":     hotspots,
+        "reported_bugs":                  bugs,
+        "reported_coverage":              code_coverage,
+        "reported_duplication":           duplication,
+        "affected_files":                 affected_files,
+        "findings":                       all_findings,  # Include detailed findings for API submission
+    }
+
+
 def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
     """
     Calculate code duplication using jscpd (if available) or fallback to line comparison.
@@ -1236,28 +1257,6 @@ def calculate_duplication(roots: list[str], ignore_patterns: list[str]) -> int:
         return duplication
     
     return 0
-
-
-
-    # Calculate real code coverage
-    code_coverage = calculate_code_coverage()
-    
-    # Calculate duplication using jscpd or line-based detection
-    duplication = calculate_duplication(roots, ignore_patterns)
-
-    return {
-        "reported_maintainability_score": maintain_score,
-        "reported_security_score":        security_score,
-        "reported_reliability_score":     reliability_score,
-        "reported_code_smells":           smells,
-        "reported_vulnerabilities":       vulns,
-        "reported_security_hotspots":     hotspots,
-        "reported_bugs":                  bugs,
-        "reported_coverage":              code_coverage,
-        "reported_duplication":           duplication,
-        "affected_files":                 affected_files,
-        "findings":                       all_findings,  # Include detailed findings for API submission
-    }
 
 
 # ── Vulnerability & IOC Integration Tests ────────────────────────────────────
