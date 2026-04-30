@@ -21,7 +21,7 @@ variables:
   PLATFORM_API_TOKEN: "Lq_LR3rERrYteDAHFFulBODlGe5xiNWwNsCqWy8oXM4"
   PLATFORM_REPO_PROVIDER: "azure-devops"
   PLATFORM_PIPELINE_PROVIDER: "azure-devops"
-  PLATFORM_SCAN_TARGET: "apps"
+  PLATFORM_SCAN_TARGET: "src"
   PLATFORM_SCAN_IGNORE: "scripts/ci_platform_scan.py,**/ci_platform_scan.py"
 
 stages:
