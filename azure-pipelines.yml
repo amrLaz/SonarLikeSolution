@@ -68,61 +68,70 @@ stages:
                 fi
               fi
               
-              # JavaScript/TypeScript coverage (web app)
+              # JavaScript/TypeScript coverage - check multiple locations
+              # Priority 1: apps/web (NewSASTProject structure)
               if [ -d "apps/web" ] && [ -f "apps/web/package.json" ]; then
                 echo "📦 Generating JS/TS coverage for apps/web..."
                 cd apps/web
-                
-                # Install dependencies with verbose output
-                echo "  Installing dependencies..."
-                if npm install --legacy-peer-deps; then
-                  echo "  ✅ Dependencies installed"
-                else
-                  echo "  ⚠️ npm install failed, trying without --legacy-peer-deps..."
-                  npm install || echo "  ❌ npm install failed"
-                fi
-                
-                # Run tests with coverage
-                echo "  Running tests with coverage..."
-                if [ -f "package.json" ]; then
-                  # Check if vitest or jest is available
-                  if grep -q '"vitest"' package.json; then
-                    echo "  📋 Vitest detected"
-                    npx vitest run --coverage 2>&1 || echo "  Vitest completed with status $?"
-                  elif grep -q '"test:coverage"' package.json; then
-                    echo "  📋 test:coverage script found"
-                    npm run test:coverage 2>&1 || echo "  test:coverage completed with status $?"
-                  elif grep -q '"jest"' package.json; then
-                    echo "  📋 Jest detected"
-                    npm test -- --coverage 2>&1 || echo "  Jest completed with status $?"
-                  else
-                    echo "  ⚠️ No vitest or jest found, trying npm test"
-                    npm test 2>&1 || echo "  npm test completed with status $?"
+              # Priority 2: Root directory (Commercant.Web structure)
+              elif [ -f "package.json" ]; then
+                echo "📦 Generating JS/TS coverage from root..."
+              else
+                echo "❌ No package.json found"
+                exit 0
+              fi
+              
+              # Install dependencies with verbose output
+              echo "  Installing dependencies..."
+              if npm install --legacy-peer-deps 2>&1 | tail -10; then
+                echo "  ✅ Dependencies installed"
+              else
+                echo "  ⚠️ npm install failed"
+              fi
+              
+              # Run tests with coverage
+              echo "  Checking test scripts..."
+              if grep -q '"test:coverage"' package.json; then
+                echo "  📋 Running 'npm run test:coverage'..."
+                npm run test:coverage 2>&1 | tail -50 || echo "  test:coverage exit code: $?"
+                echo "  ✅ test:coverage completed"
+              elif grep -q '"test"' package.json; then
+                echo "  📋 Running 'npm test'..."
+                npm test 2>&1 | tail -50 || echo "  npm test exit code: $?"
+                echo "  ✅ npm test completed"
+              else
+                echo "  ⚠️ No test script found, trying npx jest"
+                npx jest --coverage --forceExit 2>&1 | tail -50 || echo "  jest exit code: $?"
+              fi
+              
+              # Check for coverage reports and handle both structures
+              echo "  Looking for coverage reports..."
+              COVERAGE_FOUND=false
+              
+              for pattern in "coverage/coverage-final.json" "coverage-jest/coverage-jest.json" "coverage/coverage-jest.json"; do
+                if [ -f "$pattern" ]; then
+                  echo "  ✅ Found: $pattern"
+                  COVERAGE_FOUND=true
+                  
+                  # If we're in apps/web, copy back to root
+                  if [ "$(pwd)" = "$(cd ../../ && pwd)/apps/web" ]; then
+                    mkdir -p ../../coverage
+                    cp "$pattern" "../../coverage/$(basename $pattern)"
+                    echo "    Copied to root coverage directory"
                   fi
+                  break
                 fi
-                
-                # Check for coverage reports in multiple locations
-                echo "  Looking for coverage reports..."
-                if [ -f "coverage/coverage-final.json" ]; then
-                  mkdir -p ../../coverage
-                  cp coverage/coverage-final.json ../../coverage/coverage-final.json
-                  echo "  ✅ coverage/coverage-final.json found and copied"
-                elif [ -f "coverage-jest/coverage-jest.json" ]; then
-                  mkdir -p ../../coverage
-                  cp coverage-jest/coverage-jest.json ../../coverage/coverage-jest.json
-                  echo "  ✅ coverage-jest/coverage-jest.json found and copied"
-                elif [ -d "coverage" ]; then
-                  echo "  ⚠️ coverage/ directory exists but no coverage-final.json"
-                  ls -la coverage/ 2>&1 | head -10
-                elif [ -d "coverage-jest" ]; then
-                  echo "  ⚠️ coverage-jest/ directory exists but no coverage-jest.json"
-                  ls -la coverage-jest/ 2>&1 | head -10
-                else
-                  echo "  ❌ No coverage reports found in apps/web"
-                  echo "    Current directory: $(pwd)"
-                  echo "    Contents: $(ls -la | head -20)"
-                fi
-                
+              done
+              
+              if [ "$COVERAGE_FOUND" = false ]; then
+                echo "  ❌ No coverage report found"
+                echo "    Checked: coverage/coverage-final.json, coverage-jest/coverage-jest.json, coverage/coverage-jest.json"
+                echo "    Working directory: $(pwd)"
+                echo "    Files: $(ls -la 2>/dev/null | grep -E 'coverage|package.json|jest' | head -10 || echo 'none')"
+              fi
+              
+              # Return to root if we went to apps/web
+              if [ -d "../../scripts" ]; then
                 cd ../../
               fi
               
