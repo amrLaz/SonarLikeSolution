@@ -1161,6 +1161,21 @@ def collect_real_sast_metrics() -> dict:
 
     # Calculate real code coverage
     code_coverage = calculate_code_coverage()
+    
+    # Calculate duplication metric (approximation based on affected files density)
+    # Duplication increases when many files have issues relative to total findings
+    num_affected_files = len(affected_files)
+    total_issues = len(all_findings)
+    # Formula: density of issues * baseline = estimate of duplication
+    # Low density (few files affected relative to issues) = low duplication
+    # High density (many files affected) = higher duplication
+    if num_affected_files > 0 and total_issues > 0:
+        # If issues are spread across many files, it's less likely to be duplication
+        # If issues are concentrated in few files, more likely duplication
+        concentration = total_issues / max(num_affected_files, 1)
+        duplication = min(100, max(0, int(concentration * 3)))
+    else:
+        duplication = 0
 
     return {
         "reported_maintainability_score": maintain_score,
@@ -1171,6 +1186,7 @@ def collect_real_sast_metrics() -> dict:
         "reported_security_hotspots":     hotspots,
         "reported_bugs":                  bugs,
         "reported_coverage":              code_coverage,
+        "reported_duplication":           duplication,
         "affected_files":                 affected_files,
         "findings":                       all_findings,  # Include detailed findings for API submission
     }
