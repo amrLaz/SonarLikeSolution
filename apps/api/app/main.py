@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from app.db import init_db
 from app.routes.analysis import router as analysis_router
 from app.routes.gates import router as gates_router
-from app.routes.health import router as health_router
 from app.routes.integrations import router as integrations_router
 from app.routes.platform import router as platform_router
 from app.routes.projects import router as projects_router
@@ -29,13 +28,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(health_router)
 app.include_router(analysis_router)
 app.include_router(gates_router)
 app.include_router(integrations_router)
 app.include_router(platform_router)
 app.include_router(projects_router)
 app.include_router(vulnerabilities_router)
+
+
+@app.get("/api/v1/health")
+async def health() -> dict:
+    """Health check endpoint."""
+    return {"status": "ok"}
 
 
 @app.options("/{full_path:path}")
