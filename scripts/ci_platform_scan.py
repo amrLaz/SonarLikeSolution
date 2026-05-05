@@ -831,6 +831,131 @@ def run_bandit(roots: list[str], ignore_patterns: list[str] | None = None) -> li
 
 # ── Code Coverage Calculation ─────────────────────────────────────────────────
 
+def generate_coverage_reports() -> None:
+    """
+    Auto-generate coverage reports if they don't exist.
+    Detects project type and runs appropriate test commands with coverage.
+    
+    Supports:
+    - Node.js/TypeScript: npm test:coverage or npm run test -- --coverage
+    - Python: pytest --cov or coverage run -m pytest
+    - Java: mvn test jacoco:report
+    - C#/.NET: dotnet test /p:CollectCoverage=true
+    """
+    print("🧪 Checking for existing coverage reports...")
+    
+    # Quick check if any coverage reports exist
+    existing_reports = [
+        ".coverage",
+        "coverage.xml",
+        "coverage/coverage-final.json",
+        "coverage-jest/coverage-jest.json",
+        "coverage/.resultset.json",
+        "coverage.out",
+    ]
+    
+    if any(Path(p).exists() for p in existing_reports):
+        print("   ✅ Coverage reports found, skipping generation")
+        return
+    
+    print("   ⚠️ No coverage reports found, attempting to generate...")
+    
+    # Detect Node.js/TypeScript project
+    if Path("package.json").exists():
+        print("   📦 Detected Node.js/TypeScript project")
+        try:
+            # Try npm test:coverage first (common pattern)
+            result = subprocess.run(
+                ["npm", "test:coverage"],
+                capture_output=True,
+                timeout=180,
+                cwd="."
+            )
+            if result.returncode == 0:
+                print("      ✅ npm test:coverage succeeded")
+                return
+            else:
+                print(f"      ⚠️ npm test:coverage failed, trying npm run test -- --coverage")
+                # Fallback: npm test with coverage flag
+                result = subprocess.run(
+                    ["npm", "run", "test", "--", "--coverage"],
+                    capture_output=True,
+                    timeout=180,
+                    cwd="."
+                )
+                if result.returncode == 0:
+                    print("      ✅ npm test --coverage succeeded")
+                    return
+                else:
+                    stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
+                    print(f"      ⚠️ npm test --coverage failed: {stderr}")
+        except subprocess.TimeoutExpired:
+            print("      ⚠️ npm test timed out (3 min limit)")
+        except FileNotFoundError:
+            print("      ⚠️ npm not found in PATH")
+        except Exception as e:
+            print(f"      ⚠️ Error running npm tests: {e}")
+    
+    # Detect Python project
+    if Path("pytest.ini").exists() or Path("setup.py").exists() or Path("pyproject.toml").exists():
+        print("   🐍 Detected Python project")
+        try:
+            result = subprocess.run(
+                ["pytest", "--cov", "--cov-report=xml", "--cov-report=term"],
+                capture_output=True,
+                timeout=180,
+                cwd="."
+            )
+            if result.returncode == 0:
+                print("      ✅ pytest --cov succeeded")
+                return
+            else:
+                stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
+                print(f"      ⚠️ pytest --cov failed: {stderr}")
+        except FileNotFoundError:
+            print("      ⚠️ pytest not found in PATH")
+        except Exception as e:
+            print(f"      ⚠️ Error running pytest: {e}")
+    
+    # Detect Java project
+    if Path("pom.xml").exists():
+        print("   ☕ Detected Java/Maven project")
+        try:
+            result = subprocess.run(
+                ["mvn", "test", "jacoco:report"],
+                capture_output=True,
+                timeout=300,
+                cwd="."
+            )
+            if result.returncode == 0:
+                print("      ✅ mvn test jacoco:report succeeded")
+                return
+        except FileNotFoundError:
+            print("      ⚠️ mvn not found in PATH")
+        except Exception as e:
+            print(f"      ⚠️ Error running mvn: {e}")
+    
+    # Detect .NET project
+    if Path("*.csproj").exists() or Path("*.sln").exists():
+        print("   🔷 Detected .NET project")
+        try:
+            result = subprocess.run(
+                ["dotnet", "test", "/p:CollectCoverage=true", "/p:CoverletOutputFormat=opencover"],
+                capture_output=True,
+                timeout=300,
+                cwd="."
+            )
+            if result.returncode == 0:
+                print("      ✅ dotnet test with coverage succeeded")
+                return
+        except FileNotFoundError:
+            print("      ⚠️ dotnet not found in PATH")
+        except Exception as e:
+            print(f"      ⚠️ Error running dotnet test: {e}")
+    
+    print("   ℹ️ Could not auto-generate coverage (no test framework detected)")
+
+
 def calculate_code_coverage() -> int:
     """
     Calculate code coverage from available coverage reports.
@@ -1507,6 +1632,12 @@ def run_analysis(api_url: str, token: str | None) -> int:
 
     endpoint  = f"{api_url.rstrip('/')}/api/v1/analyses"
     sast_mode = os.getenv("PLATFORM_REAL_SAST", "true").lower() in {"1", "true", "yes"}
+
+    # Auto-generate coverage reports if missing
+    print("\n📊 Pre-flight: Coverage Report Generation")
+    print("=" * 70)
+    generate_coverage_reports()
+    print()
 
     metrics_payload: dict = {}
     if sast_mode:
