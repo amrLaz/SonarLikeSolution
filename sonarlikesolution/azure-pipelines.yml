@@ -1,0 +1,43 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: ValidateAssets
+    displayName: Validate Shared Pipeline Assets
+    jobs:
+      - job: Validate
+        displayName: Validate templates and script syntax
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install pyyaml
+            displayName: Install validation dependencies
+
+          - script: |
+              python -m py_compile scripts/ci_platform_scan.py
+              python - << 'PY'
+              import yaml
+              with open('templates/sast-stage.yml', 'r', encoding='utf-8') as f:
+                  yaml.safe_load(f)
+              print('Template YAML is valid')
+              PY
+            displayName: Validate YAML + Python syntax

@@ -909,6 +909,12 @@ def calculate_code_coverage() -> int:
             Path("coverage-jest/coverage-jest.json"),
             Path("coverage/coverage-jest.json"),
         ]
+        # Fallback: search recursively (handles apps/web/coverage/, subdirectory structures, etc.)
+        if not any(p.exists() for p in coverage_files):
+            found_recursive = sorted(Path(".").rglob("coverage-final.json"))[:5]
+            if found_recursive:
+                print(f"   🔍 Recursive search found: {[str(p) for p in found_recursive]}")
+            coverage_files = found_recursive or coverage_files
         
         for coverage_file in coverage_files:
             if coverage_file.exists():
@@ -1514,20 +1520,24 @@ def run_analysis(api_url: str, token: str | None) -> int:
 
     # Pull request context — ADO exposes these automatically in PR builds,
     # but branch-policy runs may only expose Build.SourceBranch / Build.Reason.
+    def _resolve_ado_var(val: str) -> str:
+        """Return empty string if val is an unresolved ADO macro like $(VarName)."""
+        return "" if val and re.match(r'^\$\(.*\)$', val.strip()) else val
+
     build_reason = os.getenv("BUILD_REASON", "")
     build_source_branch = os.getenv("BUILD_SOURCEBRANCH", "")
-    pr_id = os.getenv("SYSTEM_PULLREQUEST_PULLREQUESTID", "")
+    pr_id = _resolve_ado_var(os.getenv("SYSTEM_PULLREQUEST_PULLREQUESTID", ""))
     if not pr_id:
         match = re.match(r"refs/pull/(\d+)/merge", build_source_branch)
         if match:
             pr_id = match.group(1)
-    pr_repo_id = os.getenv("BUILD_REPOSITORY_ID", "")
-    pr_ado_project = os.getenv("SYSTEM_TEAMPROJECT", "")
+    pr_repo_id = _resolve_ado_var(os.getenv("BUILD_REPOSITORY_ID", ""))
+    pr_ado_project = _resolve_ado_var(os.getenv("SYSTEM_TEAMPROJECT", ""))
     pr_target_branch = (
-        os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME", "")
-        or os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCH", "")
+        _resolve_ado_var(os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCHNAME", ""))
+        or _resolve_ado_var(os.getenv("SYSTEM_PULLREQUEST_TARGETBRANCH", ""))
     )
-    pr_ado_org_url = os.getenv("SYSTEM_COLLECTIONURI", "").rstrip("/")
+    pr_ado_org_url = _resolve_ado_var(os.getenv("SYSTEM_COLLECTIONURI", "")).rstrip("/")
 
     # Extract findings before merging metrics (findings are not JSON-serializable as Finding objects)
     all_findings = metrics_payload.pop("findings", [])
