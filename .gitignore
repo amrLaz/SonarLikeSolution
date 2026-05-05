@@ -43,11 +43,6 @@ obj/
 #  - /azure-pipelines.yml
 #  - /.agents/**
 #
-apps/
-infra/
-docs/
-docker-compose.yml
-Dockerfile*
 
 # ===== WHITELIST ALLOWED PATHS =====
 !/scripts/
@@ -55,3 +50,17 @@ Dockerfile*
 !/azure-pipelines.yml
 !/.agents/
 
+!/apps/web/src/
+!/apps/web/index.html
+!/apps/web/vite.config.ts
+!/apps/web/tsconfig.json
+!/apps/web/package.json
+!/AGENTS.md
+!/.instructions.md
+!/apps/web/src/
+!/apps/web/index.html
+!/apps/web/vite.config.ts
+!/apps/web/tsconfig.json
+!/apps/web/package.json
+!/AGENTS.md
+!/.instructions.md

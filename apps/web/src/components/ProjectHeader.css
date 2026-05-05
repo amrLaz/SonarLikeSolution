@@ -1,0 +1,179 @@
+.project-header {
+  background: linear-gradient(135deg, #0066cc 0%, #6c40c7 100%);
+  color: white;
+  padding: 2.5rem 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 102, 204, 0.15);
+}
+
+.project-header h1 {
+  color: white;
+  font-size: 28px;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.project-header-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.project-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.project-selector label,
+.branch-selector label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.9;
+}
+
+.project-selector select,
+.branch-selector select {
+  background-color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 12px 14px;
+  font-size: 14px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.project-selector select:hover,
+.branch-selector select:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.project-selector select:focus,
+.branch-selector select:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+.branch-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.branch-dropdown-button {
+  background-color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 12px 14px;
+  font-size: 14px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.branch-dropdown-button:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.branch-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+}
+
+.branch-option {
+  padding: 12px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+  font-size: 14px;
+}
+
+.branch-option:last-child {
+  border-bottom: none;
+}
+
+.branch-option:hover {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding-left: 18px;
+}
+
+.branch-option.active {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.project-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+.stat-item:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.stat-item-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.stat-item-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .project-header-content {
+    grid-template-columns: 1fr;
+  }
+
+  .project-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .project-header h1 {
+    font-size: 24px;
+  }
+}
