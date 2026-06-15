@@ -1006,7 +1006,7 @@ export function App() {
             return "Invalid API error payload";
           }
         })
-        .filter((part) => part && part.trim().length > 0);
+        .filter((part) => typeof part === "string" && part.trim().length > 0);
 
       return parts.length > 0 ? parts.join("; ") : null;
     }
@@ -1991,21 +1991,18 @@ export function App() {
       {adminMessage && <p className="feedback success">{adminMessage}</p>}
 
       {activeTab === "projects" && (
-        <section className="content-wrapper">
-          <aside className="sidebar-left">
-            <h3>Projects</h3>
-            <div className="filter-section">
-              <p className="filter-label">Summary</p>
-              <p className="filter-stat">Total: {filteredSummaries.length}</p>
-              <p className="filter-stat">✓ Passed: {filteredSummaries.filter((item) => item.latest.quality_gate === "pass").length}</p>
-              <p className="filter-stat">✗ Failed: {filteredSummaries.filter((item) => item.latest.quality_gate === "fail").length}</p>
-            </div>
-            <div className="filter-buttons">
-              <button className="filter-btn" onClick={() => setProjectSearch("")}>All projects</button>
-              <button className="filter-btn" onClick={() => setProjectSearch("api")}>Filter: API</button>
+        <section className="content-grid">
+          <aside className="left-filters">
+            <h3>Filters</h3>
+            <p>Projects: {filteredSummaries.length}</p>
+            <p>Passed: {filteredSummaries.filter((item) => item.latest.quality_gate === "pass").length}</p>
+            <p>Failed: {filteredSummaries.filter((item) => item.latest.quality_gate === "fail").length}</p>
+            <div className="action-row">
+              <button type="button" onClick={() => setProjectSearch("")}>All projects</button>
+              <button type="button" onClick={() => setProjectSearch("api")}>Focus API</button>
             </div>
           </aside>
-          <div className="main-content">
+          <div className="project-list">
             {/* Always visible dropdowns */}
             <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "24px" }}>
               <div style={{ flex: 1 }}>
@@ -2625,12 +2622,27 @@ export function App() {
       )}
 
       {activeTab === "issues" && (
-        <section className="two-pane-wrapper">
-          <aside className="sidebar-left">
+        <section className="two-pane-screen issues-screen">
+          {/* ── Project Header ──────────────────────────────── */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <ProjectHeader
+              selectedSummary={selectedSummary}
+              allSummaries={summaries}
+              onProjectChange={(projectKey) => {
+                setSelectedProject(projectKey);
+                setSelectedBranch("");
+              }}
+              onBranchChange={setSelectedBranch}
+              selectedBranch={selectedBranch}
+            />
+          </div>
+
+          {/* ── Left sidebar filters ──────────────────────────────── */}
+          <aside className="issues-sidebar">
             <h3>Filters</h3>
 
-            <div className="filter-section">
-              <p className="filter-label">Project</p>
+            <div className="issue-filter-group">
+              <p className="issue-filter-label">Project</p>
               <select
                 value={issueProjectFilter}
                 onChange={(e) => setIssueProjectFilter(e.target.value)}
@@ -2642,62 +2654,55 @@ export function App() {
               </select>
             </div>
 
-            <div className="filter-section">
-              <p className="filter-label">Type</p>
-              <div className="filter-buttons">
-                {(["all", "vulnerability", "bug", "code_smell", "hotspot"] as IssueTypeFilter[]).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`filter-btn${issueTypeFilter === t ? " active" : ""}`}
-                    onClick={() => setIssueTypeFilter(t)}
-                  >
-                    {t === "all" ? "All types" : t === "code_smell" ? "Code Smell" : t.charAt(0).toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
-              </div>
+            <div className="issue-filter-group">
+              <p className="issue-filter-label">Type</p>
+              {(["all", "vulnerability", "bug", "code_smell", "hotspot"] as IssueTypeFilter[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`issue-filter-btn${issueTypeFilter === t ? " active" : ""}`}
+                  onClick={() => setIssueTypeFilter(t)}
+                >
+                  {t === "all" ? "All types" : t === "code_smell" ? "Code Smell" : t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
 
-            <div className="filter-section">
-              <p className="filter-label">Severity</p>
-              <div className="filter-buttons">
-                {(["all", "blocker", "high", "medium", "low", "info"] as IssueSeverityFilter[]).map((sev) => (
-                  <button
-                    key={sev}
-                    type="button"
-                    className={`filter-btn${issueSeverityFilter === sev ? " active" : ""}`}
-                    onClick={() => setIssueSeverityFilter(sev)}
-                  >
-                    {sev === "all" ? "All severities" : sev.charAt(0).toUpperCase() + sev.slice(1)}
-                  </button>
-                ))}
-              </div>
+            <div className="issue-filter-group">
+              <p className="issue-filter-label">Severity</p>
+              {(["all", "blocker", "high", "medium", "low", "info"] as IssueSeverityFilter[]).map((sev) => (
+                <button
+                  key={sev}
+                  type="button"
+                  className={`issue-filter-btn${issueSeverityFilter === sev ? " active" : ""}`}
+                  onClick={() => setIssueSeverityFilter(sev)}
+                >
+                  {sev === "all" ? "All severities" : sev.charAt(0).toUpperCase() + sev.slice(1)}
+                </button>
+              ))}
             </div>
 
-            <div className="filter-section">
-              <p className="filter-label">Rule</p>
+            <div className="issue-filter-group">
+              <p className="issue-filter-label">Rule</p>
               <input
                 placeholder="Filter by rule…"
                 value={issueRuleFilter}
                 onChange={(e) => setIssueRuleFilter(e.target.value)}
-                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)" }}
               />
             </div>
 
-            <div className="filter-section">
-              <p className="filter-label">File</p>
+            <div className="issue-filter-group">
+              <p className="issue-filter-label">File</p>
               <input
                 placeholder="Filter by file path…"
                 value={issueFileFilter}
                 onChange={(e) => setIssueFileFilter(e.target.value)}
-                style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border)" }}
               />
             </div>
 
             <button
               type="button"
-              className="filter-btn"
-              style={{ width: "100%", marginTop: "1rem" }}
+              style={{ marginTop: "0.75rem", width: "100%" }}
               onClick={() => {
                 setIssueSeverityFilter("all");
                 setIssueTypeFilter("all");
@@ -2710,21 +2715,11 @@ export function App() {
             </button>
           </aside>
 
-          <div className="main-content">
-            <ProjectHeader
-              selectedSummary={selectedSummary}
-              allSummaries={summaries}
-              onProjectChange={(projectKey) => {
-                setSelectedProject(projectKey);
-                setSelectedBranch("");
-              }}
-              onBranchChange={setSelectedBranch}
-              selectedBranch={selectedBranch}
-            />
-
-            <header className="issues-header">
-              <h2>Issues</h2>
-              <p>
+          {/* ── Right issues list ─────────────────────────────────── */}
+          <div className="issues-main">
+            <header className="issues-toolbar">
+              <h2 style={{ margin: 0 }}>Issues</h2>
+              <p style={{ margin: 0, color: "var(--ink-soft)", fontSize: "0.9rem" }}>
                 {filteredIssueDetails.length} issue{filteredIssueDetails.length !== 1 ? "s" : ""}
                 {allIssueDetails.length > 0 && filteredIssueDetails.length < allIssueDetails.length
                   ? ` (filtered from ${allIssueDetails.length})`
@@ -2733,7 +2728,7 @@ export function App() {
             </header>
 
             {filteredIssueDetails.length === 0 ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-secondary)" }}>
+              <div className="issues-empty">
                 {allIssueDetails.length === 0
                   ? "No findings in the database yet. Trigger a pipeline run to populate issues."
                   : "No issues match the current filters."}
@@ -2867,46 +2862,44 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
       )}
 
       {activeTab === "rules" && (
-        <section className="two-pane-wrapper">
-          <aside className="sidebar-left">
-            <h3>Rule Categories</h3>
+        <section className="two-pane-screen">
+          <aside className="rules-sidebar">
+            <h3>Filters</h3>
             {RULE_FILTER_GROUPS.map((group) => (
-              <div key={group} className="filter-section">
+              <div key={group}>
                 <button
                   type="button"
-                  className="filter-btn"
-                  style={{ width: "100%" }}
+                  className="accordion-row"
                   onClick={() => toggleRuleFilter(group)}
                 >
                   <span>{group}</span>
                   <span>{expandedRuleFilters[group] ? "▾" : "▸"}</span>
                 </button>
                 {expandedRuleFilters[group] && (
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <button type="button" className="filter-btn" style={{ width: "100%", marginBottom: "0.25rem" }} onClick={() => setRuleSearch(group)}>
+                  <div className="action-row">
+                    <button type="button" onClick={() => setRuleSearch(group)}>
                       Filter
                     </button>
-                    <button type="button" className="filter-btn" style={{ width: "100%" }} onClick={() => setRuleSearch("")}>Reset</button>
+                    <button type="button" onClick={() => setRuleSearch("")}>Reset</button>
                   </div>
                 )}
               </div>
             ))}
           </aside>
-          <div className="main-content">
-            <header style={{ marginBottom: "1.5rem" }}>
+          <div className="rules-main">
+            <header className="rules-toolbar">
               <input
                 placeholder="Search for rules..."
                 value={ruleSearch}
                 onChange={(event) => setRuleSearch(event.target.value)}
-                style={{ width: "100%", padding: "10px", marginBottom: "1rem", borderRadius: "4px", border: "1px solid var(--border)" }}
               />
-              <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+              <div className="action-row">
                 <button type="button" onClick={() => bulkMarkRules("pass")}>Mark compliant</button>
                 <button type="button" onClick={() => bulkMarkRules("fail")}>Mark needs action</button>
               </div>
               <p>{filteredRules.length} rules</p>
             </header>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+            <div className="content-grid">
               <div className="rules-list">
                 {filteredRules.map((rule) => (
                   <article
@@ -2965,35 +2958,31 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
       )}
 
       {activeTab === "quality-gates" && (
-        <section className="two-pane-wrapper">
-          <aside className="sidebar-left">
-            <h3>Quality Gates</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
-              <button type="button" className="filter-btn" style={{ width: "100%" }} onClick={createGate}>Create new</button>
+        <section className="two-pane-screen">
+          <aside className="gates-sidebar">
+            <div className="gates-head">
+              <h3>Quality Gates</h3>
+              <button type="button" onClick={createGate}>Create</button>
             </div>
-            {gateLibrary.map((gateItem) => (
-              <button
-                key={gateItem.gate_id}
-                type="button"
-                className={`filter-btn${selectedGateId === gateItem.gate_id ? " active" : ""}`}
-                style={{ width: "100%", marginBottom: "0.5rem", textAlign: "left" }}
-                onClick={() => setSelectedGateId(gateItem.gate_id)}
-              >
-                <span>{gateItem.name}</span>
-                <small style={{ display: "block", fontSize: "11px", opacity: 0.7 }}>{gateItem.projectCount} projects</small>
-              </button>
-            ))}
+            <ul>
+              {gateLibrary.map((gateItem) => (
+                <li key={gateItem.gate_id} className={selectedGateId === gateItem.gate_id ? "active" : ""}>
+                  <button type="button" onClick={() => setSelectedGateId(gateItem.gate_id)}>
+                    <span>{gateItem.name}</span>
+                    <small>{gateItem.projectCount} projects</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </aside>
-          <div className="main-content">
-            <header style={{ marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2 style={{ margin: 0 }}>{selectedGate?.name ?? gate?.name ?? "Default Gate"}</h2>
-                <button type="button" onClick={() => void saveSelectedGate()} disabled={savingGate}>
-                  {savingGate ? "Saving..." : "Save"}
-                </button>
-              </div>
-              <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", opacity: 0.7 }}>Conditions on {scopeMode === "new-code" ? "New Code" : "Overall Code"}</p>
+          <div className="gates-main">
+            <header className="gates-title-row">
+              <h2>{selectedGate?.name ?? gate?.name ?? "Default Gate"}</h2>
+              <button type="button" onClick={() => void saveSelectedGate()} disabled={savingGate}>
+                {savingGate ? "Saving..." : "Save"}
+              </button>
             </header>
+            <p className="hint">Conditions on {scopeMode === "new-code" ? "New Code" : "Overall Code"}</p>
             <div className="gate-conditions">
               <label>
                 Gate name
@@ -3095,20 +3084,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
       )}
 
       {activeTab === "evolution" && (
-        <section className="content-wrapper">
-          <aside className="sidebar-left">
-            <h3>Project</h3>
-            <div className="filter-section">
-              <p className="filter-label">Selected</p>
-              <p className="filter-stat" style={{ fontWeight: "bold" }}>{selectedProject}</p>
-              <p className="filter-stat">Branch: {selectedBranch}</p>
-            </div>
-            <button className="filter-btn" style={{ width: "100%" }} onClick={() => {
-              setSelectedProject("");
-              setSelectedBranch("");
-            }}>Clear selection</button>
-          </aside>
-          <div className="main-content">
+        <section className="panel">
 
           {selectedSummary ? (
             <>
@@ -3202,47 +3178,42 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
           ) : (
             <p>No project selected.</p>
           )}
-          </div>
         </section>
       )}
 
       {activeTab === "administration" && canAccessAdministration && (
-        <section className="content-wrapper">
-          <aside className="sidebar-left">
-            <h3>Administration</h3>
-            <div className="filter-section">
-              {ADMIN_PRIMARY_TABS.map((tab) => (
-                <button
-                  type="button"
-                  key={tab.id}
-                  className={`filter-btn${activeAdminTab === tab.id ? " active" : ""}`}
-                  style={{ width: "100%", marginBottom: "0.5rem", textAlign: "left" }}
-                  onClick={() => {
-                    setActiveAdminTab(tab.id);
-                    setActiveAdminSection(ADMIN_NAV_BY_TAB[tab.id][0].id);
-                  }}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <div className="filter-section">
-              <p className="filter-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>{ADMIN_PRIMARY_TABS.find(t => t.id === activeAdminTab)?.label}</p>
+        <section className="admin-screen">
+          <div className="admin-top-nav">
+            {ADMIN_PRIMARY_TABS.map((tab) => (
+              <button
+                type="button"
+                key={tab.id}
+                className={activeAdminTab === tab.id ? "active" : ""}
+                onClick={() => {
+                  setActiveAdminTab(tab.id);
+                  setActiveAdminSection(ADMIN_NAV_BY_TAB[tab.id][0].id);
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-body">
+            <aside className="admin-side-menu">
               {ADMIN_NAV_BY_TAB[activeAdminTab].map((item) => (
                 <button
                   type="button"
                   key={item.id}
-                  className={`filter-btn${activeAdminSection === item.id ? " active" : ""}`}
-                  style={{ width: "100%", marginBottom: "0.25rem", textAlign: "left", fontSize: "0.9rem" }}
+                  className={activeAdminSection === item.id ? "active" : ""}
                   onClick={() => setActiveAdminSection(item.id)}
                 >
                   {item.label}
                 </button>
               ))}
-            </div>
-          </aside>
+            </aside>
 
-          <div className="main-content">
+            <section className="admin-content">
               {activeAdminSection === "general-settings" && (
                 <>
                   <h2>General Settings</h2>
@@ -4151,6 +4122,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                   })()}
                 </>
               )}
+            </section>
           </div>
         </section>
       )}
