@@ -1,38 +1,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # SAST Platform — CI/CD (GitHub Actions)
 #
-# Ce que fait cette pipeline, étape par étape :
+# Auth Azure : OIDC via federated credential "github-sast-master"
+# App registration : APP-UP-FR-DEVOPS-FABRIK-01 (5a8a3282-fe0c-4cbe-bb5d-1683893c212b)
+# Aucun secret Azure à stocker — GitHub présente un token OIDC à Entra ID.
 #
-#   Déclencheur : push sur main/master touchant le code applicatif ou le Dockerfile
-#
-#   Job 1 — build
-#     1. Checkout du code source (GitHub)
-#     2. Authentification Azure via le SP (secret AZURE_CREDENTIALS)
-#     3. Login ACR via token exposé par az acr login (pas besoin de ACR admin creds)
-#     4. Build Docker multi-stage (Node → React SPA + Python → FastAPI)
-#     5. Push de l'image vers ACR avec deux tags :
-#          upgroup.azurecr.io/sast-platform:<numéro-de-build>   ← tag immuable
-#          upgroup.azurecr.io/sast-platform:latest               ← tag flottant
-#     6. Cache layers dans ACR → rebuilds rapides (~2 min)
-#
-#   Job 2 — deploy  (dépend de job 1)
-#     1. Mise à jour de la revision active du Container App avec le tag immuable
-#     2. Affichage de l'URL de la plateforme
-#
-# Infra (Terraform) : gérée dans devops-governance/sast-platform/
-#
-# GitHub Environment "SAST-Plateform" — secrets et variables à configurer :
+# GitHub Environment "SAST-Plateform" — configuration requise :
 #
 #   Secrets :
-#     AZURE_CREDENTIALS     JSON du SP :
-#                             az ad sp create-for-rbac --name "sp-sast-github" \
-#                               --role contributor \
-#                               --scopes /subscriptions/6936e3c2-.../resourceGroups/up-france-odi-sast-prod-rg \
-#                               --sdk-auth
 #     ACR_LOGIN_SERVER      upgroup.azurecr.io
-#     CONTAINER_APP_NAME    up-france-odi-sast-prod-app  (output Terraform : container_app_name)
+#     CONTAINER_APP_NAME    up-france-odi-sast-prod-app
 #
 #   Variables :
+#     AZURE_CLIENT_ID       5a8a3282-fe0c-4cbe-bb5d-1683893c212b
+#     AZURE_TENANT_ID       475fd1d1-212f-472f-9c02-635526f47568
+#     AZURE_SUBSCRIPTION_ID 6936e3c2-8d29-4883-892b-9490850e9caa
 #     AZURE_RESOURCE_GROUP  up-france-odi-sast-prod-rg
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -60,7 +42,7 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false   # ne jamais interrompre un déploiement en cours
+  cancel-in-progress: false
 
 env:
   IMAGE_NAME: sast-platform
@@ -71,20 +53,26 @@ jobs:
   build:
     name: "Build & push image → ACR"
     runs-on: ubuntu-latest
-    environment: SAST-Plateform   # donne accès aux secrets de l'environnement
+    environment: SAST-Plateform
     outputs:
       image_tag: ${{ env.IMAGE_TAG }}
+
+    permissions:
+      id-token: write   # requis pour l'auth OIDC
+      contents: read
 
     steps:
       - name: "1. Checkout"
         uses: actions/checkout@v4
 
-      - name: "2. Login Azure (SP)"
+      - name: "2. Login Azure (OIDC)"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "3. Login ACR via SP token"
+      - name: "3. Login ACR via token OIDC"
         run: |
           TOKEN=$(az acr login \
             --name "$(echo '${{ secrets.ACR_LOGIN_SERVER }}' | cut -d. -f1)" \
@@ -116,13 +104,19 @@ jobs:
       name: SAST-Plateform
       url: https://${{ secrets.CONTAINER_APP_NAME }}.azurecontainerapps.io
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: "1. Login Azure (SP)"
+      - name: "1. Login Azure (OIDC)"
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "2. Mettre à jour le Container App avec la nouvelle image"
+      - name: "2. Mettre à jour le Container App"
         run: |
           az containerapp update \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
@@ -144,11 +138,8 @@ jobs:
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
             --query "properties.configuration.ingress.fqdn" \
             --output tsv)
-          echo ""
           echo "════════════════════════════════════════════════════════"
           echo "  Déploiement terminé — image :${{ needs.build.outputs.image_tag }}"
           echo "  Platform URL : https://${FQDN}"
-          echo ""
-          echo "  → Mettre à jour PLATFORM_API_URL dans le Variable Group"
-          echo "    Commercant.Common (Azure DevOps) avec cette URL."
+          echo "  → Mettre à jour PLATFORM_API_URL dans Commercant.Common (ADO)"
           echo "════════════════════════════════════════════════════════"
