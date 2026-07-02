@@ -1,23 +1,43 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # SAST Platform — CI/CD (GitHub Actions)
 #
-# Triggers on push to main/master touching the app or Dockerfile.
-# Builds the combined Docker image, pushes to ACR, deploys to App Service.
+# Ce que fait cette pipeline, étape par étape :
 #
-# GitHub Secrets to configure (Settings → Secrets and variables → Actions):
-#   AZURE_CREDENTIALS          JSON output of:
-#                               az ad sp create-for-rbac \
-#                                 --name "sp-sast-github" \
-#                                 --role contributor \
-#                                 --scopes /subscriptions/<id>/resourceGroups/rg-sast-prod \
-#                                 --sdk-auth
-#   ACR_USERNAME               az acr credential show --name upgroup --query username -o tsv
-#   ACR_PASSWORD               az acr credential show --name upgroup --query passwords[0].value -o tsv
+#   Déclencheur : push sur main/master touchant le code applicatif ou le Dockerfile
 #
-# GitHub Variables (Settings → Secrets and variables → Variables):
-#   ACR_LOGIN_SERVER           upgroup.azurecr.io
-#   APP_SERVICE_NAME           sast-app-prod
-#   AZURE_RESOURCE_GROUP       rg-sast-prod
+#   Job 1 — build
+#     1. Checkout du code source (GitHub)
+#     2. Authentification à Azure (via secret AZURE_CREDENTIALS)
+#     3. Login au registre de containers partagé (upgroup.azurecr.io)
+#     4. Build Docker multi-stage (Node → React SPA + Python → FastAPI)
+#        Le résultat est un seul container qui sert à la fois l'API et le frontend.
+#     5. Push de l'image vers ACR avec deux tags :
+#          upgroup.azurecr.io/sast-platform:<numéro-de-build>   ← tag immuable
+#          upgroup.azurecr.io/sast-platform:latest               ← tag flottant
+#     6. Le layer cache est stocké dans ACR (buildcache) → rebuilds rapides (~2 min)
+#
+#   Job 2 — deploy  (dépend de job 1)
+#     1. Mise à jour de la revision active du Container App avec le nouveau tag
+#        via `az containerapp update --image <tag-immuable>`
+#     2. Affichage de l'URL de la plateforme (à copier dans le Variable Group ADO)
+#
+# Infra (Terraform) : gérée séparément dans devops-governance/sast-platform/
+#   → Exécuter manuellement : terraform apply -var-file=variables/production.tfvars
+#
+# GitHub Secrets à configurer (Settings → Secrets and variables → Actions) :
+#   AZURE_CREDENTIALS   Sortie JSON de :
+#                         az ad sp create-for-rbac \
+#                           --name "sp-sast-github" \
+#                           --role contributor \
+#                           --scopes /subscriptions/6936e3c2-8d29-4883-892b-9490850e9caa/resourceGroups/rg-sast-prod \
+#                           --sdk-auth
+#   ACR_USERNAME        az acr credential show --name upgroup --query username -o tsv
+#   ACR_PASSWORD        az acr credential show --name upgroup --query passwords[0].value -o tsv
+#
+# GitHub Variables (Settings → Secrets and variables → Variables) :
+#   ACR_LOGIN_SERVER        upgroup.azurecr.io
+#   CONTAINER_APP_NAME      sast-platform-prod-app   (sortie Terraform : container_app_name)
+#   AZURE_RESOURCE_GROUP    rg-sast-prod
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Deploy SAST Platform
@@ -34,50 +54,49 @@ on:
       - "Dockerfile"
       - ".github/workflows/deploy-platform.yml"
 
-  # Allow manual trigger from the Actions tab
   workflow_dispatch:
     inputs:
       force_rebuild:
-        description: "Force image rebuild even without code changes"
+        description: "Forcer un rebuild même sans changement de code"
         type: boolean
         default: false
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false   # never interrupt an in-progress deploy
+  cancel-in-progress: false   # ne jamais interrompre un déploiement en cours
 
 env:
   IMAGE_NAME: sast-platform
   IMAGE_TAG: ${{ github.run_number }}
 
 jobs:
-  # ── Job 1: Build & push Docker image to ACR ──────────────────────────────
+  # ── Job 1 : Build & push l'image Docker vers ACR ─────────────────────────
   build:
-    name: Build & push image
+    name: "Build & push image → ACR"
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ env.IMAGE_TAG }}
 
     steps:
-      - name: Checkout
+      - name: "1. Checkout"
         uses: actions/checkout@v4
 
-      - name: Log in to Azure
+      - name: "2. Login Azure"
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to ACR
+      - name: "3. Login ACR (upgroup.azurecr.io)"
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.ACR_LOGIN_SERVER }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Set up Docker Buildx
+      - name: "4. Setup Docker Buildx"
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: "5. Build multi-stage + push"
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -86,80 +105,53 @@ jobs:
           tags: |
             ${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          # Cache stocké dans ACR — évite de retélécharger node_modules et pip à chaque build
           cache-from: type=registry,ref=${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to:   type=registry,ref=${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
-  # ── Job 2: Deploy to Azure App Service ────────────────────────────────────
+  # ── Job 2 : Déployer la nouvelle image sur Azure Container Apps ────────────
   deploy:
-    name: Deploy to App Service
+    name: "Deploy → Container Apps"
     runs-on: ubuntu-latest
     needs: build
     environment:
       name: production
-      url: https://${{ vars.APP_SERVICE_NAME }}.azurewebsites.net
+      # L'URL est affichée dans l'onglet "Environments" de GitHub après déploiement
+      url: https://${{ vars.CONTAINER_APP_FQDN }}
 
     steps:
-      - name: Log in to Azure
+      - name: "1. Login Azure"
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy container to App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ vars.APP_SERVICE_NAME }}
-          images: ${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}
-
-      - name: Restart App Service
+      - name: "2. Mettre à jour le Container App avec la nouvelle image"
         run: |
-          az webapp restart \
-            --name ${{ vars.APP_SERVICE_NAME }} \
-            --resource-group ${{ vars.AZURE_RESOURCE_GROUP }}
+          az containerapp update \
+            --name "${{ vars.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ vars.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
 
-      - name: Print platform URL
+      - name: "3. Vérifier que la révision est active"
         run: |
+          az containerapp revision list \
+            --name "${{ vars.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "[0].{name:name, state:properties.runningState, replicas:properties.replicas}" \
+            --output table
+
+      - name: "4. URL de la plateforme"
+        run: |
+          FQDN=$(az containerapp show \
+            --name "${{ vars.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
           echo ""
-          echo "════════════════════════════════════════════════════"
-          echo "  ✅ Deployment complete"
-          echo "  Platform URL: https://${{ vars.APP_SERVICE_NAME }}.azurewebsites.net"
+          echo "════════════════════════════════════════════════════════"
+          echo "  ✅ Déploiement terminé — image :${{ needs.build.outputs.image_tag }}"
+          echo "  Platform URL : https://${FQDN}"
           echo ""
-          echo "  → Update PLATFORM_API_URL in your Azure DevOps"
-          echo "    Variable Group (Commercant.Common) to this URL."
-          echo "════════════════════════════════════════════════════"
-
-  # ── Job 3: Terraform (infrastructure changes only, manual trigger) ────────
-  terraform:
-    name: Terraform plan/apply
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    environment: production
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~1.5"
-
-      - name: Terraform Init
-        working-directory: deploy/terraform
-        run: terraform init
-
-      - name: Terraform Plan
-        working-directory: deploy/terraform
-        env:
-          TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-        run: terraform plan -out=tfplan -input=false
-
-      - name: Terraform Apply
-        working-directory: deploy/terraform
-        env:
-          TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-        run: terraform apply -auto-approve -input=false tfplan
+          echo "  → Mettre à jour PLATFORM_API_URL dans le Variable Group"
+          echo "    Commercant.Common (Azure DevOps) avec cette URL."
+          echo "════════════════════════════════════════════════════════"
