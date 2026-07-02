@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAST Platform – CI/CD pipeline
+#
+# Builds the combined Docker image (FastAPI + React SPA) and deploys it to
+# Azure App Service.
+#
+# Prerequisites (set once in Azure DevOps):
+#   1. Variable Group "sast-platform-deploy" containing:
+#        ACR_NAME              e.g. upcoopsastacr
+#        APP_SERVICE_NAME      e.g. sast-app-prod
+#        ACR_SERVICE_CONNECTION   name of the ACR service connection
+#        AZURE_SERVICE_CONNECTION name of the ARM service connection
+#        POSTGRES_PASSWORD     (secret) PostgreSQL admin password
+#        PLATFORM_API_TOKEN    (secret) token for CI scanner submissions
+#
+#   2. After first deploy: update PLATFORM_API_URL in your scanner Variable
+#      Group ("Commercant.Common" or equivalent) to the App Service URL printed
+#      in the "Outputs" step below.
+# ─────────────────────────────────────────────────────────────────────────────
+
+trigger:
+  branches:
+    include:
+      - master
+      - main
+  paths:
+    include:
+      - apps/api/**
+      - apps/web/src/**
+      - apps/web/index.html
+      - apps/web/vite.config.ts
+      - apps/web/tsconfig.json
+      - Dockerfile
+
+pr: none   # platform deploys only on merge, not on PR open
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: sast-platform-deploy
+  - name: imageRepository
+    value: sast-platform
+  - name: tag
+    value: $(Build.BuildId)
+  - name: latestTag
+    value: latest
+
+# ─── Stage 1 : Build & push image to ACR ─────────────────────────────────────
+stages:
+- stage: BuildAndPush
+  displayName: 'Build & push Docker image'
+  jobs:
+  - job: Docker
+    displayName: 'Build combined image (API + SPA)'
+    steps:
+
+    - task: Docker@2
+      displayName: 'Build and push $(imageRepository):$(tag)'
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: Dockerfile
+        containerRegistry: $(ACR_SERVICE_CONNECTION)
+        tags: |
+          $(tag)
+          $(latestTag)
+
+    - script: |
+        echo "##vso[task.setvariable variable=IMAGE_TAG;isOutput=true]$(tag)"
+      name: setTag
+      displayName: 'Export image tag for next stage'
+
+# ─── Stage 2 : Deploy to App Service ─────────────────────────────────────────
+- stage: Deploy
+  displayName: 'Deploy to Azure App Service'
+  dependsOn: BuildAndPush
+  variables:
+    deployedTag: $[ stageDependencies.BuildAndPush.Docker.outputs['setTag.IMAGE_TAG'] ]
+  jobs:
+  - deployment: DeployContainer
+    displayName: 'Deploy $(imageRepository):$(deployedTag)'
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy container to App Service'
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              appName: $(APP_SERVICE_NAME)
+              containers: $(ACR_NAME).azurecr.io/$(imageRepository):$(deployedTag)
+
+          # Update POSTGRES_PASSWORD app setting on every deploy so it stays in
+          # sync with the secret variable (avoids a manual portal step).
+          - task: AzureAppServiceSettings@1
+            displayName: 'Sync secret app settings'
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              appName: $(APP_SERVICE_NAME)
+              appSettings: |
+                [
+                  { "name": "POSTGRES_PASSWORD", "value": "$(POSTGRES_PASSWORD)", "slotSetting": false }
+                ]
+
+          - task: AzureAppServiceManage@0
+            displayName: 'Restart App Service'
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              action: 'Restart Azure App Service'
+              webAppName: $(APP_SERVICE_NAME)
+
+          - script: |
+              echo ""
+              echo "════════════════════════════════════════════"
+              echo "  Deployment complete."
+              echo "  Update PLATFORM_API_URL in your scanner"
+              echo "  Variable Group to point to App Service:"
+              echo "  https://$(APP_SERVICE_NAME).azurewebsites.net"
+              echo "════════════════════════════════════════════"
+            displayName: 'Print platform URL reminder'

@@ -1,0 +1,35 @@
+.git
+.gitignore
+*.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+apps/api/.venv
+apps/api/htmlcov
+apps/api/coverage.xml
+apps/api/.pytest_cache
+
+# Node – rebuilt inside the Docker stage
+apps/web/node_modules
+apps/web/dist
+# package.json is a broken root-owned directory on this machine; it is
+# inlined in the Dockerfile instead (safe to exclude in all environments)
+apps/web/package.json
+apps/web/package-lock.json
+apps/web/coverage-final.json
+
+# Local dev files
+docker-compose.yml
+docker-compose.override.yml
+infra/
+scripts/
+tests/
+*.env
+.env*
+
+# CI artefacts
+coverage/
+htmlcov/
+*.xml
