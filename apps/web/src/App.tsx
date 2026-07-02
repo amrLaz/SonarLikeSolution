@@ -8,6 +8,7 @@ const API_BASE =
   (import.meta.env.DEV ? "http://127.0.0.1:8000/api" : "/api");
 const LOCAL_STORAGE_GATE_LIBRARY_KEY = "sast-quality-gates-v1";
 const LOCAL_STORAGE_SESSION_KEY = "sast-platform-session-v1";
+const LOCAL_STORAGE_NAV_KEY = "sast-nav-v1";
 const DEFAULT_TOKEN_TTL_DAYS = 90;
 
 type ApiConnectionState = "connected" | "disconnected" | "checking";
@@ -45,6 +46,7 @@ type AnalysisMetrics = {
   security_hotspots: number;
   bugs: number;
   coverage: number;
+  dependency_vulnerabilities?: number;
   affected_files?: Record<string, FindingIssue[]>;
 };
 
@@ -153,6 +155,20 @@ type PlatformTokenHistoryItem = {
   created_at: string;
   expires_at: string;
   is_current: boolean;
+};
+
+type PlatformSettings = {
+  instance_name: string;
+  report_max_size_mb: string;
+  global_source_exclusions: string;
+  source_file_exclusions: string;
+};
+
+const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  instance_name: "Upcoop SonarLike Platform",
+  report_max_size_mb: "450",
+  global_source_exclusions: "**/__tests__/**,**/*.snap",
+  source_file_exclusions: "**/*.generated.*,**/coverage/**",
 };
 
 type DevOpsProviderTab = "github" | "bitbucket" | "azure-devops" | "gitlab";
@@ -312,9 +328,24 @@ const linePoints = (values: number[], width = 360, height = 130) => {
 };
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>("projects");
-  const [activeAdminTab, setActiveAdminTab] = useState<AdminPrimaryTab>("configuration");
-  const [activeAdminSection, setActiveAdminSection] = useState<AdminSection>("general-settings");
+  const [activeTab, setActiveTab] = useState<AppTab>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? "{}");
+      return (saved.tab as AppTab) ?? "projects";
+    } catch { return "projects"; }
+  });
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminPrimaryTab>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? "{}");
+      return (saved.adminTab as AdminPrimaryTab) ?? "configuration";
+    } catch { return "configuration"; }
+  });
+  const [activeAdminSection, setActiveAdminSection] = useState<AdminSection>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? "{}");
+      return (saved.adminSection as AdminSection) ?? "general-settings";
+    } catch { return "general-settings"; }
+  });
   const [scopeMode, setScopeMode] = useState<ScopeMode>("overall");
   const [projectSearch, setProjectSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
@@ -349,6 +380,8 @@ export function App() {
   const [gateMessage, setGateMessage] = useState<string | null>(null);
   const [runMessage, setRunMessage] = useState<string | null>(null);
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
+  const [savingPlatformSettings, setSavingPlatformSettings] = useState(false);
   const [platformTokenConfigured, setPlatformTokenConfigured] = useState<boolean | null>(null);
   const [platformTokenExpired, setPlatformTokenExpired] = useState(false);
   const [platformTokenExpiresAt, setPlatformTokenExpiresAt] = useState<string | null>(null);
@@ -370,7 +403,9 @@ export function App() {
   const [azureDevOpsConfigForm, setAzureDevOpsConfigForm] = useState({
     config_name: "",
     organization_url: "https://dev.azure.com/your-organization",
-    personal_access_token: ""
+    personal_access_token: "",
+    repo_import_enabled: false,
+    quality_gate_enabled: false
   });
 
   const [gateForm, setGateForm] = useState({
@@ -758,17 +793,33 @@ export function App() {
     }
 
     const affectedFiles = branchAnalysis.metrics.affected_files ?? {};
-    return Object.entries(affectedFiles).flatMap(([filePath, issues]) =>
-      (issues ?? []).map((issue, index) => ({
-        id: `${filePath}:${issue.line}:${issue.rule}:${index}`,
-        file_path: filePath,
-        line: issue.line,
-        end_line: issue.end_line,
-        rule: issue.rule,
-        message: issue.message,
-        severity: String(issue.severity).toUpperCase()
-      }))
-    );
+    return Object.entries(affectedFiles).flatMap(([filePath, fileData]) => {
+      // Handle both old format (array of issues) and new format (severity/issues object)
+      if (Array.isArray(fileData)) {
+        return fileData.map((issue, index) => ({
+          id: `${filePath}:${issue.line}:${issue.rule}:${index}`,
+          file_path: filePath,
+          line: issue.line,
+          end_line: issue.end_line,
+          rule: issue.rule,
+          message: issue.message,
+          severity: String(issue.severity).toUpperCase()
+        }));
+      } else if (fileData && typeof fileData === 'object') {
+        // New format: {severity: "high", issues: 1}
+        const issues = fileData.issues || 0;
+        return Array.from({length: issues}, (_, index) => ({
+          id: `${filePath}:${index}`,
+          file_path: filePath,
+          line: 0,
+          end_line: 0,
+          rule: 'ISSUE',
+          message: `${issues} issue(s) in file`,
+          severity: String(fileData.severity ?? 'INFO').toUpperCase()
+        }));
+      }
+      return [];
+    });
   }, [selectedSummary, selectedBranch, selectedProjectAnalyses]);
 
   const allIssueDetails = useMemo(() => {
@@ -779,21 +830,41 @@ export function App() {
         ) ?? summary.latest;
       const affectedFiles = analysisWithDetails.metrics.affected_files ?? {};
       const meta = projectMeta[summary.projectKey];
-      return Object.entries(affectedFiles).flatMap(([filePath, issues]) =>
-        (issues ?? []).map((issue, index) => ({
-          id: `${summary.projectKey}:${filePath}:${issue.line}:${issue.rule}:${index}`,
-          project_key: summary.projectKey,
-          file_path: filePath,
-          line: issue.line,
-          end_line: issue.end_line,
-          rule: issue.rule,
-          message: issue.message,
-          severity: String(issue.severity).toUpperCase(),
-          commit_sha: analysisWithDetails.commit_sha ?? "",
-          repo_url: meta?.repoUrl ?? "",
-          repo_provider: meta?.repoProvider ?? "other"
-        }))
-      );
+      return Object.entries(affectedFiles).flatMap(([filePath, fileData]) => {
+        // Handle both old format (array of issues) and new format (severity/issues object)
+        if (Array.isArray(fileData)) {
+          return fileData.map((issue, index) => ({
+            id: `${summary.projectKey}:${filePath}:${issue.line}:${issue.rule}:${index}`,
+            project_key: summary.projectKey,
+            file_path: filePath,
+            line: issue.line,
+            end_line: issue.end_line,
+            rule: issue.rule,
+            message: issue.message,
+            severity: String(issue.severity).toUpperCase(),
+            commit_sha: analysisWithDetails.commit_sha ?? "",
+            repo_url: meta?.repoUrl ?? "",
+            repo_provider: meta?.repoProvider ?? "other"
+          }));
+        } else if (fileData && typeof fileData === 'object') {
+          // New format: {severity: "high", issues: 1}
+          const issues = fileData.issues || 0;
+          return Array.from({length: issues}, (_, index) => ({
+            id: `${summary.projectKey}:${filePath}:${index}`,
+            project_key: summary.projectKey,
+            file_path: filePath,
+            line: 0,
+            end_line: 0,
+            rule: 'ISSUE',
+            message: `${issues} issue(s) in file`,
+            severity: String(fileData.severity ?? 'INFO').toUpperCase(),
+            commit_sha: analysisWithDetails.commit_sha ?? "",
+            repo_url: meta?.repoUrl ?? "",
+            repo_provider: meta?.repoProvider ?? "other"
+          }));
+        }
+        return [];
+      });
     });
   }, [summaries, projectMeta]);
 
@@ -1179,23 +1250,27 @@ export function App() {
     Promise.all([
       apiFetch(`${API_BASE}/v1/platform/token/status`).then((res) => res.json()),
       apiFetch(`${API_BASE}/v1/platform/token/history`).then((res) => res.json()),
-      apiFetch(`${API_BASE}/v1/integrations/azure-devops/configs`).then((res) => res.json())
+      apiFetch(`${API_BASE}/v1/integrations/azure-devops/configs`).then((res) => res.json()),
+      apiFetch(`${API_BASE}/v1/platform/settings`).then((res) => res.json())
     ])
       .then(
         ([
           statusData,
           historyData,
-          azureDevOpsConfigData
+          azureDevOpsConfigData,
+          settingsData
         ]: [
           { configured: boolean; expired: boolean; expires_at: string | null },
           PlatformTokenHistoryItem[],
-          AzureDevOpsOrganizationConfig[]
+          AzureDevOpsOrganizationConfig[],
+          PlatformSettings
         ]) => {
           setPlatformTokenConfigured(statusData.configured);
           setPlatformTokenExpired(statusData.expired);
           setPlatformTokenExpiresAt(statusData.expires_at);
           setPlatformTokenHistory(historyData);
           setAzureDevOpsConfigs(azureDevOpsConfigData);
+          setPlatformSettings(settingsData);
         }
       )
       .catch(() => {
@@ -1204,12 +1279,20 @@ export function App() {
         setPlatformTokenExpiresAt(null);
         setPlatformTokenHistory([]);
         setAzureDevOpsConfigs([]);
+        setPlatformSettings(DEFAULT_PLATFORM_SETTINGS);
       });
   }, [authScreen]);
 
   useEffect(() => {
     window.localStorage.setItem(LOCAL_STORAGE_GATE_LIBRARY_KEY, JSON.stringify(gateLibrary));
   }, [gateLibrary]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      LOCAL_STORAGE_NAV_KEY,
+      JSON.stringify({ tab: activeTab, adminTab: activeAdminTab, adminSection: activeAdminSection })
+    );
+  }, [activeTab, activeAdminTab, activeAdminSection]);
 
   useEffect(() => {
     if (authScreen === "app" && !sessionUser) {
@@ -1458,6 +1541,32 @@ export function App() {
     }
   };
 
+  const savePlatformSettings = async (updates: Partial<PlatformSettings>, successMessage: string) => {
+    setSavingPlatformSettings(true);
+    setError(null);
+    try {
+      const response = await apiFetch(`${API_BASE}/v1/platform/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, `Settings update failed with ${response.status}`));
+      }
+
+      const saved = (await response.json()) as PlatformSettings;
+      setPlatformSettings(saved);
+      setAdminMessage(successMessage);
+    } catch (err) {
+      const message = normalizeErrorMessage(err);
+      setError(message);
+      setAdminMessage(null);
+    } finally {
+      setSavingPlatformSettings(false);
+    }
+  };
+
   const testAuthProvider = async () => {
     setTestingAuthProvider(true);
     setError(null);
@@ -1614,7 +1723,9 @@ export function App() {
     setAzureDevOpsConfigForm({
       config_name: "",
       organization_url: "https://dev.azure.com/your-organization",
-      personal_access_token: ""
+      personal_access_token: "",
+      repo_import_enabled: false,
+      quality_gate_enabled: false
     });
     setDevOpsConfigModalOpen(true);
   };
@@ -1624,7 +1735,9 @@ export function App() {
     setAzureDevOpsConfigForm({
       config_name: config.config_name,
       organization_url: config.organization_url,
-      personal_access_token: ""
+      personal_access_token: "",
+      repo_import_enabled: config.repo_import_enabled,
+      quality_gate_enabled: config.quality_gate_enabled
     });
     setDevOpsConfigModalOpen(true);
   };
@@ -1838,6 +1951,8 @@ export function App() {
 
   const confirmSignOut = () => {
     window.localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
+    window.localStorage.removeItem(LOCAL_STORAGE_NAV_KEY);
+    setActiveTab("projects");
     setSessionUser(null);
     setSignInForm({ email: "", password: "", remember_me: true });
     setSignInError(null);
@@ -2284,6 +2399,22 @@ export function App() {
                                       {scoped.bugs}
                                     </div>
                                   </div>
+
+                                  {(scoped.dependency_vulnerabilities ?? 0) > 0 && (
+                                    <div style={{
+                                      padding: "12px",
+                                      backgroundColor: "#f3e8ff",
+                                      borderRadius: "6px",
+                                      border: "1px solid #d8b4fe",
+                                      textAlign: "center"
+                                    }}>
+                                      <div style={{ fontSize: "12px", color: "#7c3aed", marginBottom: "4px" }}>SCA Dep. Vulns</div>
+                                      <div style={{ fontSize: "24px", fontWeight: "bold", color: "#6d28d9" }}>
+                                        {scoped.dependency_vulnerabilities}
+                                      </div>
+                                      <div style={{ fontSize: "10px", color: "#9f67f0", marginTop: "2px" }}>not in score</div>
+                                    </div>
+                                  )}
                                 </div>
                               </>
                             );
@@ -2606,6 +2737,21 @@ export function App() {
                                   {scoped.bugs}
                                 </div>
                               </div>
+
+                              {(scoped.dependency_vulnerabilities ?? 0) > 0 && (
+                                <div style={{
+                                  padding: "8px",
+                                  backgroundColor: "#f3e8ff",
+                                  borderRadius: "6px",
+                                  border: "1px solid #d8b4fe",
+                                  textAlign: "center"
+                                }}>
+                                  <div style={{ fontSize: "11px", color: "#7c3aed" }}>SCA Deps</div>
+                                  <div style={{ fontSize: "18px", fontWeight: "bold", color: "#6d28d9" }}>
+                                    {scoped.dependency_vulnerabilities}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </article>
                         );
@@ -3223,15 +3369,39 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                     <div className="form-grid compact">
                       <label>
                         Instance name
-                        <input defaultValue="Upcoop SonarLike Platform" />
+                        <input
+                          value={platformSettings.instance_name}
+                          onChange={(e) =>
+                            setPlatformSettings((current) => ({ ...current, instance_name: e.target.value }))
+                          }
+                        />
                       </label>
                       <label>
                         Report max size on DB (MB)
-                        <input defaultValue="450" />
+                        <input
+                          value={platformSettings.report_max_size_mb}
+                          onChange={(e) =>
+                            setPlatformSettings((current) => ({ ...current, report_max_size_mb: e.target.value }))
+                          }
+                        />
                       </label>
                     </div>
                     <div className="action-row">
-                      <button type="button" onClick={() => setAdminMessage("General settings staged for next rollout.")}>Save general settings</button>
+                      <button
+                        type="button"
+                        disabled={savingPlatformSettings}
+                        onClick={() =>
+                          void savePlatformSettings(
+                            {
+                              instance_name: platformSettings.instance_name,
+                              report_max_size_mb: platformSettings.report_max_size_mb
+                            },
+                            "General settings saved."
+                          )
+                        }
+                      >
+                        {savingPlatformSettings ? "Saving…" : "Save general settings"}
+                      </button>
                     </div>
                   </div>
                 </>
@@ -3244,16 +3414,54 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                   <div className="form-grid compact">
                     <label>
                       Global Source File Exclusions
-                      <input defaultValue="**/__tests__/**,**/*.snap" />
+                      <input
+                        value={platformSettings.global_source_exclusions}
+                        onChange={(e) =>
+                          setPlatformSettings((current) => ({ ...current, global_source_exclusions: e.target.value }))
+                        }
+                      />
                     </label>
                     <label>
                       Source File Exclusions
-                      <input defaultValue="**/*.generated.*,**/coverage/**" />
+                      <input
+                        value={platformSettings.source_file_exclusions}
+                        onChange={(e) =>
+                          setPlatformSettings((current) => ({ ...current, source_file_exclusions: e.target.value }))
+                        }
+                      />
                     </label>
                   </div>
                   <div className="action-row">
-                    <button type="button" onClick={() => setAdminMessage("Scope policy staged for next rollout.")}>Save scope</button>
-                    <button type="button" onClick={() => setAdminMessage("Default scope restored.")}>Restore defaults</button>
+                    <button
+                      type="button"
+                      disabled={savingPlatformSettings}
+                      onClick={() =>
+                        void savePlatformSettings(
+                          {
+                            global_source_exclusions: platformSettings.global_source_exclusions,
+                            source_file_exclusions: platformSettings.source_file_exclusions
+                          },
+                          "Scope policy saved."
+                        )
+                      }
+                    >
+                      {savingPlatformSettings ? "Saving…" : "Save scope"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingPlatformSettings}
+                      onClick={() =>
+                        void savePlatformSettings(
+                          {
+                            global_source_exclusions: DEFAULT_PLATFORM_SETTINGS.global_source_exclusions,
+                            source_file_exclusions: DEFAULT_PLATFORM_SETTINGS.source_file_exclusions
+                          },
+                          "Default scope restored."
+                        )
+                      }
+                    >
+                      Restore defaults
+                    </button>
                   </div>
                 </>
               )}
@@ -3894,7 +4102,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                         }
                       >
                         <option value="">Select a project</option>
-                        {summaries.map((summary) => (
+                        {filteredSummaries.map((summary) => (
                           <option key={summary.projectKey} value={summary.projectKey}>
                             {summary.projectKey}
                           </option>
@@ -4071,7 +4279,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                           }}
                         >
                           <option value="">-- Choose a project --</option>
-                          {summaries.map((s) => (
+                          {filteredSummaries.map((s) => (
                             <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
                           ))}
                         </select>
@@ -4169,6 +4377,32 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                   placeholder={editingAzureDevOpsConfigId ? "Leave blank to keep current PAT" : "Paste Azure DevOps PAT"}
                   autoComplete="off"
                 />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={azureDevOpsConfigForm.quality_gate_enabled}
+                  onChange={(event) =>
+                    setAzureDevOpsConfigForm((current) => ({
+                      ...current,
+                      quality_gate_enabled: event.target.checked
+                    }))
+                  }
+                />
+                Enable PR decoration &amp; quality gate reporting
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  checked={azureDevOpsConfigForm.repo_import_enabled}
+                  onChange={(event) =>
+                    setAzureDevOpsConfigForm((current) => ({
+                      ...current,
+                      repo_import_enabled: event.target.checked
+                    }))
+                  }
+                />
+                Enable repository import
               </label>
             </div>
             <div className="action-row" style={{ marginTop: "1rem" }}>

@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Literal
 import urllib.error
+import urllib.parse
 import urllib.request
 from uuid import uuid4
 
@@ -13,9 +14,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import require_platform_auth
+from app.auth import require_platform_auth, require_ci_token_auth
 from app.db import get_session
-from app.models import AnalysisRecord, AzureDevOpsOrganizationConfig
+from app.models import AnalysisRecord, AzureDevOpsOrganizationConfig, ProjectIntegration
 from app.models import QualityGateConfig
 
 _log = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ class AnalysisRequest(BaseModel):
     reported_security_hotspots: int | None = Field(default=None, ge=0, le=10000)
     reported_bugs: int | None = Field(default=None, ge=0, le=10000)
     reported_duplication: int | None = Field(default=None, ge=0, le=100, description="Code duplication percentage")
+    reported_coverage: int | None = Field(default=None, ge=0, le=100, description="Code coverage percentage")
+    reported_dependency_vulnerabilities: int | None = Field(default=None, ge=0, le=100000, description="SCA findings (excluded from security score)")
     affected_files: dict | None = Field(default=None, description="Files with issues and line numbers")
     simulated_maintainability_score: int | None = Field(default=None, ge=0, le=100)
     simulated_security_score: int | None = Field(default=None, ge=0, le=100)
@@ -66,6 +69,8 @@ class AnalysisMetrics(BaseModel):
     security_hotspots: int
     bugs: int
     duplication: int = Field(default=0, ge=0, le=100, description="Code duplication percentage (0-100)")
+    coverage: int = Field(default=0, ge=0, le=100, description="Code coverage percentage (0-100)")
+    dependency_vulnerabilities: int = Field(default=0, ge=0, description="SCA findings, not counted in security score")
     affected_files: dict | None = None
 
 
@@ -245,6 +250,7 @@ def build_metrics(request: AnalysisRequest) -> AnalysisMetrics:
             request.reported_security_hotspots,
             request.reported_bugs,
             request.reported_duplication,
+            request.reported_coverage,
             request.affected_files,
         ]
     ):
@@ -257,6 +263,8 @@ def build_metrics(request: AnalysisRequest) -> AnalysisMetrics:
             security_hotspots=request.reported_security_hotspots or 0,
             bugs=request.reported_bugs or 0,
             duplication=request.reported_duplication or 0,
+            coverage=request.reported_coverage or 0,
+            dependency_vulnerabilities=request.reported_dependency_vulnerabilities or 0,
             affected_files=request.affected_files,
         )
 
@@ -270,6 +278,8 @@ def build_metrics(request: AnalysisRequest) -> AnalysisMetrics:
             security_hotspots=request.simulated_security_hotspots or 6,
             bugs=request.simulated_bugs or 2,
             duplication=15,
+            coverage=request.reported_coverage or 42,
+            dependency_vulnerabilities=0,
             affected_files=request.affected_files,
         )
 
@@ -282,6 +292,8 @@ def build_metrics(request: AnalysisRequest) -> AnalysisMetrics:
         security_hotspots=request.simulated_security_hotspots or 1,
         bugs=request.simulated_bugs or 0,
         duplication=2,
+        coverage=request.reported_coverage or 88,
+        dependency_vulnerabilities=0,
         affected_files=request.affected_files,
     )
 
@@ -317,6 +329,9 @@ def to_response(record: AnalysisRecord) -> AnalysisResponse:
             vulnerabilities=record.vulnerabilities,
             security_hotspots=record.security_hotspots,
             bugs=record.bugs,
+            coverage=record.coverage,
+            duplication=record.duplication,
+            dependency_vulnerabilities=record.dependency_vulnerabilities or 0,
             affected_files=affected_files,
         ),
         gate_failures=gate_failures,
@@ -340,13 +355,9 @@ def list_analyses(
 @router.post("", response_model=AnalysisResponse)
 def create_analysis(
     request: AnalysisRequest,
-    _: None = Depends(require_platform_auth),
+    _: None = Depends(require_ci_token_auth),
     session: Session = Depends(get_session),
 ) -> AnalysisResponse:
-    # DEBUG: Log PR fields received
-    print(f"=== DEBUG create_analysis ===\npr_id: {request.pr_id}\npr_ado_project: {request.pr_ado_project}\npr_repo_id: {request.pr_repo_id}\npr_target_branch: {request.pr_target_branch}\npr_ado_org_url: {getattr(request, 'pr_ado_org_url', 'MISSING')}\n=== END DEBUG ===", flush=True, file=__import__('sys').stderr)
-    _log.info(f"create_analysis received: pr_id={request.pr_id}, pr_ado_project={request.pr_ado_project}, pr_repo_id={request.pr_repo_id}, pr_target_branch={request.pr_target_branch}, pr_ado_org_url={getattr(request, 'pr_ado_org_url', 'MISSING')}")
-    
     gate = session.get(QualityGateConfig, "default")
     if gate is None:
         gate = QualityGateConfig(id="default")
@@ -370,6 +381,9 @@ def create_analysis(
         vulnerabilities=metrics.vulnerabilities,
         security_hotspots=metrics.security_hotspots,
         bugs=metrics.bugs,
+        coverage=metrics.coverage,
+        duplication=metrics.duplication,
+        dependency_vulnerabilities=metrics.dependency_vulnerabilities,
         affected_files=json.dumps(metrics.affected_files or {}),
         gate_failures=json.dumps(gate_failures),
         created_at=datetime.now(timezone.utc).isoformat(),
@@ -403,13 +417,13 @@ def create_analysis(
                 ado_config = session.scalars(
                     select(AzureDevOpsOrganizationConfig).where(
                         AzureDevOpsOrganizationConfig.quality_gate_enabled == True,  # noqa: E712
-                        AzureDevOpsOrganizationConfig.personal_access_token != "",
+                        AzureDevOpsOrganizationConfig.pat != "",
                     )
                 ).first()
-            if ado_config and ado_config.personal_access_token:
+            if ado_config and ado_config.pat:
                 _post_ado_pr_decoration(
                     org_url=ado_config.organization_url,
-                    pat=ado_config.personal_access_token,
+                    pat=ado_config.pat,
                     ado_project=request.pr_ado_project,
                     ado_repo_id=request.pr_repo_id,
                     pr_id=request.pr_id,
@@ -420,7 +434,7 @@ def create_analysis(
                 )
                 _post_ado_pr_comment(
                     org_url=ado_config.organization_url,
-                    pat=ado_config.personal_access_token,
+                    pat=ado_config.pat,
                     ado_project=request.pr_ado_project,
                     ado_repo_id=request.pr_repo_id,
                     pr_id=request.pr_id,
@@ -442,6 +456,170 @@ def create_analysis(
         session.commit()
 
     return to_response(record)
+
+
+def _build_repo_file_url(
+    repo_provider: str,
+    repo_url: str,
+    commit_sha: str,
+    file_path: str,
+    start_line: int | None,
+    end_line: int | None,
+) -> str | None:
+    """Build a deep link to the exact file/line in the source repo, if possible."""
+    if not repo_url or repo_provider != "azure-devops":
+        return None
+    params = {"path": "/" + file_path.lstrip("/")}
+    if commit_sha:
+        params["version"] = f"GC{commit_sha}"
+    if start_line:
+        params["line"] = str(start_line)
+        params["lineEnd"] = str((end_line or start_line) + 1)
+        params["lineStartColumn"] = "1"
+        params["lineEndColumn"] = "1"
+        params["lineStyle"] = "plain"
+    params["_a"] = "contents"
+    return f"{repo_url.rstrip('/')}?{urllib.parse.urlencode(params)}"
+
+
+@router.get("/{analysis_id}/vulnerabilities")
+def get_analysis_vulnerabilities(
+    analysis_id: str,
+    _: None = Depends(require_platform_auth),
+    session: Session = Depends(get_session),
+):
+    """Get vulnerabilities and IOCs for an analysis"""
+    record = session.get(AnalysisRecord, analysis_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    integration = session.query(ProjectIntegration).filter(
+        ProjectIntegration.project_key == record.project_key
+    ).first()
+    repo_provider = integration.repo_provider if integration else ""
+    repo_url = integration.repo_url if integration else ""
+
+    # Helper to convert datetime to ISO string
+    def to_iso_string(dt):
+        if dt is None:
+            return ""
+        if isinstance(dt, str):
+            return dt
+        return dt.isoformat() if hasattr(dt, 'isoformat') else str(dt)
+
+    # Parse affected_files if it exists
+    affected_files = {}
+    if record.affected_files:
+        try:
+            affected_files = json.loads(record.affected_files) if isinstance(record.affected_files, str) else record.affected_files
+        except (json.JSONDecodeError, TypeError):
+            affected_files = {}
+
+    # Extract vulnerabilities from affected_files
+    vulnerabilities = []
+    critical_count = 0
+    high_count = 0
+    medium_count = 0
+    low_count = 0
+
+    for file_path, file_data in affected_files.items():
+        if isinstance(file_data, dict) and file_data.get("severity"):
+            severity = str(file_data.get("severity", "info")).upper()
+            issues_count = file_data.get("issues", 1)
+            
+            # Count by severity
+            if severity == "CRITICAL":
+                critical_count += issues_count
+            elif severity == "HIGH":
+                high_count += issues_count
+            elif severity == "MEDIUM":
+                medium_count += issues_count
+            elif severity == "LOW":
+                low_count += issues_count
+            
+            # Add to vulnerabilities list
+            vulnerabilities.append({
+                "id": f"{file_path}:{severity}",
+                "vulnerability_id": f"{file_path}:issue",
+                "language": "unknown",
+                "package_name": file_path.split("/")[-1] if "/" in file_path else file_path,
+                "current_version": "unknown",
+                "vulnerable_versions": "unknown",
+                "fix_available": False,
+                "created_at": to_iso_string(record.created_at),
+                "severity": severity,
+                "cvss_score": 5.0,
+                "file_path": file_path,
+                "line": None,
+                "end_line": None,
+                "source_url": _build_repo_file_url(
+                    repo_provider, repo_url, record.commit_sha, file_path, None, None
+                ),
+                "vulnerability": {
+                    "cve_id": f"CUSTOM-{file_path[:20]}",
+                    "cvss_v3_score": 5.0,
+                    "cvss_v3_severity": severity,
+                    "description": f"{issues_count} issue(s) of {severity} severity in {file_path}"
+                }
+            })
+        elif isinstance(file_data, list):
+            # Old format: array of issues
+            for issue in file_data:
+                severity = str(issue.get("severity", "info")).upper()
+                
+                # Count by severity
+                if severity == "CRITICAL":
+                    critical_count += 1
+                elif severity == "HIGH":
+                    high_count += 1
+                elif severity == "MEDIUM":
+                    medium_count += 1
+                elif severity == "LOW":
+                    low_count += 1
+                
+                start_line = issue.get("line") or None
+                end_line = issue.get("end_line") or start_line
+                vulnerabilities.append({
+                    "id": f"{file_path}:{issue.get('line', 0)}:{issue.get('rule', 'unknown')}",
+                    "vulnerability_id": f"{file_path}:issue",
+                    "language": "unknown",
+                    "package_name": file_path.split("/")[-1] if "/" in file_path else file_path,
+                    "current_version": "unknown",
+                    "vulnerable_versions": "unknown",
+                    "fix_available": False,
+                    "created_at": to_iso_string(record.created_at),
+                    "severity": severity,
+                    "cvss_score": 5.0,
+                    "file_path": file_path,
+                    "line": start_line,
+                    "end_line": end_line,
+                    "source_url": _build_repo_file_url(
+                        repo_provider, repo_url, record.commit_sha, file_path, start_line, end_line
+                    ),
+                    "vulnerability": {
+                        "cve_id": f"CUSTOM-{file_path[:20]}",
+                        "cvss_v3_score": 5.0,
+                        "cvss_v3_severity": severity,
+                        "description": f"{issue.get('message', 'Issue')} at line {issue.get('line', 'unknown')}"
+                    }
+                })
+
+    return {
+        "analysis_id": record.analysis_id,
+        "project_key": record.project_key,
+        "commit_sha": record.commit_sha,
+        "branch": record.branch,
+        "repo_provider": repo_provider,
+        "repo_url": repo_url,
+        "total_vulnerabilities": record.vulnerabilities or 0,
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "medium_count": medium_count,
+        "low_count": low_count,
+        "vulnerabilities": vulnerabilities,
+        "iocs": [],  # IOCs can be added later
+        "last_scan_date": to_iso_string(record.created_at)
+    }
 
 
 @router.get("/{analysis_id}", response_model=AnalysisResponse)

@@ -83,7 +83,9 @@ class AnalysisRecord(Base):
     security_hotspots: Mapped[int] = mapped_column(Integer, default=0)
     bugs: Mapped[int] = mapped_column(Integer, default=0)
     coverage: Mapped[int] = mapped_column(Integer, default=0)
-    
+    duplication: Mapped[int] = mapped_column(Integer, default=0)
+    dependency_vulnerabilities: Mapped[int] = mapped_column(Integer, default=0)
+
     affected_files: Mapped[str] = mapped_column(Text, default="{}")
     gate_failures: Mapped[str] = mapped_column(Text, default="[]")
     
@@ -148,9 +150,15 @@ class AzureDevOpsOrganizationConfig(Base):
     """Azure DevOps organization configuration for PR decoration."""
     __tablename__ = "azure_devops_org_config"
 
-    id: Mapped[str] = mapped_column(String(255), primary_key=True)  # org_url as ID
+    config_id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
+    config_name: Mapped[str] = mapped_column(String(255), unique=True, index=True)  # e.g., "up-group-azure-devops"
+    organization_url: Mapped[str] = mapped_column(String(500), unique=True, index=True)  # e.g., "https://dev.azure.com/up-group"
     pat: Mapped[str] = mapped_column(String(255))  # Personal Access Token
     quality_gate_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    repo_import_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(50), default="ready")  # ready, validated, error
+    last_tested_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -164,8 +172,31 @@ class AuthProviderConfig(Base):
     name: Mapped[str] = mapped_column(String(255))
     config: Mapped[str] = mapped_column(Text)  # JSON config
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    category: Mapped[str] = mapped_column(String(100), default="DevOps Platform")
+    connection_url: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(50), default="ready")  # ready, validated, disabled
+    last_tested_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class PlatformApiToken(Base):
+    """CI/CD API token issued to authenticate analysis submissions."""
+    __tablename__ = "platform_api_tokens"
+
+    token_id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
+    token_name: Mapped[str] = mapped_column(String(255))
+    token_hash: Mapped[str] = mapped_column(String(64), index=True)  # sha256 hex digest
+    token_preview: Mapped[str] = mapped_column(String(16))  # last 4 chars, e.g. "...ab12"
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("idx_platform_token_hash", "token_hash"),
+        Index("idx_platform_token_current", "is_current", "revoked"),
+    )
 
 
 class ProjectIntegration(Base):
