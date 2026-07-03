@@ -56,11 +56,6 @@ def healthz() -> dict[str, str]:
     return {"service": "api", "status": "running"}
 
 
-@app.get("/")
-def root() -> dict[str, str]:
-    return {"service": "api", "status": "running"}
-
-
 # ── Static file serving (production only) ─────────────────────────────────────
 # The `static/` dir is injected by the multi-stage Dockerfile (root Dockerfile,
 # Stage 2). It does not exist in local dev, so this block is a no-op locally.
