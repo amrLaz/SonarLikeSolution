@@ -20,7 +20,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, and_
+from sqlalchemy import select, desc, and_, func
 
 from app.db import get_session
 from app.models import Project, Branch, AnalysisRecord, RetentionPolicy
@@ -103,7 +103,10 @@ async def list_projects(
     results = []
     for project in projects:
         branch_count = len(project.branches)
-        analysis_count = len(project.analyses)
+        # Count analyses by project_key (AnalysisRecord doesn't have FK to Project)
+        analysis_count = session.execute(
+            select(func.count()).select_from(AnalysisRecord).where(AnalysisRecord.project_key == project.key)
+        ).scalar() or 0
         results.append(ProjectResponse(
             id=project.id,
             key=project.key,
@@ -242,23 +245,25 @@ async def list_branches(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    project_key = project.key
+    
     branches = session.execute(
         select(Branch).where(Branch.project_id == project_id).order_by(Branch.is_default.desc(), Branch.name)
     ).scalars().all()
     
     results = []
     for branch in branches:
-        # Get latest analysis
+        # Get latest analysis by project_key + branch name
         latest_analysis = session.execute(
             select(AnalysisRecord)
-            .where(AnalysisRecord.branch_id == branch.id)
+            .where(AnalysisRecord.project_key == project_key, AnalysisRecord.branch == branch.name)
             .order_by(desc(AnalysisRecord.created_at))
             .limit(1)
         ).scalar_one_or_none()
         
         results.append(BranchMetrics(
             branch_name=branch.name,
-            latest_analysis_id=latest_analysis.id if latest_analysis else None,
+            latest_analysis_id=latest_analysis.analysis_id if latest_analysis else None,
             maintainability_score=latest_analysis.maintainability_score if latest_analysis else None,
             security_score=latest_analysis.security_score if latest_analysis else None,
             reliability_score=latest_analysis.reliability_score if latest_analysis else None,

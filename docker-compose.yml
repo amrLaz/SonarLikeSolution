@@ -3,8 +3,8 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: sast_user
-      POSTGRES_PASSWORD: sast_pass
-      POSTGRES_DB: sast_db
+      POSTGRES_PASSWORD: sast_password
+      POSTGRES_DB: sast_platform
     ports:
       - "5432:5432"
     volumes:
@@ -20,7 +20,7 @@ services:
       context: ./apps/api
       dockerfile: Dockerfile
     image: newsastproject-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: postgresql+psycopg://sast_user:sast_password@db:5432/sast_platform
       POSTGRES_HOST: db
@@ -35,6 +35,8 @@ services:
       WORKER_POLL_SECONDS: "5"
     ports:
       - "8000:8000"
+    volumes:
+      - ./apps/api:/app
     depends_on:
       - db
       - redis

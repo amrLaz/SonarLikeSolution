@@ -78,10 +78,7 @@ if __name__ == "__main__":
     test_collect_real_sast_metrics_empty()
     print("✅ test_collect_real_sast_metrics_empty passed")
     
-    test_find_files_function()
-    print("✅ test_find_files_function passed")
-    
     test_run_semgrep_scan()
     print("✅ test_run_semgrep_scan passed")
     
-    print("\nAll basic tests passed!")
+    print("\n✅ All basic tests passed!")

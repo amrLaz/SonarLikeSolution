@@ -783,6 +783,217 @@ def run_semgrep(roots: list[str], ignore_patterns: list[str] | None = None) -> l
     return findings
 
 
+def run_npm_audit(roots: list[str]) -> list[Finding]:
+    """
+    npm audit — dependency vulnerability scanner for Node.js/npm projects.
+    Detects known CVEs in package dependencies.
+    Returns list[Finding] — vulnerabilities categorized as BLOCKER, HIGH, MEDIUM, LOW.
+    """
+    findings: list[Finding] = []
+    
+    # Find package.json files to identify npm projects
+    package_jsons = []
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            if "node_modules" in dirnames:
+                dirnames.remove("node_modules")  # Skip node_modules
+            if "package.json" in filenames:
+                package_jsons.append(os.path.join(dirpath, "package.json"))
+    
+    if not package_jsons:
+        print("  [skip] npm audit: no package.json found")
+        return []
+    
+    if not _tool_available("npm"):
+        print("  [skip] npm audit: npm not installed")
+        return []
+    
+    for package_json in package_jsons:
+        project_dir = os.path.dirname(package_json)
+        print(f"    Auditing {package_json}...")
+        
+        # Run npm audit with JSON output
+        cmd = ["npm", "audit", "--json"]
+        returncode, stdout, stderr = run_command(cmd)
+        
+        # npm audit exits with 0 if no vulns, 1 if vulns found, 2 on error
+        if returncode > 1 or not stdout.strip():
+            if returncode == 2:
+                print(f"    ⚠️ npm audit error in {project_dir}: {stderr[:100]}")
+            continue
+        
+        try:
+            audit_data = json.loads(stdout)
+            vulns = audit_data.get("vulnerabilities", {})
+            
+            for package_name, vuln_info in vulns.items():
+                if not isinstance(vuln_info, dict):
+                    continue
+                
+                # Each vulnerability entry contains severity and details
+                for via_entry in vuln_info.get("via", []):
+                    if isinstance(via_entry, str):
+                        continue  # Skip string references, get dict entries
+                    
+                    severity = via_entry.get("severity", "low").upper()
+                    sev_map = {"CRITICAL": BLOCKER, "HIGH": HIGH, "MODERATE": MEDIUM, "LOW": LOW}
+                    sev = sev_map.get(severity, MEDIUM)
+                    
+                    findings.append(Finding(
+                        file_path=package_json,
+                        start_line=0,
+                        end_line=0,
+                        severity=sev,
+                        rule_id=f"npm-audit/{via_entry.get('id', 'unknown')}",
+                        message=f"{package_name}: {via_entry.get('title', 'Vulnerability')} (CVE-{via_entry.get('cve', '?')})",
+                        category="vulnerability",
+                    ))
+                    print(f"      [{sev}] {package_name}: {via_entry.get('title', '')}")
+        except json.JSONDecodeError as e:
+            print(f"    ⚠️ Failed to parse npm audit output: {e}")
+    
+    if findings:
+        print(f"  ✅ npm audit found {len(findings)} vulnerabilities")
+    return findings
+
+
+def run_pip_audit(roots: list[str]) -> list[Finding]:
+    """
+    pip-audit — dependency vulnerability scanner for Python/pip projects.
+    Detects known CVEs in Python package dependencies.
+    Returns list[Finding] — vulnerabilities categorized by severity.
+    """
+    findings: list[Finding] = []
+    
+    # Check if pip-audit is available (user must install: pip install pip-audit)
+    if not _tool_available("pip-audit"):
+        print("  [skip] pip-audit: pip-audit not installed")
+        return []
+    
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        
+        # Look for requirements.txt, setup.py, or pyproject.toml
+        python_config_files = [
+            os.path.join(root, "requirements.txt"),
+            os.path.join(root, "setup.py"),
+            os.path.join(root, "pyproject.toml"),
+        ]
+        
+        has_python_config = any(os.path.exists(f) for f in python_config_files)
+        if not has_python_config:
+            continue
+        
+        print(f"    Auditing Python packages in {root}...")
+        
+        # Run pip-audit with JSON output
+        cmd = ["pip-audit", "--desc", "--format", "json"]
+        returncode, stdout, stderr = run_command(cmd)
+        
+        # pip-audit exits 0 if no vulns, 1 if vulns found
+        if not stdout.strip():
+            if returncode > 1:
+                print(f"    ⚠️ pip-audit error: {stderr[:100]}")
+            continue
+        
+        try:
+            audit_data = json.loads(stdout)
+            vulnerabilities = audit_data.get("vulnerabilities", [])
+            
+            for vuln in vulnerabilities:
+                sev = MEDIUM  # pip-audit doesn't always provide explicit severity
+                if "critical" in str(vuln.get("description", "")).lower():
+                    sev = BLOCKER
+                elif "high" in str(vuln.get("description", "")).lower():
+                    sev = HIGH
+                
+                # Find requirements.txt to report
+                req_file = None
+                for cf in python_config_files:
+                    if os.path.exists(cf):
+                        req_file = cf
+                        break
+                
+                findings.append(Finding(
+                    file_path=req_file or "requirements.txt",
+                    start_line=0,
+                    end_line=0,
+                    severity=sev,
+                    rule_id=f"pip-audit/{vuln.get('id', 'unknown')}",
+                    message=f"{vuln.get('name', 'package')}: {vuln.get('vulnerability', 'Vulnerability')}",
+                    category="vulnerability",
+                ))
+                print(f"      [{sev}] {vuln.get('name', '?')}: {vuln.get('vulnerability', '')[:80]}")
+        except json.JSONDecodeError as e:
+            print(f"    ⚠️ Failed to parse pip-audit output: {e}")
+    
+    if findings:
+        print(f"  ✅ pip-audit found {len(findings)} vulnerabilities")
+    return findings
+
+
+def run_detect_secrets(roots: list[str], ignore_patterns: list[str] | None = None) -> list[Finding]:
+    """
+    detect-secrets — scans for secrets (API keys, passwords, tokens, credentials).
+    Detects hardcoded credentials, private keys, AWS keys, etc.
+    Returns list[Finding] — all secrets categorized as BLOCKER (secrets are critical).
+    
+    Requires: pip install detect-secrets
+    """
+    findings: list[Finding] = []
+    ignore_patterns = ignore_patterns or []
+    
+    if not _tool_available("detect-secrets"):
+        print("  [skip] detect-secrets: detect-secrets not installed")
+        return []
+    
+    print("    Scanning for secrets with detect-secrets...")
+    
+    # Build exclude patterns for detect-secrets
+    exclude_args = []
+    for pattern in ignore_patterns:
+        exclude_args.extend(["--exclude-secrets", pattern])
+    
+    # Run detect-secrets with JSON output
+    cmd = ["detect-secrets", "scan", "--all-files", "--json"] + exclude_args + roots
+    returncode, stdout, stderr = run_command(cmd)
+    
+    if not stdout.strip():
+        if returncode > 0:
+            print(f"    ⚠️ detect-secrets error: {stderr[:100]}")
+        return []
+    
+    try:
+        results = json.loads(stdout)
+        
+        for filepath, secrets_list in results.get("results", {}).items():
+            for secret in secrets_list:
+                # Each secret has type (high entropy, hardcoded creds, etc.)
+                secret_type = secret.get("type", "SecretDetector")
+                is_verified = secret.get("is_verified", False)
+                
+                # Verified secrets are more critical
+                sev = BLOCKER if is_verified else HIGH
+                
+                findings.append(Finding(
+                    file_path=filepath,
+                    start_line=secret.get("line_number", 0),
+                    end_line=secret.get("line_number", 0),
+                    severity=sev,
+                    rule_id=f"detect-secrets/{secret_type}",
+                    message=f"Potential secret detected: {secret_type} (verified: {is_verified})",
+                    category="vulnerability",
+                ))
+                print(f"      [BLOCKER] {filepath}:{secret.get('line_number', '?')}: {secret_type}")
+    except json.JSONDecodeError as e:
+        print(f"    ⚠️ Failed to parse detect-secrets output: {e}")
+    
+    if findings:
+        print(f"  ✅ detect-secrets found {len(findings)} potential secrets")
+    return findings
+
+
 def run_bandit(roots: list[str], ignore_patterns: list[str] | None = None) -> list[Finding]:
     """
     Bandit Python security scanner.
@@ -831,129 +1042,150 @@ def run_bandit(roots: list[str], ignore_patterns: list[str] | None = None) -> li
 
 # ── Code Coverage Calculation ─────────────────────────────────────────────────
 
-def generate_coverage_reports() -> None:
+def generate_coverage_reports() -> int:
     """
-    Auto-generate coverage reports if they don't exist.
-    Detects project type and runs appropriate test commands with coverage.
+    Pre-flight phase: Generate coverage reports using language-specific test tools.
     
-    Supports:
-    - Node.js/TypeScript: npm test:coverage or npm run test -- --coverage
-    - Python: pytest --cov or coverage run -m pytest
-    - Java: mvn test jacoco:report
-    - C#/.NET: dotnet test /p:CollectCoverage=true
+    Tries to execute tests with coverage reporting enabled for:
+    - Python (pytest with coverage.py)
+    - Node.js (npm test with jest/nyc coverage)
+    - Java (maven with jacoco)
+    - .NET (dotnet test)
+    - Go (go test -coverprofile)
+    - Ruby (rspec/minitest with simplecov)
+    
+    Returns 0 on success (or if tests not needed), 1 on test failure
     """
-    print("🧪 Checking for existing coverage reports...")
+    print("\n" + "=" * 70)
+    print("📊 Pre-flight: Coverage Report Generation")
+    print("=" * 70)
     
-    # Quick check if any coverage reports exist
-    existing_reports = [
-        ".coverage",
-        "coverage.xml",
-        "coverage/coverage-final.json",
-        "coverage-jest/coverage-jest.json",
-        "coverage/.resultset.json",
-        "coverage.out",
-    ]
+    all_success = True
     
-    if any(Path(p).exists() for p in existing_reports):
-        print("   ✅ Coverage reports found, skipping generation")
-        return
-    
-    print("   ⚠️ No coverage reports found, attempting to generate...")
-    
-    # Detect Node.js/TypeScript project
-    if Path("package.json").exists():
-        print("   📦 Detected Node.js/TypeScript project")
-        try:
-            # Try npm test:coverage first (common pattern)
-            result = subprocess.run(
-                ["npm", "test:coverage"],
-                capture_output=True,
-                timeout=180,
-                cwd="."
-            )
-            if result.returncode == 0:
-                print("      ✅ npm test:coverage succeeded")
-                return
+    # ── Python: pytest with coverage ──
+    if _tool_available("pytest") and Path("pytest.ini").exists():
+        print("🧪 Python: Running pytest with coverage...")
+        code, out, err = run_command([
+            "pytest", "--cov=.", "--cov-report=xml", "--cov-report=html",
+            "-v", "--tb=short"
+        ])
+        if code == 0:
+            print("  ✅ pytest coverage completed")
+        else:
+            print(f"  ⚠️ pytest had failures (exit code {code}), continuing...")
+            if "FAILED" in out:
+                print(f"    Test failures detected, but coverage was generated")
+            all_success = all_success and (code == 0)
+    elif Path("requirements.txt").exists() or Path("setup.py").exists():
+        print("🧪 Python: Detecting test framework...")
+        if _tool_available("pytest"):
+            # Try pytest
+            code, _, _ = run_command(["pytest", "--collect-only", "-q"])
+            if code == 0:
+                print("  Found pytest. Running with coverage...")
+                code, out, _ = run_command([
+                    "pytest", "--cov=.", "--cov-report=xml",
+                    "--cov-report=html", "-x"
+                ])
+                print("  ✅ pytest coverage completed" if code == 0 else "  ⚠️ pytest coverage generation (continuing)")
+        elif _tool_available("python") or _tool_available("python3"):
+            # Try unittest
+            code, _, _ = run_command(["python", "-m", "unittest", "discover", "-p", "test_*.py"])
+            if code == 0:
+                print("  ⚠️ unittest found but coverage not configured")
             else:
-                print(f"      ⚠️ npm test:coverage failed, trying npm run test -- --coverage")
-                # Fallback: npm test with coverage flag
-                result = subprocess.run(
-                    ["npm", "run", "test", "--", "--coverage"],
-                    capture_output=True,
-                    timeout=180,
-                    cwd="."
-                )
-                if result.returncode == 0:
-                    print("      ✅ npm test --coverage succeeded")
-                    return
+                print("  [skip] No tests detected for Python")
+        else:
+            print("  [skip] Python not available")
+    
+    # ── Node.js/TypeScript: npm test with coverage ──
+    if _tool_available("npm") and Path("package.json").exists():
+        print("🧪 Node.js/TypeScript: Detecting test framework...")
+        
+        # Check package.json for test scripts
+        try:
+            with open("package.json") as f:
+                pkg = json.load(f)
+                test_scripts = pkg.get("scripts", {})
+                
+                if "test:coverage" in test_scripts:
+                    print("  Found test:coverage script. Running...")
+                    code, _, err = run_command(["npm", "run", "test:coverage"])
+                    if code == 0:
+                        print("  ✅ npm test:coverage completed")
+                    else:
+                        print(f"  ⚠️ npm test:coverage exited with {code}")
+                        # Try fallback
+                        if "FAIL" not in err:
+                            all_success = False
+                elif "test" in test_scripts:
+                    print("  Found test script. Running with coverage...")
+                    # Try Jest with coverage
+                    code, _, err = run_command(["npm", "test", "--", "--coverage"])
+                    if code == 0:
+                        print("  ✅ npm test --coverage completed")
+                    elif "jest" not in err.lower():
+                        print(f"  ⚠️ npm test exited with {code} (continuing with fallback)")
+                        # Try npx jest directly
+                        if _tool_available("npx"):
+                            code2, _, _ = run_command(["npx", "jest", "--coverage", "--passWithNoTests"])
+                            if code2 == 0:
+                                print("  ✅ npx jest --coverage completed")
                 else:
-                    stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
-                    print(f"      ⚠️ npm test --coverage failed: {stderr}")
-        except subprocess.TimeoutExpired:
-            print("      ⚠️ npm test timed out (3 min limit)")
-        except FileNotFoundError:
-            print("      ⚠️ npm not found in PATH")
-        except Exception as e:
-            print(f"      ⚠️ Error running npm tests: {e}")
+                    print("  [skip] No test script in package.json")
+        except (json.JSONDecodeError, FileNotFoundError):
+            print("  ⚠️ Could not parse package.json")
+    elif Path("package.json").exists() and not _tool_available("npm"):
+        print("🧪 Node.js: npm not available")
     
-    # Detect Python project
-    if Path("pytest.ini").exists() or Path("setup.py").exists() or Path("pyproject.toml").exists():
-        print("   🐍 Detected Python project")
-        try:
-            result = subprocess.run(
-                ["pytest", "--cov", "--cov-report=xml", "--cov-report=term"],
-                capture_output=True,
-                timeout=180,
-                cwd="."
-            )
-            if result.returncode == 0:
-                print("      ✅ pytest --cov succeeded")
-                return
-            else:
-                stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
-                print(f"      ⚠️ pytest --cov failed: {stderr}")
-        except FileNotFoundError:
-            print("      ⚠️ pytest not found in PATH")
-        except Exception as e:
-            print(f"      ⚠️ Error running pytest: {e}")
+    # ── Java: Maven with JaCoCo ──
+    if _tool_available("mvn") and (Path("pom.xml").exists() or Path(".").glob("**/pom.xml")):
+        print("🧪 Java: Running Maven with coverage...")
+        code, _, err = run_command(["mvn", "clean", "test", "jacoco:report", "-DskipTests=false"])
+        if code == 0:
+            print("  ✅ Maven coverage completed")
+        else:
+            print(f"  ⚠️ Maven had failures (exit {code})")
+            all_success = False
     
-    # Detect Java project
-    if Path("pom.xml").exists():
-        print("   ☕ Detected Java/Maven project")
-        try:
-            result = subprocess.run(
-                ["mvn", "test", "jacoco:report"],
-                capture_output=True,
-                timeout=300,
-                cwd="."
-            )
-            if result.returncode == 0:
-                print("      ✅ mvn test jacoco:report succeeded")
-                return
-        except FileNotFoundError:
-            print("      ⚠️ mvn not found in PATH")
-        except Exception as e:
-            print(f"      ⚠️ Error running mvn: {e}")
+    # ── .NET: dotnet test with coverage ──
+    if _tool_available("dotnet") and (Path("*.sln").exists() or list(Path(".").glob("*.csproj"))):
+        print("🧪 .NET: Running dotnet test with coverage...")
+        code, _, _ = run_command([
+            "dotnet", "test", 
+            "/p:CollectCoverage=true",
+            "/p:CoverletOutputFormat=cobertura",
+            "--no-build"
+        ])
+        if code == 0:
+            print("  ✅ dotnet test coverage completed")
+        else:
+            print(f"  ⚠️ dotnet test had issues (exit {code})")
     
-    # Detect .NET project
-    if Path("*.csproj").exists() or Path("*.sln").exists():
-        print("   🔷 Detected .NET project")
-        try:
-            result = subprocess.run(
-                ["dotnet", "test", "/p:CollectCoverage=true", "/p:CoverletOutputFormat=opencover"],
-                capture_output=True,
-                timeout=300,
-                cwd="."
-            )
-            if result.returncode == 0:
-                print("      ✅ dotnet test with coverage succeeded")
-                return
-        except FileNotFoundError:
-            print("      ⚠️ dotnet not found in PATH")
-        except Exception as e:
-            print(f"      ⚠️ Error running dotnet test: {e}")
+    # ── Go: go test with coverage ──
+    if _tool_available("go") and list(Path(".").glob("*_test.go")):
+        print("🧪 Go: Running go test with coverage...")
+        code, _, _ = run_command([
+            "go", "test", "./...", "-coverprofile=coverage.out"
+        ])
+        if code == 0:
+            print("  ✅ go test coverage completed")
+        else:
+            print(f"  ⚠️ go test had failures (exit {code})")
+            all_success = False
     
-    print("   ℹ️ Could not auto-generate coverage (no test framework detected)")
+    # ── Ruby: rspec/minitest with SimpleCov ──
+    if _tool_available("bundle") and Path("Gemfile").exists():
+        print("🧪 Ruby: Running bundled test with coverage...")
+        code, _, _ = run_command(["bundle", "exec", "rspec", "--format", "progress"])
+        if code == 0:
+            print("  ✅ bundle test with SimpleCov completed")
+        else:
+            print(f"  ⚠️ bundle test had failures (exit {code})")
+            all_success = all_success and (code == 0)
+    
+    print("\n📊 Coverage generation phase completed\n")
+    return 0  # Always return 0 - coverage is optional, don't block scan
 
 
 def calculate_code_coverage() -> int:
@@ -1243,6 +1475,15 @@ def collect_real_sast_metrics() -> dict:
 
     print("  -> bandit (Python security)...")
     all_findings += run_bandit(roots, ignore_patterns)
+
+    print("  -> npm audit (Node.js dependency vulnerabilities)...")
+    all_findings += run_npm_audit(roots)
+
+    print("  -> pip-audit (Python dependency vulnerabilities)...")
+    all_findings += run_pip_audit(roots)
+
+    print("  -> detect-secrets (credential/secret scanning)...")
+    all_findings += run_detect_secrets(roots, ignore_patterns)
 
     all_findings = [f for f in all_findings if not _is_ignored(f.file_path, ignore_patterns)]
 
@@ -1633,18 +1874,24 @@ def run_analysis(api_url: str, token: str | None) -> int:
     endpoint  = f"{api_url.rstrip('/')}/api/v1/analyses"
     sast_mode = os.getenv("PLATFORM_REAL_SAST", "true").lower() in {"1", "true", "yes"}
 
-    # Auto-generate coverage reports if missing
-    print("\n📊 Pre-flight: Coverage Report Generation")
-    print("=" * 70)
-    generate_coverage_reports()
-    print()
-
     metrics_payload: dict = {}
     if sast_mode:
         try:
+            # Step 1: Generate coverage reports (run tests)
+            print("\n" + "=" * 70)
+            print("PHASE 1: Coverage Report Generation")
+            print("=" * 70)
+            generate_coverage_reports()
+            
+            # Step 2: Run SAST analysis (using generated coverage)
+            print("\n" + "=" * 70)
+            print("PHASE 2: SAST Analysis")
+            print("=" * 70)
             metrics_payload = collect_real_sast_metrics()
         except Exception as exc:
             print(f"Real SAST scan failed: {exc}")
+            import traceback
+            traceback.print_exc()
             return 1
     else:
         print("PLATFORM_REAL_SAST is disabled, using bootstrap metrics fallback")

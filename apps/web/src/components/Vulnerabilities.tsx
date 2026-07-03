@@ -17,6 +17,10 @@ interface CVE {
   created_at: string;
   severity?: string;
   cvss_score?: number;
+  file_path?: string;
+  line?: number | null;
+  end_line?: number | null;
+  source_url?: string | null;
   vulnerability?: {
     cve_id: string;
     cvss_v3_score: number;
@@ -232,6 +236,24 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
                             <p className="vuln-description">
                               {vuln.vulnerability.description}
                             </p>
+                          )}
+
+                          {vuln.file_path && (
+                            <div className="vuln-location">
+                              {vuln.file_path}
+                              {vuln.line && <span className="line-number">:{vuln.line}</span>}
+                              {vuln.source_url && (
+                                <a
+                                  href={vuln.source_url}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  className="vuln-source-link"
+                                  style={{ marginLeft: '0.75rem' }}
+                                >
+                                  Open in Azure DevOps
+                                </a>
+                              )}
+                            </div>
                           )}
 
                           {vuln.fix_available && vuln.fixed_version && (

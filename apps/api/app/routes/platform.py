@@ -1,17 +1,168 @@
-"""Platform endpoints."""
+"""Platform endpoints: CI/CD API tokens and global settings."""
 
-from fastapi import APIRouter, Depends
+import hashlib
+import secrets
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.auth import require_platform_auth
 from app.db import get_session
+from app.models import PlatformApiToken, PlatformSetting
 
 router = APIRouter(prefix="/api/v1/platform", tags=["platform"])
 
+
+class TokenGenerateRequest(BaseModel):
+    """Request body to generate or rotate the CI/CD platform token."""
+    token_name: str
+    ttl_days: int | None = None
+    require_current_token: bool = False
+
+
+DEFAULT_SETTINGS = {
+    "instance_name": "Upcoop SonarLike Platform",
+    "report_max_size_mb": "450",
+    "global_source_exclusions": "**/__tests__/**,**/*.snap",
+    "source_file_exclusions": "**/*.generated.*,**/coverage/**",
+}
+
+
+class PlatformSettingsResponse(BaseModel):
+    instance_name: str
+    report_max_size_mb: str
+    global_source_exclusions: str
+    source_file_exclusions: str
+
+
+class PlatformSettingsUpdateRequest(BaseModel):
+    instance_name: str | None = None
+    report_max_size_mb: str | None = None
+    global_source_exclusions: str | None = None
+    source_file_exclusions: str | None = None
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@router.post("/token/generate")
+async def generate_token(
+    request: TokenGenerateRequest,
+    authorization: str | None = Header(None),
+    session: Session = Depends(get_session),
+    auth=Depends(require_platform_auth),
+) -> dict:
+    """Generate a new CI/CD token, or rotate the current one."""
+    if request.require_current_token:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Current token is required to rotate")
+        presented_hash = _hash_token(authorization.removeprefix("Bearer ").strip())
+        current = session.query(PlatformApiToken).filter(
+            PlatformApiToken.is_current.is_(True),
+            PlatformApiToken.revoked.is_(False),
+        ).first()
+        if not current or current.token_hash != presented_hash:
+            raise HTTPException(status_code=401, detail="Invalid current token")
+
+    session.query(PlatformApiToken).filter(
+        PlatformApiToken.is_current.is_(True)
+    ).update({"is_current": False})
+
+    plaintext = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=request.ttl_days) if request.ttl_days else None
+
+    token = PlatformApiToken(
+        token_id=str(uuid.uuid4()),
+        token_name=request.token_name or "CI/CD token",
+        token_hash=_hash_token(plaintext),
+        token_preview=f"...{plaintext[-4:]}",
+        is_current=True,
+        revoked=False,
+        created_at=now,
+        expires_at=expires_at,
+    )
+    session.add(token)
+    session.commit()
+
+    return {
+        "token": plaintext,
+        "generated_at": now.isoformat(),
+        "expires_at": expires_at.isoformat() if expires_at else None,
+    }
+
+
 @router.get("/token/status")
 async def get_token_status(session: Session = Depends(get_session)) -> dict:
-    """Get platform token status."""
-    return {"status": "active"}
+    """Return whether a current CI/CD token exists and its expiry state."""
+    current = session.query(PlatformApiToken).filter(
+        PlatformApiToken.is_current.is_(True),
+        PlatformApiToken.revoked.is_(False),
+    ).first()
+
+    if not current:
+        return {"configured": False, "expired": False, "expires_at": None}
+
+    # Column is TIMESTAMP WITHOUT TIME ZONE: Postgres returns naive UTC values.
+    expired = bool(current.expires_at and current.expires_at < datetime.utcnow())
+    return {
+        "configured": True,
+        "expired": expired,
+        "expires_at": current.expires_at.isoformat() if current.expires_at else None,
+    }
+
 
 @router.get("/token/history")
 async def get_token_history(session: Session = Depends(get_session)) -> list:
-    """Get platform token history."""
-    return []
+    """Return the CI/CD token generation history (never the plaintext or hash)."""
+    tokens = session.query(PlatformApiToken).order_by(PlatformApiToken.created_at.desc()).all()
+    return [
+        {
+            "token_id": token.token_id,
+            "token_name": token.token_name,
+            "token_preview": token.token_preview,
+            "created_at": token.created_at.isoformat(),
+            "expires_at": token.expires_at.isoformat() if token.expires_at else "",
+            "is_current": token.is_current,
+        }
+        for token in tokens
+    ]
+
+
+@router.get("/settings", response_model=PlatformSettingsResponse)
+async def get_settings(session: Session = Depends(get_session)) -> PlatformSettingsResponse:
+    """Return global platform settings, falling back to defaults for unset keys."""
+    rows = session.query(PlatformSetting).filter(
+        PlatformSetting.key.in_(DEFAULT_SETTINGS.keys())
+    ).all()
+    values = dict(DEFAULT_SETTINGS)
+    for row in rows:
+        values[row.key] = row.value
+    return PlatformSettingsResponse(**values)
+
+
+@router.put("/settings", response_model=PlatformSettingsResponse)
+async def update_settings(
+    request: PlatformSettingsUpdateRequest,
+    session: Session = Depends(get_session),
+    auth=Depends(require_platform_auth),
+) -> PlatformSettingsResponse:
+    """Upsert global platform settings into the platform_settings table."""
+    updates = request.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        row = session.query(PlatformSetting).filter(PlatformSetting.key == key).first()
+        if row:
+            row.value = value
+            row.updated_at = datetime.now(timezone.utc)
+        else:
+            session.add(PlatformSetting(
+                id=str(uuid.uuid4()),
+                key=key,
+                value=value,
+            ))
+    session.commit()
+    return await get_settings(session=session)
