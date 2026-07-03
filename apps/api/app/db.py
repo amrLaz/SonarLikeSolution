@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker, Session
 
 _log = logging.getLogger(__name__)
@@ -13,16 +14,25 @@ if postgres_host in ("db", ""):
     postgres_host = "newsastproject-db-1"
 
 DB_HOST = os.getenv("DB_HOST") or postgres_host
-DB_PORT = os.getenv("DB_PORT", os.getenv("POSTGRES_PORT", "5432"))
+DB_PORT = int(os.getenv("DB_PORT", os.getenv("POSTGRES_PORT", "5432")))
 DB_USER = os.getenv("DB_USER", os.getenv("POSTGRES_USER", "sast_user"))
 DB_PASSWORD = os.getenv("DB_PASSWORD", os.getenv("POSTGRES_PASSWORD", "sast_pass"))
 DB_NAME = os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "sast_db"))
 
-# Azure PostgreSQL Flexible Server requires SSL — append sslmode=require when on Azure.
-_ssl = "?sslmode=require" if DB_HOST.endswith(".postgres.database.azure.com") else ""
-DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}{_ssl}"
+# Use URL.create() so special chars in DB_PASSWORD are handled correctly.
+# Azure PostgreSQL Flexible Server requires SSL.
+_query = {"sslmode": "require"} if DB_HOST.endswith(".postgres.database.azure.com") else {}
+DATABASE_URL = URL.create(
+    drivername="postgresql+psycopg",
+    username=DB_USER,
+    password=DB_PASSWORD,
+    host=DB_HOST,
+    port=DB_PORT,
+    database=DB_NAME,
+    query=_query,
+)
 
-_log.warning("[DB] host=%r port=%s db=%s ssl=%s", DB_HOST, DB_PORT, DB_NAME, bool(_ssl))
+_log.warning("[DB] host=%r port=%s db=%s ssl=%s", DB_HOST, DB_PORT, DB_NAME, bool(_query))
 
 # Create engine with pool settings
 engine = create_engine(
