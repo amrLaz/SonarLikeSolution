@@ -121,7 +121,7 @@ jobs:
           az webapp config container set \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --docker-custom-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
+            --container-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
 
       - name: "3. Redémarrer pour appliquer la nouvelle image"
         run: |
