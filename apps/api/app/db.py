@@ -1,24 +1,28 @@
 """Database connection and session management."""
 
+import logging
 import os
 import uuid
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 
-# Always construct DATABASE_URL from individual variables to ensure correct hostname
-# Convert old hostname 'db' to the correct Docker service name
+_log = logging.getLogger(__name__)
+
 postgres_host = os.getenv("POSTGRES_HOST", "newsastproject-db-1")
-if postgres_host == "db":
+if postgres_host in ("db", ""):
     postgres_host = "newsastproject-db-1"
 
-DB_HOST = os.getenv("DB_HOST", postgres_host)
+DB_HOST = os.getenv("DB_HOST") or postgres_host
 DB_PORT = os.getenv("DB_PORT", os.getenv("POSTGRES_PORT", "5432"))
 DB_USER = os.getenv("DB_USER", os.getenv("POSTGRES_USER", "sast_user"))
 DB_PASSWORD = os.getenv("DB_PASSWORD", os.getenv("POSTGRES_PASSWORD", "sast_pass"))
 DB_NAME = os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "sast_db"))
 
-# Use psycopg:// instead of postgresql:// for psycopg3
-DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Azure PostgreSQL Flexible Server requires SSL — append sslmode=require when on Azure.
+_ssl = "?sslmode=require" if DB_HOST.endswith(".postgres.database.azure.com") else ""
+DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}{_ssl}"
+
+_log.warning("[DB] host=%r port=%s db=%s ssl=%s", DB_HOST, DB_PORT, DB_NAME, bool(_ssl))
 
 # Create engine with pool settings
 engine = create_engine(
