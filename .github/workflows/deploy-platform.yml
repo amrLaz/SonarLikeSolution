@@ -102,7 +102,7 @@ jobs:
     needs: build
     environment:
       name: SAST-Plateform
-      url: https://${{ secrets.CONTAINER_APP_NAME }}.azurecontainerapps.io
+      url: https://up-france-odi-sast-prod-app.azurewebsites.net
 
     permissions:
       id-token: write
