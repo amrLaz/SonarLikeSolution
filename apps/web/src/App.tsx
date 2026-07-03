@@ -3823,76 +3823,56 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
 
               {activeAdminSection === "pat-management" && (
                 <>
-                  <h3>CI/CD API Token</h3>
-                  <p style={{ marginBottom: "1rem" }}>
+                  <h2>PAT Management</h2>
+                  <p>
                     Used by Azure Pipelines or GitHub Actions to authenticate against this platform.
-                    {platformTokenConfigured === true && " A token is currently configured."}
-                    {platformTokenConfigured === false && " No token is configured yet — generate one to enable CI authentication."}
+                    {platformTokenConfigured === true && " A token is currently active."}
+                    {platformTokenConfigured === false && " No token configured — generate one to enable CI authentication."}
                   </p>
 
-                  <div className="form-grid compact" style={{ marginBottom: "1rem" }}>
-                    <label>
-                      Token name
-                      <input
-                        value={platformTokenName}
-                        onChange={(event) => setPlatformTokenName(event.target.value)}
-                        placeholder="Azure DevOps CI token"
-                      />
-                    </label>
+                  <div className="auth-card">
+                    <div className="form-grid compact">
+                      <label>
+                        Token name
+                        <input
+                          value={platformTokenName}
+                          onChange={(event) => setPlatformTokenName(event.target.value)}
+                          placeholder="Azure DevOps CI token"
+                        />
+                      </label>
+                      <label>
+                        Expiration (days)
+                        <input
+                          type="number"
+                          min={1}
+                          max={3650}
+                          value={platformTokenTtlDays}
+                          onChange={(event) => {
+                            const parsed = Number(event.target.value);
+                            setPlatformTokenTtlDays(Number.isFinite(parsed) ? parsed : DEFAULT_TOKEN_TTL_DAYS);
+                          }}
+                        />
+                      </label>
+                      {platformTokenConfigured && (
+                        <label>
+                          Current token (requis pour rotation)
+                          <input
+                            type="password"
+                            value={platformTokenInput}
+                            onChange={(event) => setPlatformTokenInput(event.target.value)}
+                            placeholder="Coller le token actuel pour rotation sécurisée"
+                            autoComplete="off"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {platformTokenExpiresAt && (
+                      <p style={{ fontSize: "0.85rem", color: platformTokenExpired ? "var(--danger)" : "var(--text-secondary)", margin: "0.5rem 0 0" }}>
+                        {platformTokenExpired ? "⚠ Expiré le" : "Expire le"} {new Date(platformTokenExpiresAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
-
-                  {platformTokenConfigured && (
-                    <div className="form-grid compact" style={{ marginBottom: "1rem" }}>
-                      <label>
-                        Current token (required for rotate)
-                        <input
-                          type="password"
-                          value={platformTokenInput}
-                          onChange={(event) => setPlatformTokenInput(event.target.value)}
-                          placeholder="Paste current token to rotate safely"
-                          autoComplete="off"
-                        />
-                      </label>
-                      <label>
-                        Token expiration (days)
-                        <input
-                          type="number"
-                          min={1}
-                          max={3650}
-                          value={platformTokenTtlDays}
-                          onChange={(event) => {
-                            const parsed = Number(event.target.value);
-                            setPlatformTokenTtlDays(Number.isFinite(parsed) ? parsed : DEFAULT_TOKEN_TTL_DAYS);
-                          }}
-                        />
-                      </label>
-                    </div>
-                  )}
-
-                  {!platformTokenConfigured && (
-                    <div className="form-grid compact" style={{ marginBottom: "1rem" }}>
-                      <label>
-                        Token expiration (days)
-                        <input
-                          type="number"
-                          min={1}
-                          max={3650}
-                          value={platformTokenTtlDays}
-                          onChange={(event) => {
-                            const parsed = Number(event.target.value);
-                            setPlatformTokenTtlDays(Number.isFinite(parsed) ? parsed : DEFAULT_TOKEN_TTL_DAYS);
-                          }}
-                        />
-                      </label>
-                    </div>
-                  )}
-
-                  {platformTokenExpiresAt && (
-                    <p style={{ marginBottom: "0.75rem", fontSize: "0.9rem", opacity: 0.85 }}>
-                      Expires at: {new Date(platformTokenExpiresAt).toLocaleString()}
-                      {platformTokenExpired ? " (expired)" : ""}
-                    </p>
-                  )}
 
                   <div className="action-row">
                     <button
@@ -4045,26 +4025,23 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
 
                               <div className="azure-devops-config-capabilities">
                                 <p className={config.quality_gate_enabled ? "integration-check ok" : "integration-check ko"}>
-                                  <span aria-hidden="true">{config.quality_gate_enabled ? "●" : "●"}</span>
+                                  <span aria-hidden="true" />
                                   Quality Gate status reporting
                                 </p>
                                 <p className={config.repo_import_enabled ? "integration-check ok" : "integration-check ko"}>
-                                  <span aria-hidden="true">{config.repo_import_enabled ? "●" : "●"}</span>
+                                  <span aria-hidden="true" />
                                   Import repositories from your DevOps Platform
                                 </p>
                                 <p className={config.pat_configured ? "integration-check ok" : "integration-check ko"}>
-                                  <span aria-hidden="true">{config.pat_configured ? "●" : "●"}</span>
+                                  <span aria-hidden="true" />
                                   Personal Access Token configured
                                 </p>
                               </div>
 
                               <div className="azure-devops-config-meta">
-                                <p>Status: {config.status}</p>
-                                <p>PAT configured: {config.pat_configured ? "yes" : "no"}</p>
-                                <p>
-                                  Last checked: {config.last_tested_at ? new Date(config.last_tested_at).toLocaleString() : "never"}
-                                </p>
-                                {config.last_error && <p className="fail">Last error: {config.last_error}</p>}
+                                <p>Status: <strong>{config.status}</strong></p>
+                                <p>Last checked: {config.last_tested_at ? new Date(config.last_tested_at).toLocaleString() : "never"}</p>
+                                {config.last_error && <p className="fail">Error: {config.last_error}</p>}
                               </div>
 
                               <div className="action-row">

@@ -1023,6 +1023,523 @@ button:disabled,
 }
 
 /* ────────────────────────────────────────────────────────────────────────────── */
+/* ADMINISTRATION — layout deux niveaux                                           */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.admin-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background: var(--bg-light);
+}
+
+/* ── Barre de navigation principale (Configuration | Security | Projects) ──── */
+.admin-top-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg-lighter);
+  padding: 0 2rem;
+}
+
+.admin-top-nav button {
+  padding: 12px 20px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -2px;
+}
+
+.admin-top-nav button:hover {
+  color: var(--primary);
+}
+
+.admin-top-nav button.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ── Conteneur principal sous la nav ──────────────────────────────────────── */
+.admin-body {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Menu latéral gauche ──────────────────────────────────────────────────── */
+.admin-side-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 1.5rem 0.75rem;
+  background: var(--bg-lighter);
+  border-right: 1px solid var(--border);
+  min-height: calc(100vh - 140px);
+}
+
+.admin-side-menu button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.admin-side-menu button:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.admin-side-menu button.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* ── Contenu principal ────────────────────────────────────────────────────── */
+.admin-content {
+  padding: 2rem 2.5rem;
+  background: var(--bg-light);
+  overflow-y: auto;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* CARDS                                                                          */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.auth-card {
+  background: var(--bg-lighter);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-card h3,
+.auth-card h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.auth-card > p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 1rem;
+}
+
+/* action-row dans le contexte admin : aligné à gauche */
+.auth-card .action-row,
+.admin-content .action-row {
+  justify-content: flex-start;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* FEEDBACK                                                                        */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.feedback {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+.feedback.success {
+  background: #eafaf1;
+  border: 1px solid #2ea44f;
+  color: #1a7f37;
+}
+
+.feedback.error {
+  background: #fff0f0;
+  border: 1px solid var(--danger);
+  color: #c61111;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* PROVIDER TABS (Authentication + DevOps Integrations)                           */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.auth-tags,
+.devops-provider-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.auth-tags button,
+.devops-provider-tabs button {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-lighter);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.auth-tags button:hover,
+.devops-provider-tabs button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.auth-tags button.active,
+.devops-provider-tabs button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* IAM — résumé stats                                                              */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.iam-summary-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.iam-summary-card {
+  background: var(--bg-lighter);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+}
+
+.iam-summary-card strong {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.iam-summary-card span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* IAM — grille de cards                                                           */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.iam-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.iam-card {
+  width: 100%;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* IAM — chips (rôles, types, statuts)                                             */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.iam-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.iam-chip.role.admin {
+  background: #fff0e6;
+  color: #c44d00;
+  border-color: #f5cba7;
+}
+
+.iam-chip.role.regular {
+  background: #e6f0ff;
+  color: #0052a3;
+  border-color: #b3cef5;
+}
+
+.iam-chip.role.default {
+  background: #f0f0f0;
+  color: #555;
+  border-color: #ccc;
+}
+
+.iam-chip.type {
+  background: #f0f4ff;
+  color: var(--secondary);
+  border-color: #d0d8f5;
+}
+
+.iam-chip.status.active {
+  background: #eafaf1;
+  color: #1a7f37;
+  border-color: #a3d9b1;
+}
+
+.iam-chip.status.inactive,
+.iam-chip.status.disabled {
+  background: #fafafa;
+  color: #888;
+  border-color: #ddd;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* IAM — tableau                                                                   */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table-wrap thead th {
+  background: var(--bg-light);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-wrap tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.table-wrap tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table-wrap tbody tr:hover {
+  background: var(--bg-light);
+}
+
+.table-wrap tbody td {
+  padding: 10px 14px;
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
+.iam-subtext {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.iam-inline-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.iam-inline-actions button {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-lighter);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.iam-inline-actions button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.iam-inline-actions button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.iam-inline-actions button.danger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* TOKEN HISTORY                                                                   */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.token-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.token-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-light);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.token-history-item strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.token-history-item p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 0;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
+/* AZURE DEVOPS CONFIG CARDS                                                       */
+/* ────────────────────────────────────────────────────────────────────────────── */
+
+.azure-devops-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.azure-devops-config-card {
+  background: var(--bg-lighter);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.azure-devops-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.azure-devops-config-header h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.azure-devops-config-header p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.azure-devops-config-capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.integration-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.integration-check span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.integration-check.ok {
+  color: #1a7f37;
+}
+
+.integration-check.ok span {
+  background: #2ea44f;
+  box-shadow: 0 0 0 3px #c4f0d0;
+}
+
+.integration-check.ko {
+  color: var(--text-secondary);
+}
+
+.integration-check.ko span {
+  background: #ccc;
+}
+
+.azure-devops-config-meta {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.azure-devops-config-meta p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.azure-devops-config-meta p.fail {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────── */
 /* RESPONSIVE */
 /* ────────────────────────────────────────────────────────────────────────────── */
 
