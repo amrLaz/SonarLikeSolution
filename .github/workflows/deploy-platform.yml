@@ -116,28 +116,25 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: "2. Mettre à jour le Container App"
+      - name: "2. Mettre à jour l'image du Web App"
         run: |
-          az containerapp update \
+          az webapp config container set \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --image "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
+            --docker-custom-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
 
-      - name: "3. Vérifier que la révision est active"
+      - name: "3. Redémarrer pour appliquer la nouvelle image"
         run: |
-          az containerapp revision list \
+          az webapp restart \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --query "[0].{name:name, state:properties.runningState, replicas:properties.replicas}" \
-            --output table
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
 
       - name: "4. URL de la plateforme"
         run: |
-          FQDN=$(az containerapp show \
+          FQDN=$(az webapp show \
             --name "${{ secrets.CONTAINER_APP_NAME }}" \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --query "properties.configuration.ingress.fqdn" \
-            --output tsv)
+            --query "defaultHostName" --output tsv)
           echo "════════════════════════════════════════════════════════"
           echo "  Déploiement terminé — image :${{ needs.build.outputs.image_tag }}"
           echo "  Platform URL : https://${FQDN}"
