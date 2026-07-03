@@ -23,7 +23,7 @@ DB_NAME = os.getenv("DB_NAME", os.getenv("POSTGRES_DB", "sast_db"))
 # Azure PostgreSQL Flexible Server requires SSL.
 _query = {"sslmode": "require"} if DB_HOST.endswith(".postgres.database.azure.com") else {}
 DATABASE_URL = URL.create(
-    drivername="postgresql+psycopg",
+    drivername="postgresql+psycopg2",
     username=DB_USER,
     password=DB_PASSWORD,
     host=DB_HOST,
