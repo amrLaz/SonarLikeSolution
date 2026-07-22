@@ -2188,11 +2188,6 @@ export function App() {
       </header>
 
       <section className="global-tools">
-        <input
-          placeholder="Search projects"
-          value={projectSearch}
-          onChange={(event) => setProjectSearch(event.target.value)}
-        />
         <div className="scope-toggle">
           <button
             type="button"
@@ -3116,9 +3111,31 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
         </section>
       )}
 
-      {activeTab === "vulnerabilities" && selectedBranchLatestAnalysis && (
+      {activeTab === "vulnerabilities" && (
         <section className="vulnerabilities-screen">
-          <VulnerabilitiesTab analysisId={selectedBranchLatestAnalysis.analysis_id} />
+          <div className="tab-project-bar">
+            <select
+              value={selectedProject}
+              onChange={(e) => { setSelectedProject(e.target.value); setSelectedBranch(""); }}
+            >
+              <option value="">— Select project —</option>
+              {summaries.map((s) => (
+                <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
+              ))}
+            </select>
+            {selectedSummary && (
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                {[...new Set(selectedSummary.history.map((a) => a.branch))].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          {selectedBranchLatestAnalysis ? (
+            <VulnerabilitiesTab analysisId={selectedBranchLatestAnalysis.analysis_id} />
+          ) : (
+            <p className="tab-empty-hint">Select a project and branch to view vulnerabilities and IOCs.</p>
+          )}
         </section>
       )}
 
@@ -3346,11 +3363,29 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
 
       {activeTab === "evolution" && (
         <section className="panel">
+          <div className="tab-project-bar">
+            <select
+              value={selectedProject}
+              onChange={(e) => { setSelectedProject(e.target.value); setSelectedBranch(""); }}
+            >
+              <option value="">— Select project —</option>
+              {summaries.map((s) => (
+                <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
+              ))}
+            </select>
+            {selectedSummary && (
+              <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                {[...new Set(selectedSummary.history.map((a) => a.branch))].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
           {selectedSummary ? (
             <>
               <div style={{ marginBottom: "24px" }}>
-                <h2 style={{ margin: "0 0 16px 0" }}>Metrics evolution for {selectedProject} - {selectedBranch || "all branches"}</h2>
+                <h2 style={{ margin: "0 0 16px 0" }}>Metrics evolution — {selectedProject} · {selectedBranch || "all branches"}</h2>
               </div>
 
               {(() => {

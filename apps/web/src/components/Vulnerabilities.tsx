@@ -221,12 +221,16 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
 
                         <div className="vuln-body">
                           <div className="vuln-package">
-                            <strong>{vuln.package_name}</strong>
-                            <span className="version">v{vuln.current_version}</span>
+                            <strong>{vuln.package_name && vuln.package_name !== "unknown" ? vuln.package_name : "—"}</strong>
+                            {vuln.current_version && vuln.current_version !== "unknown" && (
+                              <span className="version">v{vuln.current_version}</span>
+                            )}
                           </div>
-                          <span className="lang-badge">{vuln.language}</span>
+                          {vuln.language && vuln.language !== "unknown" && (
+                            <span className="lang-badge">{vuln.language}</span>
+                          )}
 
-                          {vuln.vulnerable_versions && (
+                          {vuln.vulnerable_versions && vuln.vulnerable_versions !== "unknown" && (
                             <div className="vuln-range">
                               Affected: {vuln.vulnerable_versions}
                             </div>

@@ -233,6 +233,34 @@ main {
   font-size: 14px;
 }
 
+/* Project / branch selector bar inside tabs (Vulnerabilities, Evolution) */
+.tab-project-bar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: var(--bg-lighter);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.tab-project-bar select {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text-primary);
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.tab-empty-hint {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 3rem 2rem;
+  font-size: 14px;
+}
+
 .scope-toggle {
   display: flex;
   gap: 0.5rem;
