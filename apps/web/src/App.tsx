@@ -363,6 +363,7 @@ export function App() {
   const [gate, setGate] = useState<QualityGate | null>(null);
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectMeta>>({});
   const [authProviders, setAuthProviders] = useState<AuthProvider[]>([]);
+  const [entraProvider, setEntraProvider] = useState<AuthProvider | null>(null);
   const [apiStatus, setApiStatus] = useState<ApiConnectionState>("checking");
   const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>("all");
   const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>("all");
@@ -727,6 +728,50 @@ export function App() {
       null
     );
   }, [filteredSummaries, selectedProject, summaries]);
+
+  // Handle Entra OIDC callback params and pre-fetch Entra provider status for sign-in page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const entraSession = params.get("entra_session");
+    const entraError = params.get("entra_error");
+    window.history.replaceState({}, "", window.location.pathname);
+
+    if (entraError) {
+      setSignInError(`Azure AD sign-in failed: ${decodeURIComponent(entraError)}`);
+      return;
+    }
+
+    if (entraSession) {
+      try {
+        const decoded = JSON.parse(atob(entraSession.replace(/-/g, "+").replace(/_/g, "/"))) as {
+          full_name: string;
+          email: string;
+          access_role: "admin" | "regular" | "default";
+        };
+        const nextSession: SessionUser = {
+          full_name: decoded.full_name ?? "Entra User",
+          email: decoded.email ?? "",
+          access_role: decoded.access_role ?? "regular",
+        };
+        setSessionUser(nextSession);
+        window.localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(nextSession));
+        setAuthScreen("app");
+      } catch {
+        setSignInError("Failed to read Azure AD session. Please try again.");
+      }
+      return;
+    }
+
+    // Pre-fetch azure-ad provider to know whether to show the SSO button
+    fetch(`${API_BASE}/v1/integrations/providers`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((providers: AuthProvider[]) => {
+        const azureAd = providers.find((p) => p.provider_id === "azure-ad") ?? null;
+        setEntraProvider(azureAd);
+      })
+      .catch(() => { /* sign-in still works without SSO */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-initialize selected branch when project changes
   useEffect(() => {
@@ -1984,6 +2029,18 @@ export function App() {
     setAuthScreen("app");
   };
 
+  const handleEntraSignIn = async () => {
+    setSignInError(null);
+    try {
+      const response = await fetch(`${API_BASE}/v1/auth/entra/login`);
+      if (!response.ok) throw new Error("Failed to get authorization URL");
+      const data = (await response.json()) as { auth_url: string };
+      window.location.href = data.auth_url;
+    } catch {
+      setSignInError("Failed to initiate Azure AD sign-in. Check the Entra configuration in Administration.");
+    }
+  };
+
   const openSignOutPage = () => {
     setAuthScreen("sign-out");
   };
@@ -2009,8 +2066,23 @@ export function App() {
         <section className="auth-shell">
           <div className="logo">Upcoop</div>
           <h1>Sign In</h1>
-          <p>Use a local account to access the SAST platform administration and dashboards.</p>
+          <p>Sign in with your organizational account or a local platform account.</p>
+          {entraProvider?.enabled && (
+            <div className="auth-card sign-card sso-card">
+              <p className="sso-label">Single Sign-On</p>
+              <button type="button" className="sso-btn" onClick={() => void handleEntraSignIn()}>
+                <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                </svg>
+                Sign in with Microsoft / Entra ID
+              </button>
+            </div>
+          )}
           <div className="auth-card sign-card">
+            <p className="sso-label">Local account</p>
             <div className="form-grid compact">
               <label>
                 Email
