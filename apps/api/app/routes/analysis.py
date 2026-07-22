@@ -515,7 +515,144 @@ def get_analysis_vulnerabilities(
         except (json.JSONDecodeError, TypeError):
             affected_files = {}
 
-    # Extract vulnerabilities from affected_files
+    # ── Helpers to parse SCA findings (Trivy, dotnet-audit, etc.) ─────────────
+
+    _SCA_PREFIXES = ("trivy/", "dotnet-audit/", "composer-audit/", "npm-audit/", "pip-audit/")
+
+    def _is_sca(rule: str, category: str) -> bool:
+        return category == "dependency_vulnerability" or any(rule.startswith(p) for p in _SCA_PREFIXES)
+
+    def _parse_trivy_message(message: str) -> tuple[str, str, str, float, str]:
+        """Return (pkg_name, version, fixed_version, cvss_score, description) from Trivy message."""
+        parts = [p.strip() for p in message.split(" | ")]
+        pkg_part = parts[0] if parts else message
+        at_idx = pkg_part.find("@")
+        colon_idx = pkg_part.find(":", at_idx) if at_idx != -1 else -1
+        pkg_name = pkg_part[:at_idx] if at_idx != -1 else pkg_part
+        version = pkg_part[at_idx + 1:colon_idx] if (at_idx != -1 and colon_idx != -1) else "unknown"
+        title = pkg_part[colon_idx + 1:].strip() if colon_idx != -1 else pkg_part
+        fixed_version = ""
+        cvss_score = 0.0
+        description = title
+        for part in parts[1:]:
+            if part.startswith("fix: upgrade to "):
+                fixed_version = part[len("fix: upgrade to "):]
+            elif part.startswith("CVSS "):
+                try:
+                    cvss_score = float(part[5:])
+                except ValueError:
+                    pass
+            elif not part.startswith("fix:") and not part.startswith("CVSS"):
+                description = part[:400]
+        return pkg_name, version, fixed_version, cvss_score, description
+
+    def _parse_dotnet_message(message: str) -> tuple[str, str, str]:
+        """Return (pkg_name, version, advisory_url) from dotnet-audit message."""
+        at_idx = message.find("@")
+        colon_idx = message.find(":", at_idx) if at_idx != -1 else -1
+        pkg_name = message[:at_idx].strip() if at_idx != -1 else "unknown"
+        version = message[at_idx + 1:colon_idx] if (at_idx != -1 and colon_idx != -1) else "unknown"
+        url = ""
+        if "https://" in message:
+            url_start = message.find("https://")
+            url = message[url_start:].split()[0]
+        return pkg_name, version, url
+
+    def _build_sca_entry(file_path: str, issue: dict) -> dict:
+        rule = issue.get("rule", "")
+        msg = issue.get("message", "")
+        severity = str(issue.get("severity", "info")).upper()
+        start_line = issue.get("line") or 0
+        end_line = issue.get("end_line") or start_line
+
+        if rule.startswith("trivy/"):
+            cve_id = rule[len("trivy/"):]
+            pkg_name, version, fixed_version, cvss_score, description = _parse_trivy_message(msg)
+            # Guess language from file extension
+            ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+            lang_map = {"json": "npm", "lock": "npm", "csproj": "dotnet", "sln": "dotnet",
+                        "txt": "python", "toml": "python", "mod": "go", "sum": "go"}
+            language = lang_map.get(ext, "unknown")
+            if "deps.json" in file_path:
+                language = "dotnet"
+            return {
+                "cve_id": cve_id,
+                "pkg_name": pkg_name,
+                "version": version,
+                "fixed_version": fixed_version,
+                "cvss_score": cvss_score or 5.0,
+                "description": description,
+                "language": language,
+                "fix_available": bool(fixed_version),
+                "start_line": start_line,
+                "end_line": end_line,
+            }
+
+        if rule.startswith("dotnet-audit/"):
+            pkg_name, version, url = _parse_dotnet_message(msg)
+            advisory_id = url.split("/")[-1] if url else rule[len("dotnet-audit/"):][:20]
+            return {
+                "cve_id": advisory_id,
+                "pkg_name": pkg_name,
+                "version": version,
+                "fixed_version": "",
+                "cvss_score": 5.0,
+                "description": msg,
+                "language": "dotnet",
+                "fix_available": False,
+                "start_line": start_line,
+                "end_line": end_line,
+            }
+
+        if rule.startswith("composer-audit/"):
+            advisory_id = rule[len("composer-audit/"):]
+            pkg_name = msg.split(":")[0].strip() if ":" in msg else "unknown"
+            return {
+                "cve_id": advisory_id if advisory_id.upper().startswith("CVE-") else f"GHSA-{advisory_id[:15]}",
+                "pkg_name": pkg_name,
+                "version": "unknown",
+                "fixed_version": "",
+                "cvss_score": 5.0,
+                "description": msg,
+                "language": "php",
+                "fix_available": False,
+                "start_line": start_line,
+                "end_line": end_line,
+            }
+
+        if rule.startswith("npm-audit/"):
+            advisory_id = rule[len("npm-audit/"):]
+            pkg_name = msg.split(":")[0].strip() if ":" in msg else "unknown"
+            return {
+                "cve_id": f"NPM-{advisory_id}",
+                "pkg_name": pkg_name,
+                "version": "unknown",
+                "fixed_version": "",
+                "cvss_score": 5.0,
+                "description": msg,
+                "language": "javascript",
+                "fix_available": False,
+                "start_line": start_line,
+                "end_line": end_line,
+            }
+
+        # pip-audit or unknown SCA
+        advisory_id = rule.split("/", 1)[-1] if "/" in rule else rule
+        return {
+            "cve_id": advisory_id if advisory_id.upper().startswith("CVE-") else advisory_id[:30],
+            "pkg_name": msg.split(":")[0].strip() if ":" in msg else "unknown",
+            "version": "unknown",
+            "fixed_version": "",
+            "cvss_score": 5.0,
+            "description": msg,
+            "language": "unknown",
+            "fix_available": False,
+            "start_line": start_line,
+            "end_line": end_line,
+        }
+
+    # ── Extract and classify findings from affected_files ────────────────────
+
     vulnerabilities = []
     critical_count = 0
     high_count = 0
@@ -523,70 +660,74 @@ def get_analysis_vulnerabilities(
     low_count = 0
 
     for file_path, file_data in affected_files.items():
-        if isinstance(file_data, dict) and file_data.get("severity"):
-            severity = str(file_data.get("severity", "info")).upper()
-            issues_count = file_data.get("issues", 1)
-            
-            # Count by severity
+        issues: list[dict] = []
+        if isinstance(file_data, list):
+            issues = file_data
+        elif isinstance(file_data, dict) and file_data.get("severity"):
+            # Compact format: single entry per file, no per-finding detail
+            issues = [file_data]
+
+        for issue in issues:
+            rule = issue.get("rule", "")
+            category = issue.get("category", "")
+            severity = str(issue.get("severity", "info")).upper()
+
+            if severity == "BLOCKER":
+                severity = "CRITICAL"
+
             if severity == "CRITICAL":
-                critical_count += issues_count
+                critical_count += 1
             elif severity == "HIGH":
-                high_count += issues_count
+                high_count += 1
             elif severity == "MEDIUM":
-                medium_count += issues_count
+                medium_count += 1
             elif severity == "LOW":
-                low_count += issues_count
-            
-            # Add to vulnerabilities list
-            vulnerabilities.append({
-                "id": f"{file_path}:{severity}",
-                "vulnerability_id": f"{file_path}:issue",
-                "language": "unknown",
-                "package_name": file_path.split("/")[-1] if "/" in file_path else file_path,
-                "current_version": "unknown",
-                "vulnerable_versions": "unknown",
-                "fix_available": False,
-                "created_at": to_iso_string(record.created_at),
-                "severity": severity,
-                "cvss_score": 5.0,
-                "file_path": file_path,
-                "line": None,
-                "end_line": None,
-                "source_url": _build_repo_file_url(
-                    repo_provider, repo_url, record.commit_sha, file_path, None, None
-                ),
-                "vulnerability": {
-                    "cve_id": f"CUSTOM-{file_path[:20]}",
-                    "cvss_v3_score": 5.0,
-                    "cvss_v3_severity": severity,
-                    "description": f"{issues_count} issue(s) of {severity} severity in {file_path}"
-                }
-            })
-        elif isinstance(file_data, list):
-            # Old format: array of issues
-            for issue in file_data:
-                severity = str(issue.get("severity", "info")).upper()
-                
-                # Count by severity
-                if severity == "CRITICAL":
-                    critical_count += 1
-                elif severity == "HIGH":
-                    high_count += 1
-                elif severity == "MEDIUM":
-                    medium_count += 1
-                elif severity == "LOW":
-                    low_count += 1
-                
+                low_count += 1
+
+            if _is_sca(rule, category):
+                sca = _build_sca_entry(file_path, issue)
+                start_line = sca["start_line"] or None
+                end_line = sca["end_line"] or start_line
+                vulnerabilities.append({
+                    "id": f"{file_path}:{sca['cve_id']}",
+                    "vulnerability_id": sca["cve_id"],
+                    "language": sca["language"],
+                    "package_name": sca["pkg_name"],
+                    "current_version": sca["version"],
+                    "vulnerable_versions": "unknown",
+                    "fix_available": sca["fix_available"],
+                    "fixed_version": sca["fixed_version"] or None,
+                    "created_at": to_iso_string(record.created_at),
+                    "severity": severity,
+                    "cvss_score": sca["cvss_score"],
+                    "file_path": file_path,
+                    "line": start_line,
+                    "end_line": end_line,
+                    "source_url": _build_repo_file_url(
+                        repo_provider, repo_url, record.commit_sha, file_path, start_line, end_line
+                    ),
+                    "vulnerability": {
+                        "cve_id": sca["cve_id"],
+                        "cvss_v3_score": sca["cvss_score"],
+                        "cvss_v3_severity": severity,
+                        "description": sca["description"],
+                    },
+                })
+            else:
+                # SAST finding — keep existing display logic
+                msg = issue.get("message", "")
                 start_line = issue.get("line") or None
                 end_line = issue.get("end_line") or start_line
+                rule_label = rule.replace("/", "-")[:40] if rule else "SAST"
                 vulnerabilities.append({
-                    "id": f"{file_path}:{issue.get('line', 0)}:{issue.get('rule', 'unknown')}",
-                    "vulnerability_id": f"{file_path}:issue",
+                    "id": f"{file_path}:{issue.get('line', 0)}:{rule}",
+                    "vulnerability_id": rule,
                     "language": "unknown",
                     "package_name": file_path.split("/")[-1] if "/" in file_path else file_path,
                     "current_version": "unknown",
                     "vulnerable_versions": "unknown",
                     "fix_available": False,
+                    "fixed_version": None,
                     "created_at": to_iso_string(record.created_at),
                     "severity": severity,
                     "cvss_score": 5.0,
@@ -597,11 +738,11 @@ def get_analysis_vulnerabilities(
                         repo_provider, repo_url, record.commit_sha, file_path, start_line, end_line
                     ),
                     "vulnerability": {
-                        "cve_id": f"CUSTOM-{file_path[:20]}",
+                        "cve_id": rule_label,
                         "cvss_v3_score": 5.0,
                         "cvss_v3_severity": severity,
-                        "description": f"{issue.get('message', 'Issue')} at line {issue.get('line', 'unknown')}"
-                    }
+                        "description": f"{msg} (line {issue.get('line', '?')})" if msg else f"Issue in {file_path}",
+                    },
                 })
 
     return {
