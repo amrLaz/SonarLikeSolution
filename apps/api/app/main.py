@@ -19,7 +19,36 @@ from app.routes.vulnerabilities import router as vulnerabilities_router
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
+    _auto_retention_cleanup()
     yield
+
+
+def _auto_retention_cleanup() -> None:
+    """Run retention cleanup on startup if auto-cleanup is enabled and last run was > 24 h ago."""
+    from datetime import datetime, timedelta, timezone
+    from app.db import SessionLocal
+    from app.routes.platform import _get_setting, run_retention_cleanup
+
+    session = SessionLocal()
+    try:
+        if _get_setting(session, "retention_auto_cleanup", "true").lower() not in {"1", "true", "yes"}:
+            return
+        last = _get_setting(session, "last_cleanup_at", "")
+        if last:
+            try:
+                last_dt = datetime.fromisoformat(last)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) - last_dt < timedelta(hours=24):
+                    return
+            except ValueError:
+                pass
+        result = run_retention_cleanup(session)
+        print(f"[retention] startup cleanup: deleted {result['deleted_analyses']} analyses")
+    except Exception as exc:
+        print(f"[retention] startup cleanup failed: {exc}")
+    finally:
+        session.close()
 
 
 app = FastAPI(title="SAST Platform API", version="0.1.0", lifespan=lifespan)

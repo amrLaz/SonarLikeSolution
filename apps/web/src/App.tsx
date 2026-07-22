@@ -18,6 +18,7 @@ type AdminPrimaryTab = "configuration" | "security" | "projects";
 type AdminSection =
   | "general-settings"
   | "analysis-scope"
+  | "data-retention"
   | "devops-integrations"
   | "access-management"
   | "pat-management"
@@ -169,6 +170,10 @@ type PlatformSettings = {
   report_max_size_mb: string;
   global_source_exclusions: string;
   source_file_exclusions: string;
+  retention_keep_days: string;
+  retention_keep_failed_days: string;
+  retention_max_per_branch: string;
+  retention_auto_cleanup: string;
 };
 
 const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -176,6 +181,10 @@ const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   report_max_size_mb: "450",
   global_source_exclusions: "**/__tests__/**,**/*.snap",
   source_file_exclusions: "**/*.generated.*,**/coverage/**",
+  retention_keep_days: "90",
+  retention_keep_failed_days: "30",
+  retention_max_per_branch: "50",
+  retention_auto_cleanup: "true",
 };
 
 type DevOpsProviderTab = "github" | "bitbucket" | "azure-devops" | "gitlab";
@@ -214,6 +223,7 @@ const ADMIN_NAV_BY_TAB: Record<AdminPrimaryTab, Array<{ id: AdminSection; label:
   configuration: [
     { id: "general-settings", label: "General" },
     { id: "analysis-scope", label: "Analysis Scope" },
+    { id: "data-retention", label: "Data Retention" },
     { id: "devops-integrations", label: "DevOps Platform Integrations" }
   ],
   security: [
@@ -390,6 +400,8 @@ export function App() {
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [savingPlatformSettings, setSavingPlatformSettings] = useState(false);
+  const [cleanupStatus, setCleanupStatus] = useState<{ last_cleanup_at: string; last_cleanup_deleted: number } | null>(null);
+  const [runningCleanup, setRunningCleanup] = useState(false);
   const [platformTokenConfigured, setPlatformTokenConfigured] = useState<boolean | null>(null);
   const [platformTokenExpired, setPlatformTokenExpired] = useState(false);
   const [platformTokenExpiresAt, setPlatformTokenExpiresAt] = useState<string | null>(null);
@@ -1308,26 +1320,30 @@ export function App() {
       apiFetch(`${API_BASE}/v1/platform/token/status`).then((res) => res.json()),
       apiFetch(`${API_BASE}/v1/platform/token/history`).then((res) => res.json()),
       apiFetch(`${API_BASE}/v1/integrations/azure-devops/configs`).then((res) => res.json()),
-      apiFetch(`${API_BASE}/v1/platform/settings`).then((res) => res.json())
+      apiFetch(`${API_BASE}/v1/platform/settings`).then((res) => res.json()),
+      apiFetch(`${API_BASE}/v1/platform/cleanup/status`).then((res) => res.json()).catch(() => null),
     ])
       .then(
         ([
           statusData,
           historyData,
           azureDevOpsConfigData,
-          settingsData
+          settingsData,
+          cleanupData,
         ]: [
           { configured: boolean; expired: boolean; expires_at: string | null },
           PlatformTokenHistoryItem[],
           AzureDevOpsOrganizationConfig[],
-          PlatformSettings
+          PlatformSettings,
+          { last_cleanup_at: string; last_cleanup_deleted: number } | null,
         ]) => {
           setPlatformTokenConfigured(statusData.configured);
           setPlatformTokenExpired(statusData.expired);
           setPlatformTokenExpiresAt(statusData.expires_at);
           setPlatformTokenHistory(historyData);
           setAzureDevOpsConfigs(azureDevOpsConfigData);
-          setPlatformSettings(settingsData);
+          setPlatformSettings({ ...DEFAULT_PLATFORM_SETTINGS, ...settingsData });
+          if (cleanupData) setCleanupStatus(cleanupData);
         }
       )
       .catch(() => {
@@ -3612,6 +3628,125 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                     >
                       Restore defaults
                     </button>
+                  </div>
+                </>
+              )}
+
+              {activeAdminSection === "data-retention" && (
+                <>
+                  <h2>Data Retention</h2>
+                  <p>Configure automatic cleanup of old analysis data to prevent database growth.</p>
+
+                  <div className="auth-card">
+                    <h3>Retention rules</h3>
+                    <div className="form-grid compact">
+                      <label>
+                        Keep completed analyses (days)
+                        <input
+                          type="number"
+                          min="7"
+                          max="3650"
+                          value={platformSettings.retention_keep_days}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({ ...s, retention_keep_days: e.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Keep failed analyses (days)
+                        <input
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={platformSettings.retention_keep_failed_days}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({ ...s, retention_keep_failed_days: e.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Max analyses kept per branch
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={platformSettings.retention_max_per_branch}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({ ...s, retention_max_per_branch: e.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="form-grid compact" style={{ marginTop: "0.75rem" }}>
+                      <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={platformSettings.retention_auto_cleanup === "true"}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({
+                              ...s,
+                              retention_auto_cleanup: e.target.checked ? "true" : "false",
+                            }))
+                          }
+                        />
+                        Auto-cleanup on startup (runs at most once per 24 h)
+                      </label>
+                    </div>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        disabled={savingPlatformSettings}
+                        onClick={() =>
+                          void savePlatformSettings(
+                            {
+                              retention_keep_days: platformSettings.retention_keep_days,
+                              retention_keep_failed_days: platformSettings.retention_keep_failed_days,
+                              retention_max_per_branch: platformSettings.retention_max_per_branch,
+                              retention_auto_cleanup: platformSettings.retention_auto_cleanup,
+                            },
+                            "Retention policy saved."
+                          )
+                        }
+                      >
+                        {savingPlatformSettings ? "Saving…" : "Save retention policy"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="auth-card" style={{ marginTop: "1.5rem" }}>
+                    <h3>Manual cleanup</h3>
+                    {cleanupStatus?.last_cleanup_at ? (
+                      <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                        Last cleanup: {new Date(cleanupStatus.last_cleanup_at).toLocaleString()} —{" "}
+                        {cleanupStatus.last_cleanup_deleted} analyses deleted
+                      </p>
+                    ) : (
+                      <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                        No cleanup has run yet.
+                      </p>
+                    )}
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        disabled={runningCleanup}
+                        onClick={() => {
+                          setRunningCleanup(true);
+                          apiFetch(`${API_BASE}/v1/platform/cleanup`, { method: "POST" })
+                            .then((r) => r.json())
+                            .then((result: { deleted_analyses: number; cleanup_at: string }) => {
+                              setCleanupStatus({
+                                last_cleanup_at: result.cleanup_at,
+                                last_cleanup_deleted: result.deleted_analyses,
+                              });
+                              setAdminMessage(`Cleanup done: ${result.deleted_analyses} analyses deleted.`);
+                            })
+                            .catch(() => setAdminMessage("Cleanup failed."))
+                            .finally(() => setRunningCleanup(false));
+                        }}
+                      >
+                        {runningCleanup ? "Running…" : "Run cleanup now"}
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
