@@ -89,13 +89,20 @@ type ProjectIntegrationRecord = {
 };
 
 type AuthProvider = {
-  provider_id: "saml" | "github" | "azure-devops" | "gitlab";
+  provider_id: "saml" | "github" | "azure-devops" | "gitlab" | "azure-ad";
   display_name: string;
   category: string;
   connection_url: string;
   enabled: boolean;
   status: "ready" | "validated" | "disabled";
   last_tested_at: string;
+  config?: {
+    tenant_id?: string;
+    client_id?: string;
+    client_secret_configured?: boolean;
+    redirect_uri?: string;
+    scopes?: string;
+  };
 };
 
 type LocalUserRole = "admin" | "regular" | "default";
@@ -434,7 +441,12 @@ export function App() {
 
   const [authForm, setAuthForm] = useState({
     provider_id: "github" as AuthProvider["provider_id"],
-    connection_url: "https://github.com"
+    connection_url: "https://github.com",
+    tenant_id: "",
+    client_id: "",
+    client_secret: "",
+    redirect_uri: "",
+    scopes: "openid profile email",
   });
 
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(() => {
@@ -1353,7 +1365,12 @@ export function App() {
 
     setAuthForm({
       provider_id: selectedAuthProvider.provider_id,
-      connection_url: selectedAuthProvider.connection_url
+      connection_url: selectedAuthProvider.connection_url,
+      tenant_id: selectedAuthProvider.config?.tenant_id ?? "",
+      client_id: selectedAuthProvider.config?.client_id ?? "",
+      client_secret: "",
+      redirect_uri: selectedAuthProvider.config?.redirect_uri ?? "",
+      scopes: selectedAuthProvider.config?.scopes ?? "openid profile email",
     });
   }, [selectedAuthProvider]);
 
@@ -1515,10 +1532,23 @@ export function App() {
     setSavingAuthProvider(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = { connection_url: authForm.connection_url.trim() };
+      if (authForm.provider_id === "azure-ad") {
+        const oidcConfig: Record<string, string> = {
+          tenant_id: authForm.tenant_id.trim(),
+          client_id: authForm.client_id.trim(),
+          redirect_uri: authForm.redirect_uri.trim(),
+          scopes: authForm.scopes.trim(),
+        };
+        if (authForm.client_secret.trim()) {
+          oidcConfig.client_secret = authForm.client_secret.trim();
+        }
+        body.config_json = oidcConfig;
+      }
       const response = await apiFetch(`${API_BASE}/v1/integrations/providers/${authForm.provider_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connection_url: authForm.connection_url.trim() })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -1571,10 +1601,23 @@ export function App() {
     setTestingAuthProvider(true);
     setError(null);
     try {
+      const body: Record<string, unknown> = { connection_url: authForm.connection_url.trim() };
+      if (authForm.provider_id === "azure-ad") {
+        const oidcConfig: Record<string, string> = {
+          tenant_id: authForm.tenant_id.trim(),
+          client_id: authForm.client_id.trim(),
+          redirect_uri: authForm.redirect_uri.trim(),
+          scopes: authForm.scopes.trim(),
+        };
+        if (authForm.client_secret.trim()) {
+          oidcConfig.client_secret = authForm.client_secret.trim();
+        }
+        body.config_json = oidcConfig;
+      }
       const saveResponse = await apiFetch(`${API_BASE}/v1/integrations/providers/${authForm.provider_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connection_url: authForm.connection_url.trim() })
+        body: JSON.stringify(body)
       });
 
       if (!saveResponse.ok) {
@@ -3478,7 +3521,12 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                         className={authForm.provider_id === provider.provider_id ? "active" : ""}
                         onClick={() => setAuthForm({
                           provider_id: provider.provider_id,
-                          connection_url: provider.connection_url
+                          connection_url: provider.connection_url,
+                          tenant_id: provider.config?.tenant_id ?? "",
+                          client_id: provider.config?.client_id ?? "",
+                          client_secret: "",
+                          redirect_uri: provider.config?.redirect_uri ?? "",
+                          scopes: provider.config?.scopes ?? "openid profile email",
                         })}
                       >
                         {provider.display_name}
@@ -3504,6 +3552,55 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                           placeholder="https://github.com or https://dev.azure.com/..."
                         />
                       </label>
+                      {authForm.provider_id === "azure-ad" && (
+                        <>
+                          <label>
+                            Tenant ID
+                            <input
+                              value={authForm.tenant_id}
+                              onChange={(e) => setAuthForm((c) => ({ ...c, tenant_id: e.target.value }))}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            />
+                          </label>
+                          <label>
+                            Client ID (App Registration)
+                            <input
+                              value={authForm.client_id}
+                              onChange={(e) => setAuthForm((c) => ({ ...c, client_id: e.target.value }))}
+                              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            />
+                          </label>
+                          <label>
+                            Client Secret
+                            <input
+                              type="password"
+                              value={authForm.client_secret}
+                              onChange={(e) => setAuthForm((c) => ({ ...c, client_secret: e.target.value }))}
+                              placeholder={
+                                selectedAuthProvider?.config?.client_secret_configured
+                                  ? "••••••• (configured — leave blank to keep)"
+                                  : "Paste client secret value"
+                              }
+                            />
+                          </label>
+                          <label>
+                            Redirect URI
+                            <input
+                              value={authForm.redirect_uri}
+                              onChange={(e) => setAuthForm((c) => ({ ...c, redirect_uri: e.target.value }))}
+                              placeholder="https://your-platform.azurewebsites.net/auth/callback"
+                            />
+                          </label>
+                          <label>
+                            Scopes (space-separated)
+                            <input
+                              value={authForm.scopes}
+                              onChange={(e) => setAuthForm((c) => ({ ...c, scopes: e.target.value }))}
+                              placeholder="openid profile email"
+                            />
+                          </label>
+                        </>
+                      )}
                     </div>
                     <div className="action-row">
                       <button type="button" onClick={() => void testAuthProvider()} disabled={testingAuthProvider}>

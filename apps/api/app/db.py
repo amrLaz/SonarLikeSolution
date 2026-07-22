@@ -61,10 +61,11 @@ _SCHEMA_PATCHES = [
     "ALTER TABLE analysis_records ADD COLUMN IF NOT EXISTS dependency_vulnerabilities INTEGER DEFAULT 0",
 ]
 
-# Default authentication provider catalog, seeded once if the table is empty -
-# mirrors SonarQube, which always lists available providers even when disabled.
+# Default authentication provider catalog — upserted on every startup so new
+# entries are added even when the table already has existing rows.
 _DEFAULT_AUTH_PROVIDERS = [
     ("saml", "SAML 2.0", "Enterprise SSO", ""),
+    ("azure-ad", "Azure AD / Entra ID", "Enterprise SSO", "https://login.microsoftonline.com"),
     ("azure-devops", "Azure DevOps", "DevOps Platform", "https://dev.azure.com"),
     ("github", "GitHub", "DevOps Platform", "https://github.com"),
     ("gitlab", "GitLab", "DevOps Platform", "https://gitlab.com"),
@@ -85,24 +86,26 @@ def init_db():
 
 
 def _seed_default_auth_providers():
-    """Insert the default provider catalog if no provider rows exist yet."""
+    """Upsert the default provider catalog — inserts missing entries on every startup."""
     from app.models import AuthProviderConfig
 
     session = SessionLocal()
     try:
-        if session.query(AuthProviderConfig).count() > 0:
-            return
         for provider_id, display_name, category, connection_url in _DEFAULT_AUTH_PROVIDERS:
-            session.add(AuthProviderConfig(
-                id=str(uuid.uuid4()),
-                provider_type=provider_id,
-                name=display_name,
-                config="{}",
-                enabled=False,
-                category=category,
-                connection_url=connection_url,
-                status="ready",
-            ))
+            exists = session.query(AuthProviderConfig).filter(
+                AuthProviderConfig.provider_type == provider_id
+            ).first()
+            if not exists:
+                session.add(AuthProviderConfig(
+                    id=str(uuid.uuid4()),
+                    provider_type=provider_id,
+                    name=display_name,
+                    config="{}",
+                    enabled=False,
+                    category=category,
+                    connection_url=connection_url,
+                    status="ready",
+                ))
         session.commit()
     finally:
         session.close()

@@ -1,13 +1,17 @@
 """Integrations endpoints."""
 
+import json
+import uuid
+from datetime import datetime, timezone
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.db import get_session
+
 from app.auth import require_platform_auth
-from app.models import ProjectIntegration, AzureDevOpsOrganizationConfig, AuthProviderConfig
-import uuid
-from datetime import datetime, timezone
+from app.db import get_session
+from app.models import AzureDevOpsOrganizationConfig, AuthProviderConfig, ProjectIntegration
 
 router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
 
@@ -45,11 +49,20 @@ class AzureDevOpsConfigResponse(BaseModel):
 
 
 class AuthProviderUpdateRequest(BaseModel):
-    """Request body to update an auth provider's connection URL."""
-    connection_url: str
+    """Request body to update an auth provider."""
+    connection_url: str = ""
+    config_json: dict[str, Any] | None = None
 
 
 def _to_provider_response(provider: AuthProviderConfig) -> dict:
+    try:
+        config_raw: dict[str, Any] = json.loads(provider.config or "{}")
+    except Exception:
+        config_raw = {}
+    # Strip client_secret from the response; signal its presence via a bool flag
+    config_safe = {k: v for k, v in config_raw.items() if k != "client_secret"}
+    if "client_secret" in config_raw:
+        config_safe["client_secret_configured"] = bool(config_raw["client_secret"])
     return {
         "provider_id": provider.provider_type,
         "display_name": provider.name,
@@ -58,6 +71,7 @@ def _to_provider_response(provider: AuthProviderConfig) -> dict:
         "enabled": provider.enabled,
         "status": provider.status,
         "last_tested_at": provider.last_tested_at.isoformat() if provider.last_tested_at else "",
+        "config": config_safe,
     }
 
 
@@ -84,9 +98,21 @@ async def update_provider(
     session: Session = Depends(get_session),
     auth = Depends(require_platform_auth)
 ) -> dict:
-    """Update an authentication provider's connection URL."""
+    """Update an authentication provider's connection URL and/or OIDC config."""
     provider = _get_provider_or_404(session, provider_id)
-    provider.connection_url = request.connection_url
+    if request.connection_url:
+        provider.connection_url = request.connection_url
+    if request.config_json is not None:
+        existing: dict[str, Any] = {}
+        try:
+            existing = json.loads(provider.config or "{}")
+        except Exception:
+            pass
+        merged = {**existing, **request.config_json}
+        # Never blank-overwrite the stored client_secret if the update omits it
+        if not merged.get("client_secret") and existing.get("client_secret"):
+            merged["client_secret"] = existing["client_secret"]
+        provider.config = json.dumps(merged)
     provider.updated_at = datetime.now(timezone.utc)
     session.commit()
     session.refresh(provider)
@@ -101,7 +127,17 @@ async def test_provider(
 ) -> dict:
     """Validate an authentication provider's configuration."""
     provider = _get_provider_or_404(session, provider_id)
-    if not provider.connection_url:
+    if provider_id == "azure-ad":
+        try:
+            config: dict[str, Any] = json.loads(provider.config or "{}")
+        except Exception:
+            config = {}
+        if not config.get("tenant_id") or not config.get("client_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="Tenant ID and Client ID are required before testing Azure AD"
+            )
+    elif not provider.connection_url:
         raise HTTPException(status_code=400, detail="Connection URL is required before testing")
     provider.status = "validated"
     provider.enabled = True
