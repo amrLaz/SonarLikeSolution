@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import require_role
+from app.auth import require_platform_auth, require_role
 from app.db import get_session
 from app.models import AzureDevOpsOrganizationConfig, AuthProviderConfig, ProjectIntegration
 
@@ -396,7 +396,7 @@ async def update_project_integration(
     project_key: str,
     request: ProjectIntegrationRequest,
     session: Session = Depends(get_session),
-    auth = Depends(require_role("admin"))
+    _: dict = Depends(require_platform_auth),
 ) -> dict:
     """Update project integration configuration."""
     # Find existing integration or create new one
