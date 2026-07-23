@@ -114,31 +114,59 @@ def _seed_default_auth_providers():
 
 
 def _seed_default_admin():
-    """Create the initial admin user if no users exist yet."""
+    """Sync the platform admin account from environment variables on every startup.
+
+    - If PLATFORM_ADMIN_PASSWORD is set: always upsert the admin (create or update
+      password). This means changing env vars + restarting the app is enough to
+      reset credentials — no manual DB access needed.
+    - If not set: only seed once when platform_users is completely empty.
+    """
     from app.auth import hash_password
     from app.models import PlatformUser
 
+    admin_email = os.getenv("PLATFORM_ADMIN_EMAIL", "admin@platform.local")
+    admin_password = os.getenv("PLATFORM_ADMIN_PASSWORD", "")
+
     session = SessionLocal()
     try:
-        if session.query(PlatformUser).count() > 0:
-            return
-        admin_email = os.getenv("PLATFORM_ADMIN_EMAIL", "admin@platform.local")
-        admin_password = os.getenv("PLATFORM_ADMIN_PASSWORD", "")
-        if not admin_password:
-            admin_password = secrets.token_urlsafe(12)
-            print(f"[RBAC] No PLATFORM_ADMIN_PASSWORD set — generated password for {admin_email}: {admin_password}")
-        admin = PlatformUser(
-            user_id=str(uuid.uuid4()),
-            email=admin_email,
-            full_name="Platform Admin",
-            role="admin",
-            hashed_password=hash_password(admin_password),
-            auth_provider="local",
-            is_active=True,
-        )
-        session.add(admin)
-        session.commit()
-        print(f"[RBAC] Default admin created: {admin_email}")
+        if admin_password:
+            # Env var set — upsert on every startup so credentials stay in sync
+            user = session.query(PlatformUser).filter(PlatformUser.email == admin_email).first()
+            if user:
+                user.hashed_password = hash_password(admin_password)
+                user.role = "admin"
+                user.is_active = True
+                session.commit()
+                print(f"[RBAC] Admin synced from env: {admin_email}")
+            else:
+                session.add(PlatformUser(
+                    user_id=str(uuid.uuid4()),
+                    email=admin_email,
+                    full_name="Platform Admin",
+                    role="admin",
+                    hashed_password=hash_password(admin_password),
+                    auth_provider="local",
+                    is_active=True,
+                ))
+                session.commit()
+                print(f"[RBAC] Admin created from env: {admin_email}")
+        else:
+            # No env var — seed only once when table is empty
+            if session.query(PlatformUser).count() > 0:
+                return
+            generated = secrets.token_urlsafe(12)
+            print(f"[RBAC] No PLATFORM_ADMIN_PASSWORD set — generated password for {admin_email}: {generated}")
+            session.add(PlatformUser(
+                user_id=str(uuid.uuid4()),
+                email=admin_email,
+                full_name="Platform Admin",
+                role="admin",
+                hashed_password=hash_password(generated),
+                auth_provider="local",
+                is_active=True,
+            ))
+            session.commit()
+            print(f"[RBAC] Default admin created: {admin_email}")
     finally:
         session.close()
 
