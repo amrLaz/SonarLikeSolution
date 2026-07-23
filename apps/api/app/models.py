@@ -217,6 +217,16 @@ class ProjectIntegration(Base):
     )
 
 
+class RuleSuppression(Base):
+    """Globally suppressed SAST rules (false positives / accepted risks)."""
+    __tablename__ = "rule_suppressions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    rule_key: Mapped[str] = mapped_column(String(500), unique=True, index=True)
+    suppressed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    note: Mapped[Optional[str]] = mapped_column(Text)
+
+
 class PlatformSetting(Base):
     """Platform settings and configuration."""
     __tablename__ = "platform_settings"

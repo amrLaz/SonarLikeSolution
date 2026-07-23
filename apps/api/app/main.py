@@ -13,6 +13,7 @@ from app.routes.health import router as health_router
 from app.routes.integrations import router as integrations_router
 from app.routes.platform import router as platform_router
 from app.routes.projects import router as projects_router
+from app.routes.rules import router as rules_router
 from app.routes.vulnerabilities import router as vulnerabilities_router
 
 
@@ -66,6 +67,7 @@ app.include_router(gates_router)
 app.include_router(integrations_router)
 app.include_router(platform_router)
 app.include_router(projects_router)
+app.include_router(rules_router)
 app.include_router(vulnerabilities_router)
 
 

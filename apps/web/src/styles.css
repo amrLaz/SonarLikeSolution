@@ -1680,3 +1680,43 @@ button:disabled,
     width: 100%;
   }
 }
+
+/* Rules tab — chips + filter sidebar */
+.chip {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chip-active   { background: #dcfce7; color: #166534; }
+.chip-suppressed { background: #f3f4f6; color: #6b7280; }
+@media (prefers-color-scheme: dark) {
+  .chip-active   { background: #14532d; color: #86efac; }
+  .chip-suppressed { background: #374151; color: #9ca3af; }
+}
+
+.filter-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+}
+.filter-block label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.filter-block select {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.82rem;
+}

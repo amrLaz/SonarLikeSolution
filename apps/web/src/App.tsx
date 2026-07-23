@@ -142,13 +142,16 @@ type ProjectSummary = {
 };
 
 type RuleCard = {
-  key: string;
+  rule_id: string;
   title: string;
-  category: "Reliability" | "Maintainability" | "Security";
-  severity: "Low" | "Medium" | "High";
+  category: string;
+  severity: string;
   language: string;
-  status: "pass" | "fail";
-  detail: string;
+  occurrences: number;
+  file_count: number;
+  project_count: number;
+  projects: string[];
+  status: "active" | "suppressed";
 };
 
 type GateLibraryItem = QualityGate & {
@@ -239,20 +242,6 @@ const ADMIN_NAV_BY_TAB: Record<AdminPrimaryTab, Array<{ id: AdminSection; label:
   ]
 };
 
-const RULE_FILTER_GROUPS = [
-  "Language",
-  "Software quality",
-  "Security Hotspots",
-  "Severity",
-  "Code attribute",
-  "Tags",
-  "Repository",
-  "Status",
-  "Available Since",
-  "Security Category",
-  "Template",
-  "Quality Profile"
-];
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -368,6 +357,12 @@ export function App() {
   const [scopeMode, setScopeMode] = useState<ScopeMode>("overall");
   const [projectSearch, setProjectSearch] = useState("");
   const [ruleSearch, setRuleSearch] = useState("");
+  const [rules, setRules] = useState<RuleCard[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [ruleFilterCategory, setRuleFilterCategory] = useState<string>("all");
+  const [ruleFilterSeverity, setRuleFilterSeverity] = useState<string>("all");
+  const [ruleFilterStatus, setRuleFilterStatus] = useState<string>("all");
+  const [ruleFilterLanguage, setRuleFilterLanguage] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
@@ -382,9 +377,7 @@ export function App() {
   const [issueRuleFilter, setIssueRuleFilter] = useState("");
   const [issueFileFilter, setIssueFileFilter] = useState("");
   const [issueProjectFilter, setIssueProjectFilter] = useState("all");
-  const [expandedRuleFilters, setExpandedRuleFilters] = useState<Record<string, boolean>>({});
-  const [selectedRuleKey, setSelectedRuleKey] = useState("");
-  const [ruleStatusOverrides, setRuleStatusOverrides] = useState<Record<string, RuleCard["status"]>>({});
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [gateLibrary, setGateLibrary] = useState<GateLibraryItem[]>([]);
   const [selectedGateId, setSelectedGateId] = useState("default");
   const [loading, setLoading] = useState(false);
@@ -996,79 +989,21 @@ export function App() {
     });
   }, [issueRows, issueSeverityFilter]);
 
-  const rulesDataset = useMemo<RuleCard[]>(() => {
-    const metrics = selectedSummary ? toScopedMetrics(selectedSummary.latest, scopeMode) : null;
-    if (!metrics || !gate) {
-      return [];
-    }
-
-    const base: RuleCard[] = [
-      {
-        key: "rule-1",
-        title: '"important" should not be used on "keyframes"',
-        category: "Reliability",
-        severity: "Medium",
-        language: "CSS",
-        status: metrics.code_smells <= gate.max_code_smells ? "pass" : "fail",
-        detail: `Code smells ${metrics.code_smells} (limit ${gate.max_code_smells})`
-      },
-      {
-        key: "rule-2",
-        title: '"#import" should not be used',
-        category: "Maintainability",
-        severity: "Medium",
-        language: "C++",
-        status: metrics.maintainability_score >= gate.min_maintainability_score ? "pass" : "fail",
-        detail: `Maintainability ${metrics.maintainability_score} (min ${gate.min_maintainability_score})`
-      },
-      {
-        key: "rule-3",
-        title: '"#include" directives should be followed by either <filename> or "filename" sequences',
-        category: "Reliability",
-        severity: "Medium",
-        language: "C",
-        status: metrics.security_hotspots <= gate.max_security_hotspots ? "pass" : "fail",
-        detail: `Hotspots ${metrics.security_hotspots} (max ${gate.max_security_hotspots})`
-      },
-      {
-        key: "rule-4",
-        title: "Security score minimum threshold",
-        category: "Security",
-        severity: "High",
-        language: "Multi",
-        status: metrics.security_score >= gate.min_security_score ? "pass" : "fail",
-        detail: `Security ${metrics.security_score} (min ${gate.min_security_score})`
-      },
-      {
-        key: "rule-5",
-        title: "No blocker vulnerabilities allowed",
-        category: "Security",
-        severity: "High",
-        language: "Multi",
-        status: metrics.vulnerabilities <= gate.max_vulnerabilities ? "pass" : "fail",
-        detail: `Vulnerabilities ${metrics.vulnerabilities} (max ${gate.max_vulnerabilities})`
-      }
-    ];
-
-    return base;
-  }, [gate, scopeMode, selectedSummary]);
-
   const filteredRules = useMemo(() => {
-    const query = ruleSearch.trim().toLowerCase();
-    const withOverrides = rulesDataset.map((rule) => ({
-      ...rule,
-      status: ruleStatusOverrides[rule.key] ?? rule.status
-    }));
-
-    if (!query) {
-      return withOverrides;
-    }
-    return withOverrides.filter((rule) => rule.title.toLowerCase().includes(query));
-  }, [ruleSearch, ruleStatusOverrides, rulesDataset]);
+    const q = ruleSearch.trim().toLowerCase();
+    return rules.filter((r) => {
+      if (q && !r.title.toLowerCase().includes(q) && !r.rule_id.toLowerCase().includes(q)) return false;
+      if (ruleFilterCategory !== "all" && r.category.toLowerCase() !== ruleFilterCategory) return false;
+      if (ruleFilterSeverity !== "all" && r.severity.toLowerCase() !== ruleFilterSeverity) return false;
+      if (ruleFilterStatus !== "all" && r.status !== ruleFilterStatus) return false;
+      if (ruleFilterLanguage !== "all" && r.language.toLowerCase() !== ruleFilterLanguage.toLowerCase()) return false;
+      return true;
+    });
+  }, [rules, ruleSearch, ruleFilterCategory, ruleFilterSeverity, ruleFilterStatus, ruleFilterLanguage]);
 
   const selectedRule = useMemo(
-    () => filteredRules.find((rule) => rule.key === selectedRuleKey) ?? filteredRules[0] ?? null,
-    [filteredRules, selectedRuleKey]
+    () => filteredRules.find((r) => r.rule_id === selectedRuleId) ?? filteredRules[0] ?? null,
+    [filteredRules, selectedRuleId]
   );
 
   const selectedGate = useMemo(
@@ -1307,9 +1242,6 @@ export function App() {
 
   useEffect(() => {
     setGateLibrary(parseGateLibrary());
-    setExpandedRuleFilters(
-      Object.fromEntries(RULE_FILTER_GROUPS.map((group, index) => [group, index < 3]))
-    );
   }, []);
 
   useEffect(() => {
@@ -1368,6 +1300,19 @@ export function App() {
       JSON.stringify({ tab: activeTab, adminTab: activeAdminTab, adminSection: activeAdminSection })
     );
   }, [activeTab, activeAdminTab, activeAdminSection]);
+
+  useEffect(() => {
+    if (activeTab !== "rules") return;
+    setRulesLoading(true);
+    const url = selectedSummary
+      ? `${API_BASE}/v1/rules?project_key=${encodeURIComponent(selectedSummary.projectKey)}`
+      : `${API_BASE}/v1/rules`;
+    apiFetch(url)
+      .then((r) => r.json())
+      .then((data: RuleCard[]) => setRules(data))
+      .catch(() => setRules([]))
+      .finally(() => setRulesLoading(false));
+  }, [activeTab, selectedSummary]);
 
   useEffect(() => {
     if (authScreen === "app" && !sessionUser) {
@@ -1983,26 +1928,16 @@ export function App() {
     setGateMessage(`Saved ${gateForm.name}.`);
   };
 
-  const toggleRuleFilter = (group: string) => {
-    setExpandedRuleFilters((current) => ({
-      ...current,
-      [group]: !current[group]
-    }));
+  const suppressRule = (ruleId: string) => {
+    apiFetch(`${API_BASE}/v1/rules/${encodeURIComponent(ruleId)}/suppress`, { method: "POST" })
+      .then(() => setRules((prev) => prev.map((r) => r.rule_id === ruleId ? { ...r, status: "suppressed" } : r)))
+      .catch(() => {});
   };
 
-  const updateRuleStatus = (ruleKey: string, status: RuleCard["status"]) => {
-    setRuleStatusOverrides((current) => ({
-      ...current,
-      [ruleKey]: status
-    }));
-  };
-
-  const bulkMarkRules = (status: RuleCard["status"]) => {
-    const nextEntries = Object.fromEntries(filteredRules.map((rule) => [rule.key, status]));
-    setRuleStatusOverrides((current) => ({
-      ...current,
-      ...nextEntries
-    }));
+  const unsuppressRule = (ruleId: string) => {
+    apiFetch(`${API_BASE}/v1/rules/${encodeURIComponent(ruleId)}/suppress`, { method: "DELETE" })
+      .then(() => setRules((prev) => prev.map((r) => r.rule_id === ruleId ? { ...r, status: "active" } : r)))
+      .catch(() => {});
   };
 
   const updateGateField = (field: keyof typeof gateForm, value: string) => {
@@ -3161,91 +3096,147 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
         <section className="two-pane-screen">
           <aside className="rules-sidebar">
             <h3>Filters</h3>
-            {RULE_FILTER_GROUPS.map((group) => (
-              <div key={group}>
-                <button
-                  type="button"
-                  className="accordion-row"
-                  onClick={() => toggleRuleFilter(group)}
-                >
-                  <span>{group}</span>
-                  <span>{expandedRuleFilters[group] ? "▾" : "▸"}</span>
-                </button>
-                {expandedRuleFilters[group] && (
-                  <div className="action-row">
-                    <button type="button" onClick={() => setRuleSearch(group)}>
-                      Filter
-                    </button>
-                    <button type="button" onClick={() => setRuleSearch("")}>Reset</button>
-                  </div>
-                )}
-              </div>
-            ))}
+
+            <div className="filter-block">
+              <label>Category</label>
+              <select value={ruleFilterCategory} onChange={(e) => setRuleFilterCategory(e.target.value)}>
+                <option value="all">All</option>
+                <option value="security">Security</option>
+                <option value="reliability">Reliability</option>
+                <option value="maintainability">Maintainability</option>
+              </select>
+            </div>
+
+            <div className="filter-block">
+              <label>Severity</label>
+              <select value={ruleFilterSeverity} onChange={(e) => setRuleFilterSeverity(e.target.value)}>
+                <option value="all">All</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+
+            <div className="filter-block">
+              <label>Status</label>
+              <select value={ruleFilterStatus} onChange={(e) => setRuleFilterStatus(e.target.value)}>
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="suppressed">Suppressed</option>
+              </select>
+            </div>
+
+            <div className="filter-block">
+              <label>Language</label>
+              <select value={ruleFilterLanguage} onChange={(e) => setRuleFilterLanguage(e.target.value)}>
+                <option value="all">All</option>
+                {[...new Set(rules.map((r) => r.language))].sort().map((lang) => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              style={{ marginTop: "1rem", width: "100%" }}
+              onClick={() => {
+                setRuleFilterCategory("all");
+                setRuleFilterSeverity("all");
+                setRuleFilterStatus("all");
+                setRuleFilterLanguage("all");
+                setRuleSearch("");
+              }}
+            >
+              Reset filters
+            </button>
           </aside>
+
           <div className="rules-main">
             <header className="rules-toolbar">
               <input
-                placeholder="Search for rules..."
+                placeholder="Search rules by name or ID…"
                 value={ruleSearch}
-                onChange={(event) => setRuleSearch(event.target.value)}
+                onChange={(e) => setRuleSearch(e.target.value)}
               />
-              <div className="action-row">
-                <button type="button" onClick={() => bulkMarkRules("pass")}>Mark compliant</button>
-                <button type="button" onClick={() => bulkMarkRules("fail")}>Mark needs action</button>
-              </div>
-              <p>{filteredRules.length} rules</p>
+              <p style={{ marginLeft: "auto", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                {rulesLoading ? "Loading…" : `${filteredRules.length} rule${filteredRules.length !== 1 ? "s" : ""}`}
+              </p>
             </header>
+
             <div className="content-grid">
               <div className="rules-list">
+                {rulesLoading && <p style={{ padding: "1rem", color: "var(--text-secondary)" }}>Loading rules…</p>}
+                {!rulesLoading && filteredRules.length === 0 && (
+                  <p style={{ padding: "1rem", color: "var(--text-secondary)" }}>No rules found.</p>
+                )}
                 {filteredRules.map((rule) => (
                   <article
-                    key={rule.key}
-                    className={selectedRule?.key === rule.key ? "rule-card selected" : "rule-card"}
-                    onClick={() => setSelectedRuleKey(rule.key)}
+                    key={rule.rule_id}
+                    className={selectedRule?.rule_id === rule.rule_id ? "rule-card selected" : "rule-card"}
+                    onClick={() => setSelectedRuleId(rule.rule_id)}
                   >
-                    <div>
-                      <h4>{rule.title}</h4>
-                      <p>
-                        <span>{rule.category}</span> • <span>{rule.severity}</span> • <span>{rule.language}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h4 style={{ margin: 0, fontSize: "0.9rem", wordBreak: "break-word" }}>{rule.title}</h4>
+                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                        {rule.category} · {rule.severity} · {rule.language}
                       </p>
-                      <small>{rule.detail}</small>
+                      <small style={{ color: "var(--text-secondary)" }}>
+                        {rule.occurrences} occurrence{rule.occurrences !== 1 ? "s" : ""} in {rule.file_count} file{rule.file_count !== 1 ? "s" : ""}
+                      </small>
                     </div>
-                    <span className={rule.status === "pass" ? "pass" : "fail"}>
-                      {rule.status === "pass" ? "Compliant" : "Needs action"}
+                    <span className={rule.status === "suppressed" ? "chip chip-suppressed" : "chip chip-active"}>
+                      {rule.status === "suppressed" ? "Suppressed" : "Active"}
                     </span>
                   </article>
                 ))}
               </div>
+
               <aside className="panel">
                 {selectedRule ? (
                   <>
-                    <h3>{selectedRule.title}</h3>
-                    <p>
-                      {selectedRule.category} • {selectedRule.severity} • {selectedRule.language}
+                    <h3 style={{ wordBreak: "break-word", fontSize: "0.95rem" }}>{selectedRule.title}</h3>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                      {selectedRule.category} · {selectedRule.severity} · {selectedRule.language}
                     </p>
-                    <p>{selectedRule.detail}</p>
-                    <div className="action-row">
-                      <button type="button" onClick={() => updateRuleStatus(selectedRule.key, "pass")}>
-                        Accept
-                      </button>
-                      <button type="button" onClick={() => updateRuleStatus(selectedRule.key, "fail")}>
-                        Reopen
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAnalysisForm((current) => ({ ...current, project_key: selectedSummary?.projectKey ?? current.project_key }));
-                          setActiveTab("administration");
-                          setActiveAdminTab("projects");
-                          setActiveAdminSection("project-links");
-                        }}
-                      >
-                        Link to project
-                      </button>
+                    <code style={{ fontSize: "0.72rem", wordBreak: "break-all", display: "block", marginTop: "0.5rem", color: "var(--text-secondary)" }}>
+                      {selectedRule.rule_id}
+                    </code>
+
+                    <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.82rem" }}>
+                      <div><strong>{selectedRule.occurrences}</strong> occurrences</div>
+                      <div><strong>{selectedRule.file_count}</strong> files affected</div>
+                      <div><strong>{selectedRule.project_count}</strong> project{selectedRule.project_count !== 1 ? "s" : ""}:{" "}
+                        {selectedRule.projects.join(", ")}
+                      </div>
                     </div>
+
+                    <div className="action-row" style={{ marginTop: "1.25rem" }}>
+                      {selectedRule.status === "active" ? (
+                        <button
+                          type="button"
+                          onClick={() => suppressRule(selectedRule.rule_id)}
+                          title="Mark as false positive — suppresses this rule globally"
+                        >
+                          Suppress (false positive)
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => unsuppressRule(selectedRule.rule_id)}
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "0.75rem" }}>
+                      {selectedRule.status === "suppressed"
+                        ? "This rule is globally suppressed and will not count toward quality scores."
+                        : "Suppressing marks all occurrences as false positives across all projects."}
+                    </p>
                   </>
                 ) : (
-                  <p>No rule selected.</p>
+                  <p style={{ color: "var(--text-secondary)" }}>Select a rule to see details.</p>
                 )}
               </aside>
             </div>
