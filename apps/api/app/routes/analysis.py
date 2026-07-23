@@ -357,7 +357,7 @@ def list_analyses(
 @router.post("", response_model=AnalysisResponse)
 def create_analysis(
     request: AnalysisRequest,
-    _: None = Depends(require_ci_token_auth),
+    _: None = Depends(require_platform_auth),
     session: Session = Depends(get_session),
 ) -> AnalysisResponse:
     gate = get_gate_for_project(session, request.project_key)
