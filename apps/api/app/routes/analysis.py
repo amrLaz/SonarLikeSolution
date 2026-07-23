@@ -773,6 +773,57 @@ def get_analysis_vulnerabilities(
     }
 
 
+@router.get("/export/csv")
+def export_project_csv(
+    project_key: str,
+    _: None = Depends(require_platform_auth),
+    session: Session = Depends(get_session),
+):
+    """Export all analyses for a project as CSV — one row per analysis."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    records = session.scalars(
+        select(AnalysisRecord)
+        .where(AnalysisRecord.project_key == project_key)
+        .order_by(AnalysisRecord.created_at.desc())
+    ).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "analysis_id", "project_key", "branch", "commit_sha", "ci_provider",
+        "quality_gate", "created_at",
+        "security_score", "maintainability_score", "reliability_score",
+        "vulnerabilities", "security_hotspots", "bugs", "code_smells",
+        "coverage", "duplication", "dependency_vulnerabilities",
+        "gate_failures",
+    ])
+    for r in records:
+        failures = []
+        try:
+            failures = json.loads(r.gate_failures or "[]")
+        except json.JSONDecodeError:
+            pass
+        writer.writerow([
+            r.analysis_id, r.project_key, r.branch, r.commit_sha, r.ci_provider,
+            r.quality_gate, r.created_at,
+            r.security_score, r.maintainability_score, r.reliability_score,
+            r.vulnerabilities, r.security_hotspots, r.bugs, r.code_smells,
+            r.coverage, r.duplication, r.dependency_vulnerabilities or 0,
+            "; ".join(failures),
+        ])
+
+    safe_key = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_key)
+    filename = f"sast-{safe_key}-history.csv"
+    return StreamingResponse(
+        iter([buf.getvalue().encode("utf-8")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/{analysis_id}", response_model=AnalysisResponse)
 def get_analysis(
     analysis_id: str,
@@ -803,6 +854,211 @@ def get_analysis_view(
     return RedirectResponse(
         url=f"http://localhost:5174/analyses/{analysis_id}",
         status_code=302
+    )
+
+
+@router.get("/{analysis_id}/export/csv")
+def export_analysis_csv(
+    analysis_id: str,
+    _: None = Depends(require_platform_auth),
+    session: Session = Depends(get_session),
+):
+    """Export a single analysis as a one-row CSV."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    record = session.get(AnalysisRecord, analysis_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    failures: list[str] = []
+    try:
+        failures = json.loads(record.gate_failures or "[]")
+    except json.JSONDecodeError:
+        pass
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "analysis_id", "project_key", "branch", "commit_sha", "ci_provider",
+        "quality_gate", "created_at",
+        "security_score", "maintainability_score", "reliability_score",
+        "vulnerabilities", "security_hotspots", "bugs", "code_smells",
+        "coverage", "duplication", "dependency_vulnerabilities",
+        "gate_failures",
+    ])
+    writer.writerow([
+        record.analysis_id, record.project_key, record.branch, record.commit_sha,
+        record.ci_provider, record.quality_gate, record.created_at,
+        record.security_score, record.maintainability_score, record.reliability_score,
+        record.vulnerabilities, record.security_hotspots, record.bugs,
+        record.code_smells, record.coverage, record.duplication,
+        record.dependency_vulnerabilities or 0,
+        "; ".join(failures),
+    ])
+
+    filename = f"sast-{analysis_id[:8]}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue().encode("utf-8")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{analysis_id}/export/pdf")
+def export_analysis_pdf(
+    analysis_id: str,
+    _: None = Depends(require_platform_auth),
+    session: Session = Depends(get_session),
+):
+    """Generate a PDF report for a single analysis."""
+    from fastapi.responses import Response
+    from fpdf import FPDF
+
+    record = session.get(AnalysisRecord, analysis_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    failures: list[str] = []
+    try:
+        failures = json.loads(record.gate_failures or "[]")
+    except json.JSONDecodeError:
+        pass
+
+    gate_ok = record.quality_gate == "pass"
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    pdf = FPDF()
+    pdf.set_margins(20, 20, 20)
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=20)
+
+    # ── Header ──────────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(15, 118, 110)  # teal
+    pdf.cell(0, 10, "SAST Platform", ln=True)
+    pdf.set_font("Helvetica", "", 12)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 6, "Security Analysis Report", ln=True)
+    pdf.ln(4)
+    pdf.set_draw_color(15, 118, 110)
+    pdf.set_line_width(0.5)
+    pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.ln(6)
+
+    # ── Analysis metadata ────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(40, 40, 40)
+    pdf.cell(0, 7, "Analysis Details", ln=True)
+    pdf.ln(2)
+
+    meta_rows = [
+        ("Project", record.project_key),
+        ("Branch", record.branch),
+        ("Commit", record.commit_sha[:12] + ("..." if len(record.commit_sha) > 12 else "")),
+        ("CI Provider", record.ci_provider),
+        ("Analysis ID", record.analysis_id),
+        ("Analysed at", str(record.created_at)[:19].replace("T", " ") + " UTC"),
+        ("Report generated", generated_at),
+    ]
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_fill_color(245, 245, 245)
+    for i, (label, value) in enumerate(meta_rows):
+        pdf.set_fill_color(248, 248, 248) if i % 2 == 0 else pdf.set_fill_color(255, 255, 255)
+        pdf.cell(55, 6, label + ":", fill=True)
+        pdf.cell(0, 6, str(value), fill=True, ln=True)
+    pdf.ln(6)
+
+    # ── Quality gate status ──────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(40, 40, 40)
+    pdf.cell(0, 7, "Quality Gate", ln=True)
+    pdf.ln(2)
+
+    if gate_ok:
+        pdf.set_fill_color(232, 245, 233)
+        pdf.set_text_color(46, 125, 50)
+        status_text = "PASSED"
+    else:
+        pdf.set_fill_color(255, 235, 238)
+        pdf.set_text_color(198, 40, 40)
+        status_text = "FAILED"
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 12, status_text, fill=True, ln=True, align="C")
+    pdf.set_text_color(40, 40, 40)
+    pdf.ln(4)
+
+    if failures:
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 6, "Blocking conditions:", ln=True)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(198, 40, 40)
+        for f in failures:
+            pdf.cell(8)
+            pdf.cell(0, 5, f"- {f}", ln=True)
+        pdf.set_text_color(40, 40, 40)
+        pdf.ln(4)
+
+    # ── Metrics table ────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "Metrics", ln=True)
+    pdf.ln(2)
+
+    metrics_rows = [
+        ("Security Score",        f"{record.security_score}/100",        record.security_score >= 70),
+        ("Maintainability Score", f"{record.maintainability_score}/100",  record.maintainability_score >= 70),
+        ("Reliability Score",     f"{record.reliability_score}/100",      record.reliability_score >= 70),
+        ("Vulnerabilities",       str(record.vulnerabilities),            record.vulnerabilities == 0),
+        ("Security Hotspots",     str(record.security_hotspots),          record.security_hotspots == 0),
+        ("Bugs",                  str(record.bugs),                       record.bugs == 0),
+        ("Code Smells",           str(record.code_smells),                record.code_smells <= 50),
+        ("Coverage",              f"{record.coverage}%",                  record.coverage >= 70),
+        ("Duplication",           f"{record.duplication}%",               record.duplication <= 5),
+        ("Dependency Vulns (SCA)", str(record.dependency_vulnerabilities or 0), (record.dependency_vulnerabilities or 0) == 0),
+    ]
+
+    # Column widths
+    col_label = 80
+    col_value = 40
+    col_status = 40
+
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(15, 118, 110)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(col_label, 7, "Metric", fill=True, border=0)
+    pdf.cell(col_value, 7, "Value", fill=True, border=0, align="C")
+    pdf.cell(col_status, 7, "Status", fill=True, border=0, align="C", ln=True)
+
+    pdf.set_font("Helvetica", "", 9)
+    for i, (label, value, ok) in enumerate(metrics_rows):
+        pdf.set_fill_color(248, 248, 248) if i % 2 == 0 else pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(40, 40, 40)
+        pdf.cell(col_label, 6, label, fill=True)
+        pdf.cell(col_value, 6, value, fill=True, align="C")
+        if ok:
+            pdf.set_text_color(46, 125, 50)
+            pdf.cell(col_status, 6, "OK", fill=True, align="C", ln=True)
+        else:
+            pdf.set_text_color(198, 40, 40)
+            pdf.cell(col_status, 6, "Warning", fill=True, align="C", ln=True)
+
+    pdf.set_text_color(40, 40, 40)
+    pdf.ln(8)
+
+    # ── Footer ───────────────────────────────────────────────────────────────────
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 5, f"Generated by SAST Platform on {generated_at}", ln=True, align="C")
+    pdf.cell(0, 5, "This report is confidential. Do not distribute outside your organisation.", ln=True, align="C")
+
+    pdf_bytes = pdf.output()
+    filename = f"sast-report-{analysis_id[:8]}.pdf"
+    return Response(
+        content=bytes(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

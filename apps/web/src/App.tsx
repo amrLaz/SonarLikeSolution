@@ -2691,6 +2691,43 @@ export function App() {
                               </>
                             );
                           })()}
+                          <div style={{ marginTop: "16px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                            <a
+                              href={`${API_BASE}/v1/analyses/${detailedBranch.latest.analysis_id}/export/pdf`}
+                              download
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: "6px",
+                                padding: "8px 16px", backgroundColor: "#0f766e", color: "#fff",
+                                borderRadius: "6px", textDecoration: "none", fontSize: "13px", fontWeight: "600"
+                              }}
+                            >
+                              ↓ Export PDF
+                            </a>
+                            <a
+                              href={`${API_BASE}/v1/analyses/${detailedBranch.latest.analysis_id}/export/csv`}
+                              download
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: "6px",
+                                padding: "8px 16px", backgroundColor: "#fff", color: "#0f766e",
+                                border: "1.5px solid #0f766e", borderRadius: "6px",
+                                textDecoration: "none", fontSize: "13px", fontWeight: "600"
+                              }}
+                            >
+                              ↓ Export CSV (latest)
+                            </a>
+                            <a
+                              href={`${API_BASE}/v1/analyses/export/csv?project_key=${encodeURIComponent(selectedProject)}`}
+                              download
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: "6px",
+                                padding: "8px 16px", backgroundColor: "#fff", color: "#555",
+                                border: "1.5px solid #bbb", borderRadius: "6px",
+                                textDecoration: "none", fontSize: "13px", fontWeight: "600"
+                              }}
+                            >
+                              ↓ Export all history (CSV)
+                            </a>
+                          </div>
                         </div>
                       )}
 
