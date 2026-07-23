@@ -120,6 +120,17 @@ type LocalUser = {
   status: "active" | "disabled";
 };
 
+type PlatformUser = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: LocalUserRole;
+  auth_provider: string;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+};
+
 type LocalGroup = {
   group_id: string;
   name: string;
@@ -506,38 +517,12 @@ export function App() {
     }
   ]);
 
-  const [localUsers, setLocalUsers] = useState<LocalUser[]>([
-    {
-      user_id: "usr-sarah-admin",
-      full_name: "Amr Lazraq",
-      email: "amr.lazraq@upcoop.local",
-      password: "Admin@12345",
-      user_type: "internal",
-      access_role: "admin",
-      group_ids: ["grp-platform-admins"],
-      status: "active"
-    },
-    {
-      user_id: "usr-amine-review",
-      full_name: "Amine Benali",
-      email: "amine.benali@upcoop.local",
-      password: "Review@12345",
-      user_type: "contractor",
-      access_role: "regular",
-      group_ids: ["grp-dev-reviewers"],
-      status: "active"
-    },
-    {
-      user_id: "usr-ci-bot",
-      full_name: "CI Pipeline Bot",
-      email: "ci-bot@upcoop.local",
-      password: "Bot@12345",
-      user_type: "service-account",
-      access_role: "default",
-      group_ids: ["grp-observers"],
-      status: "active"
-    }
-  ]);
+  const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  // Keep localUsers as alias so existing code that hasn't been updated yet still compiles
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const localUsers: LocalUser[] = [];
 
   const [newLocalUser, setNewLocalUser] = useState({
     full_name: "",
@@ -577,22 +562,26 @@ export function App() {
     for (const group of localGroups) {
       counts[group.group_id] = 0;
     }
-    for (const user of localUsers) {
-      for (const groupId of user.group_ids) {
-        counts[groupId] = (counts[groupId] ?? 0) + 1;
-      }
-    }
     return counts;
-  }, [localGroups, localUsers]);
+  }, [localGroups]);
 
   const activeLocalUsers = useMemo(() => {
-    return localUsers.filter((user) => user.status === "active").length;
-  }, [localUsers]);
+    return platformUsers.filter((u) => u.is_active).length;
+  }, [platformUsers]);
 
   const roleCapabilities: Record<LocalUserRole, string> = {
     admin: "Manage configuration, users, groups, integrations, and quality gates.",
     regular: "Review findings, manage project-level settings, and run analyses.",
     default: "View projects, issues, and dashboards in read-only mode."
+  };
+
+  const loadPlatformUsers = () => {
+    setUsersLoading(true);
+    apiFetch(`${API_BASE}/v1/auth/users`)
+      .then((r) => r.json())
+      .then((data: PlatformUser[]) => setPlatformUsers(data))
+      .catch(() => setAdminMessage("Failed to load users."))
+      .finally(() => setUsersLoading(false));
   };
 
   const addLocalUser = () => {
@@ -607,28 +596,18 @@ export function App() {
       setAdminMessage("Password must be at least 8 characters.");
       return;
     }
-
-    const newUser: LocalUser = {
-      user_id: `usr-${Date.now()}`,
-      full_name: fullName,
-      email,
-      password,
-      user_type: newLocalUser.user_type,
-      access_role: newLocalUser.access_role,
-      group_ids: newLocalUser.group_id ? [newLocalUser.group_id] : [],
-      status: "active"
-    };
-
-    setLocalUsers((current) => [newUser, ...current]);
-    setNewLocalUser({
-      full_name: "",
-      email: "",
-      password: "",
-      user_type: "internal",
-      access_role: "default",
-      group_id: ""
-    });
-    setAdminMessage(`Local user ${fullName} added.`);
+    apiFetch(`${API_BASE}/v1/auth/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name: fullName, role: newLocalUser.access_role, password }),
+    })
+      .then((r) => {
+        if (!r.ok) return r.json().then((e) => { throw new Error((e as {detail?: string}).detail ?? "Error"); });
+        setNewLocalUser({ full_name: "", email: "", password: "", user_type: "internal", access_role: "default", group_id: "" });
+        setAdminMessage(`User ${fullName} created.`);
+        loadPlatformUsers();
+      })
+      .catch((e: Error) => setAdminMessage(e.message));
   };
 
   const updateUserPassword = () => {
@@ -642,13 +621,18 @@ export function App() {
       setAdminMessage("Password must be at least 8 characters.");
       return;
     }
-
-    setLocalUsers((current) =>
-      current.map((user) => (user.user_id === userId ? { ...user, password: newPassword } : user))
-    );
-    const target = localUsers.find((user) => user.user_id === userId);
-    setPasswordForm({ user_id: "", password: "" });
-    setAdminMessage(`Password updated for ${target?.full_name ?? "selected user"}.`);
+    apiFetch(`${API_BASE}/v1/auth/users/${encodeURIComponent(userId)}/password`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_password: newPassword }),
+    })
+      .then((r) => {
+        if (!r.ok) return r.json().then((e) => { throw new Error((e as {detail?: string}).detail ?? "Error"); });
+        const target = platformUsers.find((u) => u.user_id === userId);
+        setPasswordForm({ user_id: "", password: "" });
+        setAdminMessage(`Password updated for ${target?.full_name ?? "selected user"}.`);
+      })
+      .catch((e: Error) => setAdminMessage(e.message));
   };
 
   const addLocalGroup = () => {
@@ -670,33 +654,40 @@ export function App() {
   };
 
   const setUserRole = (userId: string, role: LocalUserRole) => {
-    setLocalUsers((current) =>
-      current.map((user) => (user.user_id === userId ? { ...user, access_role: role } : user))
-    );
+    apiFetch(`${API_BASE}/v1/auth/users/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("Failed"); })
+      .then(() => setPlatformUsers((prev) => prev.map((u) => u.user_id === userId ? { ...u, role } : u)))
+      .catch(() => setAdminMessage("Failed to update role."));
   };
 
   const toggleUserStatus = (userId: string) => {
-    setLocalUsers((current) =>
-      current.map((user) =>
-        user.user_id === userId
-          ? { ...user, status: user.status === "active" ? "disabled" : "active" }
-          : user
-      )
-    );
+    const user = platformUsers.find((u) => u.user_id === userId);
+    if (!user) return;
+    const is_active = !user.is_active;
+    apiFetch(`${API_BASE}/v1/auth/users/${encodeURIComponent(userId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("Failed"); })
+      .then(() => setPlatformUsers((prev) => prev.map((u) => u.user_id === userId ? { ...u, is_active } : u)))
+      .catch(() => setAdminMessage("Failed to update status."));
+    // keep original closing paren structure intact below
   };
 
   const removeLocalUser = (userId: string) => {
-    setLocalUsers((current) => current.filter((user) => user.user_id !== userId));
+    apiFetch(`${API_BASE}/v1/auth/users/${encodeURIComponent(userId)}`, { method: "DELETE" })
+      .then((r) => { if (!r.ok) return r.json().then((e) => { throw new Error((e as {detail?: string}).detail ?? "Error"); }); })
+      .then(() => { setPlatformUsers((prev) => prev.filter((u) => u.user_id !== userId)); setAdminMessage("User deleted."); })
+      .catch((e: Error) => setAdminMessage(e.message));
   };
 
   const removeLocalGroup = (groupId: string) => {
     setLocalGroups((current) => current.filter((group) => group.group_id !== groupId));
-    setLocalUsers((current) =>
-      current.map((user) => ({
-        ...user,
-        group_ids: user.group_ids.filter((id) => id !== groupId)
-      }))
-    );
   };
 
   const summaries = useMemo<ProjectSummary[]>(() => {
@@ -1338,26 +1329,12 @@ export function App() {
     }
   }, [activeTab, canAccessAdministration]);
 
+  // Load platform users whenever the IAM admin section becomes active
   useEffect(() => {
-    if (!sessionUser) {
-      return;
-    }
-    const matched = localUsers.find((user) => user.email.toLowerCase() === sessionUser.email.toLowerCase());
-    if (!matched) {
-      return;
-    }
-    if (matched.full_name === sessionUser.full_name && matched.access_role === sessionUser.access_role) {
-      return;
-    }
-
-    const nextSession: SessionUser = {
-      full_name: matched.full_name,
-      email: matched.email,
-      access_role: matched.access_role
-    };
-    setSessionUser(nextSession);
-    window.localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(nextSession));
-  }, [localUsers, sessionUser]);
+    if (activeAdminSection !== "access-management" || !sessionUser?.token) return;
+    loadPlatformUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAdminSection, sessionUser?.token]);
 
   useEffect(() => {
     if (!adminForm.project_key) {
@@ -3900,8 +3877,8 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
 
                   <div className="iam-summary-row">
                     <div className="iam-summary-card">
-                      <strong>{localUsers.length}</strong>
-                      <span>Local users</span>
+                      <strong>{platformUsers.length}</strong>
+                      <span>Platform users</span>
                     </div>
                     <div className="iam-summary-card">
                       <strong>{activeLocalUsers}</strong>
@@ -4013,7 +3990,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                             }
                           >
                             <option value="">Select user</option>
-                            {localUsers.map((user) => (
+                            {platformUsers.filter((u) => u.auth_provider === "local").map((user) => (
                               <option key={user.user_id} value={user.user_id}>
                                 {user.full_name}
                               </option>
@@ -4037,39 +4014,40 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                       </div>
 
                       <div className="table-wrap">
+                        {usersLoading && <p style={{ padding: "0.5rem", color: "var(--text-secondary)" }}>Loading users…</p>}
                         <table>
                           <thead>
                             <tr>
                               <th>User</th>
-                              <th>Type</th>
-                              <th>Access</th>
-                              <th>Groups</th>
+                              <th>Provider</th>
+                              <th>Role</th>
                               <th>Status</th>
+                              <th>Last login</th>
                               <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {localUsers.map((user) => (
+                            {platformUsers.map((user) => (
                               <tr key={user.user_id}>
                                 <td>
                                   <strong>{user.full_name}</strong>
                                   <div className="iam-subtext">{user.email}</div>
                                 </td>
                                 <td>
-                                  <span className="iam-chip type">{user.user_type}</span>
+                                  <span className="iam-chip type">{user.auth_provider}</span>
                                 </td>
                                 <td>
-                                  <span className={`iam-chip role ${user.access_role}`}>{user.access_role}</span>
+                                  <span className={`iam-chip role ${user.role}`}>{user.role}</span>
                                 </td>
                                 <td>
-                                  {user.group_ids.length > 0
-                                    ? user.group_ids
-                                        .map((groupId) => localGroupById[groupId]?.name ?? groupId)
-                                        .join(", ")
-                                    : "No group"}
+                                  <span className={`iam-chip status ${user.is_active ? "active" : "disabled"}`}>
+                                    {user.is_active ? "active" : "disabled"}
+                                  </span>
                                 </td>
-                                <td>
-                                  <span className={`iam-chip status ${user.status}`}>{user.status}</span>
+                                <td style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                                  {user.last_login_at
+                                    ? new Date(user.last_login_at).toLocaleDateString()
+                                    : "—"}
                                 </td>
                                 <td>
                                   <div className="iam-inline-actions">
@@ -4077,7 +4055,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                                     <button type="button" onClick={() => setUserRole(user.user_id, "regular")}>Regular</button>
                                     <button type="button" onClick={() => setUserRole(user.user_id, "default")}>Default</button>
                                     <button type="button" onClick={() => toggleUserStatus(user.user_id)}>
-                                      {user.status === "active" ? "Disable" : "Enable"}
+                                      {user.is_active ? "Disable" : "Enable"}
                                     </button>
                                     <button type="button" className="danger" onClick={() => removeLocalUser(user.user_id)}>
                                       Remove

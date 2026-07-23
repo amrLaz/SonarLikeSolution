@@ -205,3 +205,43 @@ def update_user(
 
     session.commit()
     return {"user_id": user.user_id, "role": user.role, "is_active": user.is_active}
+
+
+class AdminPasswordResetRequest(BaseModel):
+    new_password: str
+
+
+@router.put("/users/{user_id}/password")
+def admin_reset_password(
+    user_id: str,
+    request: AdminPasswordResetRequest,
+    _: dict = Depends(require_role("admin")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Admin resets any user's password."""
+    user = session.query(PlatformUser).filter(PlatformUser.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if len(request.new_password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    user.hashed_password = hash_password(request.new_password)
+    user.auth_provider = "local"
+    session.commit()
+    return {"status": "password updated"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    caller: dict = Depends(require_role("admin")),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Delete a platform user (cannot delete yourself)."""
+    if caller.get("sub") == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    user = session.query(PlatformUser).filter(PlatformUser.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.delete(user)
+    session.commit()
+    return {"status": "deleted"}
