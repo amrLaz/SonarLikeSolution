@@ -60,6 +60,10 @@ _SCHEMA_PATCHES = [
     "ALTER TABLE auth_provider_config ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ready'",
     "ALTER TABLE auth_provider_config ADD COLUMN IF NOT EXISTS last_tested_at TIMESTAMP",
     "ALTER TABLE analysis_records ADD COLUMN IF NOT EXISTS dependency_vulnerabilities INTEGER DEFAULT 0",
+    "ALTER TABLE quality_gate_config ADD COLUMN IF NOT EXISTS name VARCHAR(255) DEFAULT 'Default Gate'",
+    "ALTER TABLE quality_gate_config ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false",
+    # Mark the legacy single-row gate as default and give it a name
+    "UPDATE quality_gate_config SET name = 'Default Gate', is_default = true WHERE id = 'default'",
 ]
 
 # Default authentication provider catalog — upserted on every startup so new

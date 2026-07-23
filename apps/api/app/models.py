@@ -132,11 +132,13 @@ class RetentionPolicy(Base):
 
 
 class QualityGateConfig(Base):
-    """Quality gate configuration."""
+    """Quality gate configuration — one row per named gate."""
     __tablename__ = "quality_gate_config"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    
+    name: Mapped[str] = mapped_column(String(255), default="Default Gate")
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+
     min_maintainability_score: Mapped[int] = mapped_column(Integer, default=50)
     min_security_score: Mapped[int] = mapped_column(Integer, default=50)
     min_reliability_score: Mapped[int] = mapped_column(Integer, default=50)
@@ -144,6 +146,15 @@ class QualityGateConfig(Base):
     max_vulnerabilities: Mapped[int] = mapped_column(Integer, default=10)
     max_security_hotspots: Mapped[int] = mapped_column(Integer, default=10)
     max_bugs: Mapped[int] = mapped_column(Integer, default=10)
+
+
+class ProjectGateAssignment(Base):
+    """Maps a project to a specific quality gate; unassigned projects use the default."""
+    __tablename__ = "project_gate_assignments"
+
+    project_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    gate_id: Mapped[str] = mapped_column(String(36), ForeignKey("quality_gate_config.id"))
+    assigned_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AzureDevOpsOrganizationConfig(Base):

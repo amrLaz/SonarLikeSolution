@@ -421,6 +421,8 @@ export function App() {
   const [issueProjectFilter, setIssueProjectFilter] = useState("all");
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [gateLibrary, setGateLibrary] = useState<GateLibraryItem[]>([]);
+  const [gateAssignments, setGateAssignments] = useState<Record<string, string>>({});
+  const [savingGateAssignment, setSavingGateAssignment] = useState<string | null>(null);
   const [selectedGateId, setSelectedGateId] = useState("default");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1485,6 +1487,13 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
 
+  // Load gates from API when Quality Gates tab becomes active
+  useEffect(() => {
+    if (activeTab !== "quality-gates") return;
+    loadGates();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // Load audit logs when the audit-log section becomes active
   useEffect(() => {
     if (activeAdminSection !== "audit-log" || !canAccessAdministration || !sessionUser?.token) return;
@@ -2034,45 +2043,91 @@ export function App() {
     }
   };
 
+  const loadGates = () => {
+    apiFetch(`${API_BASE}/v1/gates`)
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) return;
+        setGateLibrary((data as GateLibraryItem[]).map((g) => ({ ...g, projectCount: g.project_count ?? 0, builtIn: g.is_default })));
+        const def = (data as GateLibraryItem[]).find((g) => g.is_default);
+        if (def) setSelectedGateId((id) => id === "default" ? def.gate_id : id);
+      })
+      .catch(() => {});
+    apiFetch(`${API_BASE}/v1/gates/assignments`)
+      .then((r) => r.json())
+      .then((data: unknown) => { if (data && typeof data === "object") setGateAssignments(data as Record<string, string>); })
+      .catch(() => {});
+  };
+
   const createGate = () => {
-    const nextId = `custom-${Date.now()}`;
-    const newGate: GateLibraryItem = {
-      gate_id: nextId,
-      name: `Custom Gate ${gateLibrary.length + 1}`,
-      min_maintainability_score: 80,
-      min_security_score: 85,
-      max_vulnerabilities: 0,
-      max_security_hotspots: 2,
-      max_code_smells: 25,
-      projectCount: 0
-    };
-    setGateLibrary((current) => [newGate, ...current]);
-    setSelectedGateId(nextId);
-    setGateMessage(`Created ${newGate.name}.`);
+    const newName = `Custom Gate ${gateLibrary.length + 1}`;
+    apiFetch(`${API_BASE}/v1/gates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName, min_maintainability_score: 80, min_security_score: 85, min_reliability_score: 50, max_vulnerabilities: 0, max_security_hotspots: 2, max_code_smells: 25, max_bugs: 5 }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("Create failed"); return r.json(); })
+      .then((g: GateLibraryItem) => {
+        setGateLibrary((cur) => [...cur, { ...g, projectCount: 0 }]);
+        setSelectedGateId(g.gate_id);
+        setGateForm({ name: g.name, min_maintainability_score: g.min_maintainability_score, min_security_score: g.min_security_score, max_vulnerabilities: g.max_vulnerabilities, max_security_hotspots: g.max_security_hotspots, max_code_smells: g.max_code_smells });
+        setGateMessage(`Created ${g.name}.`);
+      })
+      .catch(() => setGateMessage("Failed to create gate."));
   };
 
   const saveSelectedGate = async () => {
-    if (selectedGateId === "default") {
-      await saveGate();
-      return;
+    setSavingGate(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/v1/gates/${selectedGateId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: gateForm.name, min_maintainability_score: gateForm.min_maintainability_score, min_security_score: gateForm.min_security_score, min_reliability_score: 50, max_vulnerabilities: gateForm.max_vulnerabilities, max_security_hotspots: gateForm.max_security_hotspots, max_code_smells: gateForm.max_code_smells, max_bugs: 10 }),
+      });
+      if (!r.ok) throw new Error("Save failed");
+      const g = await r.json() as GateLibraryItem;
+      setGateLibrary((cur) => cur.map((item) => item.gate_id === selectedGateId ? { ...item, ...g } : item));
+      setGateMessage(`Saved ${g.name}.`);
+    } catch {
+      setGateMessage("Failed to save gate.");
+    } finally {
+      setSavingGate(false);
     }
+  };
 
-    setGateLibrary((current) =>
-      current.map((item) =>
-        item.gate_id === selectedGateId
-          ? {
-              ...item,
-              name: gateForm.name,
-              min_maintainability_score: gateForm.min_maintainability_score,
-              min_security_score: gateForm.min_security_score,
-              max_vulnerabilities: gateForm.max_vulnerabilities,
-              max_security_hotspots: gateForm.max_security_hotspots,
-              max_code_smells: gateForm.max_code_smells
-            }
-          : item
-      )
-    );
-    setGateMessage(`Saved ${gateForm.name}.`);
+  const deleteSelectedGate = () => {
+    const gate = gateLibrary.find((g) => g.gate_id === selectedGateId);
+    if (!gate || gate.builtIn) return;
+    if (!window.confirm(`Delete gate "${gate.name}"? Projects using it will revert to the default gate.`)) return;
+    apiFetch(`${API_BASE}/v1/gates/${selectedGateId}`, { method: "DELETE" })
+      .then(() => {
+        setGateLibrary((cur) => cur.filter((g) => g.gate_id !== selectedGateId));
+        const def = gateLibrary.find((g) => g.builtIn);
+        setSelectedGateId(def?.gate_id ?? "default");
+        setGateMessage(`Gate deleted.`);
+        loadGates();
+      })
+      .catch(() => setGateMessage("Delete failed."));
+  };
+
+  const assignGate = (project_key: string, gate_id: string) => {
+    setSavingGateAssignment(project_key);
+    const def = gateLibrary.find((g) => g.builtIn);
+    const isDefault = gate_id === (def?.gate_id ?? "default");
+    const req = isDefault
+      ? apiFetch(`${API_BASE}/v1/gates/assignments/${encodeURIComponent(project_key)}`, { method: "DELETE" })
+      : apiFetch(`${API_BASE}/v1/gates/assignments/${encodeURIComponent(project_key)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gate_id }),
+        });
+    req
+      .then(() => setGateAssignments((prev) => isDefault
+        ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== project_key))
+        : { ...prev, [project_key]: gate_id }
+      ))
+      .catch(() => {})
+      .finally(() => setSavingGateAssignment(null));
   };
 
   const suppressRule = (ruleId: string) => {
@@ -3436,9 +3491,17 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
           <div className="gates-main">
             <header className="gates-title-row">
               <h2>{selectedGate?.name ?? gate?.name ?? "Default Gate"}</h2>
-              <button type="button" onClick={() => void saveSelectedGate()} disabled={savingGate}>
-                {savingGate ? "Saving..." : "Save"}
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="button" onClick={() => void saveSelectedGate()} disabled={savingGate}>
+                  {savingGate ? "Saving..." : "Save"}
+                </button>
+                {selectedGate && !selectedGate.builtIn && (
+                  <button type="button" onClick={deleteSelectedGate}
+                    style={{ background: "transparent", color: "var(--color-fail, #e74c3c)", border: "1px solid currentColor" }}>
+                    Delete
+                  </button>
+                )}
+              </div>
             </header>
             <p className="hint">Conditions on {scopeMode === "new-code" ? "New Code" : "Overall Code"}</p>
             <div className="gate-conditions">
@@ -3491,49 +3554,45 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
               </label>
             </div>
 
-            <h3>Projects</h3>
+            <h3>Project gate assignments</h3>
+            <p className="hint">Change which gate evaluates each project. Unassigned projects use the default gate.</p>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th>Project</th>
-                    <th>Gate</th>
-                    <th>Reasons</th>
-                    <th>Actions</th>
+                    <th>Assigned gate</th>
+                    <th>Last result</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {analyses.slice(0, 8).map((analysis) => (
-                    <tr key={analysis.analysis_id}>
-                      <td>{analysis.project_key}</td>
-                      <td className={analysis.quality_gate === "pass" ? "pass" : "fail"}>
-                        {analysis.quality_gate}
-                      </td>
-                      <td>{analysis.gate_failures.length > 0 ? analysis.gate_failures.join("; ") : "-"}</td>
-                      <td>
-                        <div className="action-row">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedProject(analysis.project_key);
-                              setActiveTab("projects");
-                            }}
+                  {summaries.map((s) => {
+                    const assignedId = gateAssignments[s.projectKey] ?? (gateLibrary.find((g) => g.builtIn)?.gate_id ?? "default");
+                    const isSaving = savingGateAssignment === s.projectKey;
+                    return (
+                      <tr key={s.projectKey}>
+                        <td>{s.projectKey}</td>
+                        <td>
+                          <select
+                            value={assignedId}
+                            disabled={isSaving || !canAccessAdministration}
+                            onChange={(e) => assignGate(s.projectKey, e.target.value)}
+                            style={{ fontSize: "0.85rem" }}
                           >
-                            Open project
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedProject(analysis.project_key);
-                              setActiveTab("evolution");
-                            }}
-                          >
-                            Compare trend
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {gateLibrary.map((g) => (
+                              <option key={g.gate_id} value={g.gate_id}>
+                                {g.name}{g.builtIn ? " (default)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {isSaving && <span style={{ marginLeft: "0.4rem", opacity: 0.6 }}>…</span>}
+                        </td>
+                        <td className={s.latest.quality_gate === "pass" ? "pass" : "fail"}>
+                          {s.latest.quality_gate}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

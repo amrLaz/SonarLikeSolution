@@ -18,6 +18,7 @@ from app.auth import require_platform_auth, require_ci_token_auth, require_role
 from app.db import get_session
 from app.models import AnalysisRecord, AzureDevOpsOrganizationConfig, ProjectIntegration
 from app.models import QualityGateConfig
+from app.routes.gates import get_gate_for_project
 from app.notify import dispatch as notify_dispatch
 
 _log = logging.getLogger(__name__)
@@ -359,11 +360,7 @@ def create_analysis(
     _: None = Depends(require_ci_token_auth),
     session: Session = Depends(get_session),
 ) -> AnalysisResponse:
-    gate = session.get(QualityGateConfig, "default")
-    if gate is None:
-        gate = QualityGateConfig(id="default")
-        session.add(gate)
-        session.flush()
+    gate = get_gate_for_project(session, request.project_key)
 
     metrics = build_metrics(request)
     quality_gate, gate_failures = evaluate_quality_gate(metrics, gate)
