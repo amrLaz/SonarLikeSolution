@@ -174,6 +174,7 @@ type PlatformSettings = {
   retention_keep_failed_days: string;
   retention_max_per_branch: string;
   retention_auto_cleanup: string;
+  retention_protected_branches: string;
 };
 
 const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -185,6 +186,7 @@ const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   retention_keep_failed_days: "30",
   retention_max_per_branch: "50",
   retention_auto_cleanup: "true",
+  retention_protected_branches: "master,main,develop",
 };
 
 type DevOpsProviderTab = "github" | "bitbucket" | "azure-devops" | "gitlab";
@@ -3676,6 +3678,17 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                           }
                         />
                       </label>
+                      <label>
+                        Protected branches (never deleted, comma-separated)
+                        <input
+                          type="text"
+                          placeholder="master,main,develop"
+                          value={platformSettings.retention_protected_branches}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({ ...s, retention_protected_branches: e.target.value }))
+                          }
+                        />
+                      </label>
                     </div>
                     <div className="form-grid compact" style={{ marginTop: "0.75rem" }}>
                       <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
@@ -3703,6 +3716,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                               retention_keep_failed_days: platformSettings.retention_keep_failed_days,
                               retention_max_per_branch: platformSettings.retention_max_per_branch,
                               retention_auto_cleanup: platformSettings.retention_auto_cleanup,
+                              retention_protected_branches: platformSettings.retention_protected_branches,
                             },
                             "Retention policy saved."
                           )

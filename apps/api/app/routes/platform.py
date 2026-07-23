@@ -34,6 +34,7 @@ DEFAULT_SETTINGS = {
     "retention_keep_failed_days": "30",
     "retention_max_per_branch": "50",
     "retention_auto_cleanup": "true",
+    "retention_protected_branches": "master,main,develop",
 }
 
 
@@ -46,6 +47,7 @@ class PlatformSettingsResponse(BaseModel):
     retention_keep_failed_days: str = "30"
     retention_max_per_branch: str = "50"
     retention_auto_cleanup: str = "true"
+    retention_protected_branches: str = "master,main,develop"
 
 
 class PlatformSettingsUpdateRequest(BaseModel):
@@ -57,6 +59,7 @@ class PlatformSettingsUpdateRequest(BaseModel):
     retention_keep_failed_days: str | None = None
     retention_max_per_branch: str | None = None
     retention_auto_cleanup: str | None = None
+    retention_protected_branches: str | None = None
 
 
 def _hash_token(token: str) -> str:
@@ -231,10 +234,12 @@ def run_retention_cleanup(session: Session) -> dict:
     ), {"cutoff": failed_cutoff}).fetchall()
     deleted += _delete_ids([r[0] for r in rows])
 
-    # Rule 2: old feature-branch analyses (spare master/main)
+    # Rule 2: old feature-branch analyses (spare main branches)
+    protected = _get_setting(session, "retention_protected_branches", "master,main,develop")
+    protected_list = "(" + ",".join(f"'{b.strip()}'" for b in protected.split(",") if b.strip()) + ")"
     rows = session.execute(text(
-        "SELECT analysis_id FROM analysis_records "
-        "WHERE branch NOT IN ('master', 'main') AND created_at < :cutoff"
+        f"SELECT analysis_id FROM analysis_records "
+        f"WHERE branch NOT IN {protected_list} AND created_at < :cutoff"
     ), {"cutoff": cutoff}).fetchall()
     deleted += _delete_ids([r[0] for r in rows])
 
