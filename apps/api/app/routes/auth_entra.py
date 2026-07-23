@@ -128,38 +128,48 @@ async def entra_callback(
         or claims.get("upn", "")
     )
 
-    # Upsert the user in platform_users
-    user = session.query(PlatformUser).filter(PlatformUser.email == email).first()
-    if not user:
-        user = PlatformUser(
-            user_id=str(uuid.uuid4()),
-            email=email,
-            full_name=full_name,
-            role="default",       # first SSO login gets viewer role; admin promotes manually
-            auth_provider="entra",
-            is_active=True,
+    # Upsert the user in platform_users and issue a signed session token.
+    # Wrapped in try/except so that a DB migration lag (e.g. table not yet
+    # created on first production deploy) never blocks the user from logging in.
+    platform_token: str | None = None
+    role = "regular"
+    try:
+        db_user = session.query(PlatformUser).filter(PlatformUser.email == email).first()
+        if not db_user:
+            db_user = PlatformUser(
+                user_id=str(uuid.uuid4()),
+                email=email,
+                full_name=full_name,
+                role="regular",       # first SSO login gets analyst role
+                auth_provider="entra",
+                is_active=True,
+            )
+            session.add(db_user)
+        else:
+            db_user.full_name = full_name
+            db_user.last_login_at = datetime.now(timezone.utc)
+        session.commit()
+        role = db_user.role
+        platform_token = sign_session_token(
+            {"sub": db_user.user_id, "email": db_user.email, "full_name": db_user.full_name, "role": role},
+            session,
         )
-        session.add(user)
-    else:
-        user.full_name = full_name
-        user.last_login_at = datetime.now(timezone.utc)
-    session.commit()
+    except Exception as exc:
+        print(f"[entra] RBAC upsert failed (non-fatal): {exc}")
+        try:
+            session.rollback()
+        except Exception:
+            pass
 
-    # Issue a signed session token
-    platform_token = sign_session_token(
-        {"sub": user.user_id, "email": user.email, "full_name": user.full_name, "role": user.role},
-        session,
-    )
+    payload: dict[str, Any] = {
+        "full_name": full_name,
+        "email": email,
+        "access_role": role,
+    }
+    if platform_token:
+        payload["token"] = platform_token
 
-    session_b64 = base64.urlsafe_b64encode(
-        json.dumps({
-            "full_name": user.full_name,
-            "email": user.email,
-            "access_role": user.role,
-            "token": platform_token,
-        }).encode()
-    ).decode()
-
+    session_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     return RedirectResponse(url=f"/?entra_session={session_b64}")
 
 

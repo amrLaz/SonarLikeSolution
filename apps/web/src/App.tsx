@@ -1028,12 +1028,16 @@ export function App() {
     };
   }, [scopeMode, selectedSummary, selectedBranch]);
 
-  const apiFetch = (url: string, init?: RequestInit) => {
+  const apiFetch = (url: string, init?: RequestInit): Promise<Response> => {
     const token = sessionUser?.token;
     const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
     return fetch(url, {
       ...init,
       headers: { ...authHeader, ...(init?.headers ?? {}) },
+    }).then((res) => {
+      // 401 on a read-only GET just means unauthenticated — let callers handle it.
+      // Never throw here; throwing would crash data-loading effects and blank the UI.
+      return res;
     });
   };
 
