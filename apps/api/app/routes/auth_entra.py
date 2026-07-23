@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
 from app.auth import sign_session_token
 from app.db import get_session
 from app.models import AuthProviderConfig, PlatformUser
@@ -135,6 +136,7 @@ async def entra_callback(
     role = "regular"
     try:
         db_user = session.query(PlatformUser).filter(PlatformUser.email == email).first()
+        is_new = db_user is None
         if not db_user:
             db_user = PlatformUser(
                 user_id=str(uuid.uuid4()),
@@ -148,6 +150,9 @@ async def entra_callback(
         else:
             db_user.full_name = full_name
             db_user.last_login_at = datetime.now(timezone.utc)
+        action = "user.login.sso.first" if is_new else "user.login.sso"
+        log_event(session, email, db_user.role, action, "session",
+                  resource_label=email, details={"provider": "entra", "full_name": full_name})
         session.commit()
         role = db_user.role
         platform_token = sign_session_token(

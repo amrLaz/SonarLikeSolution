@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
 from app.auth import require_platform_auth, require_role
 from app.db import get_session
 from app.models import PlatformApiToken, PlatformSetting
@@ -71,7 +72,7 @@ async def generate_token(
     request: TokenGenerateRequest,
     authorization: str | None = Header(None),
     session: Session = Depends(get_session),
-    auth=Depends(require_role("admin")),
+    auth: dict = Depends(require_role("admin")),
 ) -> dict:
     """Generate a new CI/CD token, or rotate the current one."""
     if request.require_current_token:
@@ -104,6 +105,9 @@ async def generate_token(
         expires_at=expires_at,
     )
     session.add(token)
+    log_event(session, auth["email"], auth["role"], "token.generate", "api_token",
+              resource_id=token.token_id, resource_label=token.token_name,
+              details={"preview": token.token_preview, "expires_at": expires_at.isoformat() if expires_at else None})
     session.commit()
 
     return {
@@ -166,7 +170,7 @@ async def get_settings(session: Session = Depends(get_session)) -> PlatformSetti
 async def update_settings(
     request: PlatformSettingsUpdateRequest,
     session: Session = Depends(get_session),
-    auth=Depends(require_role("admin")),
+    auth: dict = Depends(require_role("admin")),
 ) -> PlatformSettingsResponse:
     """Upsert global platform settings into the platform_settings table."""
     updates = request.model_dump(exclude_none=True)
@@ -181,6 +185,9 @@ async def update_settings(
                 key=key,
                 value=value,
             ))
+    if updates:
+        log_event(session, auth["email"], auth["role"], "settings.update", "platform_settings",
+                  details=updates)
     session.commit()
     return await get_settings(session=session)
 
@@ -284,10 +291,14 @@ def run_retention_cleanup(session: Session) -> dict:
 @router.post("/cleanup")
 async def trigger_cleanup(
     session: Session = Depends(get_session),
-    auth=Depends(require_role("admin")),
+    auth: dict = Depends(require_role("admin")),
 ) -> dict:
     """Manually trigger a data retention cleanup."""
-    return run_retention_cleanup(session)
+    result = run_retention_cleanup(session)
+    log_event(session, auth["email"], auth["role"], "data.cleanup", "analysis_records",
+              details={"deleted_analyses": result["deleted_analyses"]})
+    session.commit()
+    return result
 
 
 @router.get("/cleanup/status")

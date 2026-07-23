@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
 from app.auth import hash_password, require_role, sign_session_token, verify_password
 from app.db import get_session
 from app.models import PlatformUser
@@ -54,6 +55,8 @@ def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     user.last_login_at = datetime.now(timezone.utc)
+    log_event(session, user.email, user.role, "user.login", "session",
+              resource_label=user.email, details={"provider": "local"})
     session.commit()
 
     token = sign_session_token(_user_payload(user), session)
@@ -173,6 +176,9 @@ def create_user(
         is_active=True,
     )
     session.add(user)
+    log_event(session, _["email"], _["role"], "user.create", "user",
+              resource_id=user.user_id, resource_label=email,
+              details={"role": request.role})
     session.commit()
     return {"user_id": user.user_id, "email": user.email, "role": user.role}
 
@@ -194,15 +200,22 @@ def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    changes: dict = {}
     if request.role is not None:
         if request.role not in ("admin", "regular", "default"):
             raise HTTPException(status_code=422, detail="Invalid role")
+        changes["role"] = {"from": user.role, "to": request.role}
         user.role = request.role
     if request.is_active is not None:
+        changes["is_active"] = {"from": user.is_active, "to": request.is_active}
         user.is_active = request.is_active
     if request.full_name is not None:
         user.full_name = request.full_name.strip()
 
+    if changes:
+        action = "user.role.change" if "role" in changes else "user.status.change"
+        log_event(session, _["email"], _["role"], action, "user",
+                  resource_id=user.user_id, resource_label=user.email, details=changes)
     session.commit()
     return {"user_id": user.user_id, "role": user.role, "is_active": user.is_active}
 
@@ -226,6 +239,8 @@ def admin_reset_password(
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
     user.hashed_password = hash_password(request.new_password)
     user.auth_provider = "local"
+    log_event(session, _["email"], _["role"], "user.password.reset", "user",
+              resource_id=user.user_id, resource_label=user.email)
     session.commit()
     return {"status": "password updated"}
 
@@ -242,6 +257,9 @@ def delete_user(
     user = session.query(PlatformUser).filter(PlatformUser.user_id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    log_event(session, caller["email"], caller["role"], "user.delete", "user",
+              resource_id=user.user_id, resource_label=user.email,
+              details={"had_role": user.role, "auth_provider": user.auth_provider})
     session.delete(user)
     session.commit()
     return {"status": "deleted"}

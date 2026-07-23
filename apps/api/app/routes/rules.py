@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
 from app.auth import require_role
 from app.db import get_session
 from app.models import AnalysisRecord, RuleSuppression
@@ -184,7 +185,7 @@ def suppress_rule(
     rule_key: str,
     note: str | None = Query(None),
     session: Session = Depends(get_session),
-    _: None = Depends(require_role("admin", "regular")),
+    caller: dict = Depends(require_role("admin", "regular")),
 ) -> dict:
     """Mark a rule as suppressed (false positive / accepted risk)."""
     existing = session.query(RuleSuppression).filter(
@@ -197,6 +198,8 @@ def suppress_rule(
             suppressed_at=datetime.now(timezone.utc),
             note=note,
         ))
+        log_event(session, caller["email"], caller["role"], "rule.suppress", "rule",
+                  resource_label=rule_key, details={"note": note} if note else None)
         session.commit()
     return {"status": "suppressed", "rule_key": rule_key}
 
@@ -205,11 +208,13 @@ def suppress_rule(
 def unsuppress_rule(
     rule_key: str,
     session: Session = Depends(get_session),
-    _: None = Depends(require_role("admin", "regular")),
+    caller: dict = Depends(require_role("admin", "regular")),
 ) -> dict:
     """Reactivate a previously suppressed rule."""
     session.query(RuleSuppression).filter(
         RuleSuppression.rule_key == rule_key
     ).delete()
+    log_event(session, caller["email"], caller["role"], "rule.unsuppress", "rule",
+              resource_label=rule_key)
     session.commit()
     return {"status": "active", "rule_key": rule_key}

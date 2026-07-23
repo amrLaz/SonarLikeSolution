@@ -22,6 +22,7 @@ type AdminSection =
   | "devops-integrations"
   | "access-management"
   | "pat-management"
+  | "audit-log"
   | "project-links"
   | "project-management"
   | "analysis-workbench";
@@ -180,6 +181,18 @@ type PlatformTokenHistoryItem = {
   is_current: boolean;
 };
 
+type AuditLogEntry = {
+  id: string;
+  actor_email: string;
+  actor_role: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  resource_label: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
 type PlatformSettings = {
   instance_name: string;
   report_max_size_mb: string;
@@ -245,7 +258,8 @@ const ADMIN_NAV_BY_TAB: Record<AdminPrimaryTab, Array<{ id: AdminSection; label:
   ],
   security: [
     { id: "access-management", label: "Authentication" },
-    { id: "pat-management", label: "PAT Management" }
+    { id: "pat-management", label: "PAT Management" },
+    { id: "audit-log", label: "Audit Log" }
   ],
   projects: [
     { id: "project-management", label: "Projects & Branches" },
@@ -435,6 +449,13 @@ export function App() {
     quality_gate_enabled: false
   });
 
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditLogTotal, setAuditLogTotal] = useState(0);
+  const [auditLogOffset, setAuditLogOffset] = useState(0);
+  const [auditLogActionFilter, setAuditLogActionFilter] = useState("");
+  const [auditLogActorFilter, setAuditLogActorFilter] = useState("");
+  const [auditLogLoading, setAuditLogLoading] = useState(false);
+
   const [gateForm, setGateForm] = useState({
     name: "Default Gate",
     min_maintainability_score: 80,
@@ -587,6 +608,26 @@ export function App() {
       })
       .catch(() => { /* admin only — silently ignore if not authorised */ })
       .finally(() => setUsersLoading(false));
+  };
+
+  const loadAuditLogs = (offset = 0, action = auditLogActionFilter, actor = auditLogActorFilter) => {
+    setAuditLogLoading(true);
+    const params = new URLSearchParams({ limit: "50", offset: String(offset) });
+    if (action) params.set("action", action);
+    if (actor) params.set("actor", actor);
+    apiFetch(`${API_BASE}/v1/audit-logs?${params.toString()}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json() as Promise<{ total: number; entries: AuditLogEntry[] }>;
+      })
+      .then(({ total, entries }) => {
+        if (offset === 0) setAuditLogs(entries);
+        else setAuditLogs((prev) => [...prev, ...entries]);
+        setAuditLogTotal(total);
+        setAuditLogOffset(offset);
+      })
+      .catch(() => { /* admin only */ })
+      .finally(() => setAuditLogLoading(false));
   };
 
   const addLocalUser = () => {
@@ -1342,6 +1383,15 @@ export function App() {
   useEffect(() => {
     if (activeAdminSection !== "access-management" || !canAccessAdministration || !sessionUser?.token) return;
     loadPlatformUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
+
+  // Load audit logs when the audit-log section becomes active
+  useEffect(() => {
+    if (activeAdminSection !== "audit-log" || !canAccessAdministration || !sessionUser?.token) return;
+    loadAuditLogs(0, "", "");
+    setAuditLogActionFilter("");
+    setAuditLogActorFilter("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
 
@@ -4307,6 +4357,123 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                             </div>
                           </article>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {activeAdminSection === "audit-log" && (
+                <>
+                  <h2>Audit Log</h2>
+                  <p>Immutable trace of every security-relevant action — role changes, rule suppressions, token rotations, settings updates.</p>
+
+                  <div className="auth-card" style={{ marginBottom: "1rem" }}>
+                    <div className="form-grid compact" style={{ alignItems: "flex-end" }}>
+                      <label>
+                        Filter by action
+                        <select
+                          value={auditLogActionFilter}
+                          onChange={(e) => setAuditLogActionFilter(e.target.value)}
+                        >
+                          <option value="">All actions</option>
+                          <option value="user.login">user.login</option>
+                          <option value="user.login.sso">user.login.sso</option>
+                          <option value="user.login.sso.first">user.login.sso.first (first SSO)</option>
+                          <option value="user.create">user.create</option>
+                          <option value="user.delete">user.delete</option>
+                          <option value="user.role.change">user.role.change</option>
+                          <option value="user.status.change">user.status.change</option>
+                          <option value="user.password.reset">user.password.reset</option>
+                          <option value="rule.suppress">rule.suppress</option>
+                          <option value="rule.unsuppress">rule.unsuppress</option>
+                          <option value="token.generate">token.generate</option>
+                          <option value="settings.update">settings.update</option>
+                          <option value="data.cleanup">data.cleanup</option>
+                        </select>
+                      </label>
+                      <label>
+                        Filter by actor
+                        <input
+                          placeholder="email..."
+                          value={auditLogActorFilter}
+                          onChange={(e) => setAuditLogActorFilter(e.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => loadAuditLogs(0, auditLogActionFilter, auditLogActorFilter)}
+                        disabled={auditLogLoading}
+                      >
+                        {auditLogLoading ? "Loading..." : "Apply"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="auth-card" style={{ padding: 0, overflow: "hidden" }}>
+                    {auditLogs.length === 0 && !auditLogLoading ? (
+                      <p style={{ padding: "1.5rem", margin: 0, opacity: 0.7, textAlign: "center" }}>
+                        No audit events yet — actions will appear here as users interact with the platform.
+                      </p>
+                    ) : (
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--surface2, rgba(0,0,0,0.05))" }}>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left", whiteSpace: "nowrap" }}>Date</th>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left" }}>Actor</th>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left" }}>Role</th>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left" }}>Action</th>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left" }}>Resource</th>
+                              <th style={{ padding: "0.6rem 0.8rem", textAlign: "left" }}>Details</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {auditLogs.map((entry) => (
+                              <tr key={entry.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                                <td style={{ padding: "0.5rem 0.8rem", whiteSpace: "nowrap", opacity: 0.75 }}>
+                                  {new Date(entry.created_at).toLocaleString()}
+                                </td>
+                                <td style={{ padding: "0.5rem 0.8rem", fontFamily: "monospace" }}>
+                                  {entry.actor_email}
+                                </td>
+                                <td style={{ padding: "0.5rem 0.8rem" }}>
+                                  <span style={{
+                                    padding: "0.1rem 0.4rem",
+                                    borderRadius: "3px",
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                    background: entry.actor_role === "admin" ? "var(--color-critical, #e74c3c22)" : "var(--color-medium, #f39c1222)",
+                                    color: entry.actor_role === "admin" ? "var(--color-critical, #e74c3c)" : "var(--color-medium, #f39c12)",
+                                  }}>
+                                    {entry.actor_role}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "0.5rem 0.8rem", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {entry.action}
+                                </td>
+                                <td style={{ padding: "0.5rem 0.8rem", opacity: 0.85 }}>
+                                  {entry.resource_label ?? entry.resource_id ?? entry.resource_type}
+                                </td>
+                                <td style={{ padding: "0.5rem 0.8rem", opacity: 0.7, maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {entry.details ? JSON.stringify(entry.details) : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {auditLogs.length < auditLogTotal && (
+                      <div style={{ padding: "0.75rem", textAlign: "center", borderTop: "1px solid var(--border)" }}>
+                        <button
+                          type="button"
+                          onClick={() => loadAuditLogs(auditLogOffset + 50, auditLogActionFilter, auditLogActorFilter)}
+                          disabled={auditLogLoading}
+                          style={{ fontSize: "0.85rem" }}
+                        >
+                          {auditLogLoading ? "Loading..." : `Load more (${auditLogs.length} / ${auditLogTotal})`}
+                        </button>
                       </div>
                     )}
                   </div>

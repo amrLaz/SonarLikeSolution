@@ -257,3 +257,24 @@ class PlatformSetting(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AuditLog(Base):
+    """Immutable record of every security-relevant action on the platform."""
+    __tablename__ = "audit_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_email: Mapped[str] = mapped_column(String(255))
+    actor_role: Mapped[str] = mapped_column(String(50))
+    action: Mapped[str] = mapped_column(String(100))        # e.g. "user.create", "rule.suppress"
+    resource_type: Mapped[str] = mapped_column(String(100)) # e.g. "user", "rule", "token"
+    resource_id: Mapped[Optional[str]] = mapped_column(String(255))
+    resource_label: Mapped[Optional[str]] = mapped_column(String(500))
+    details: Mapped[Optional[str]] = mapped_column(Text)    # JSON blob for extra context
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_audit_actor", "actor_email"),
+        Index("idx_audit_action", "action"),
+        Index("idx_audit_created_at", "created_at"),
+    )
