@@ -3093,22 +3093,21 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
       )}
 
       {activeTab === "rules" && (
+        <>
+        <div className="tab-project-bar">
+          <select
+            value={selectedProject}
+            onChange={(e) => { setSelectedProject(e.target.value); setSelectedBranch(""); }}
+          >
+            <option value="">— All projects —</option>
+            {summaries.map((s) => (
+              <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
+            ))}
+          </select>
+        </div>
         <section className="two-pane-screen">
           <aside className="rules-sidebar">
             <h3>Filters</h3>
-
-            <div className="filter-block">
-              <label>Project</label>
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-              >
-                <option value="">All projects</option>
-                {summaries.map((s) => (
-                  <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
-                ))}
-              </select>
-            </div>
 
             <div className="filter-block">
               <label>Category</label>
@@ -3154,7 +3153,6 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
               type="button"
               style={{ marginTop: "1rem", width: "100%" }}
               onClick={() => {
-                setSelectedProject("");
                 setRuleFilterCategory("all");
                 setRuleFilterSeverity("all");
                 setRuleFilterStatus("all");
@@ -3256,6 +3254,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
             </div>
           </div>
         </section>
+        </>
       )}
 
       {activeTab === "quality-gates" && (
