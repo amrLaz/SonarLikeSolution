@@ -63,13 +63,83 @@ def send_test(channel_type: str, config: dict) -> str:
         return str(exc)
 
 
+# ── Teams detection & Adaptive Card builder ────────────────────────────────────
+
+_TEAMS_URL_PATTERNS = (
+    "webhook.office.com",
+    "outlook.office.com/webhook",
+    "logic.azure.com",
+    "flow.microsoft.com",
+    "azure.com/workflows",
+)
+
+
+def _is_teams_url(url: str) -> bool:
+    lower = url.lower()
+    return any(p in lower for p in _TEAMS_URL_PATTERNS)
+
+
+def _build_teams_payload(quality_gate: str, context: dict) -> dict:
+    """Adaptive Card payload — rendered natively by Teams Workflows and legacy connectors."""
+    is_fail = quality_gate == "fail"
+    icon = "🔴" if is_fail else "🟢"
+    title = f"{icon} Quality Gate {'FAILED' if is_fail else 'PASSED'}"
+    color = "Attention" if is_fail else "Good"
+
+    facts = [
+        {"title": "Project", "value": str(context.get("project_key", ""))},
+        {"title": "Branch",  "value": str(context.get("branch", ""))},
+        {"title": "Commit",  "value": str(context.get("commit_sha", ""))[:8]},
+        {"title": "Vulnerabilities", "value": str(context.get("vulnerabilities", 0))},
+        {"title": "Bugs",            "value": str(context.get("bugs", 0))},
+        {"title": "Code smells",     "value": str(context.get("code_smells", 0))},
+    ]
+
+    body: list = [
+        {"type": "TextBlock", "text": title, "size": "Large", "weight": "Bolder",
+         "color": color, "wrap": True},
+        {"type": "FactSet", "facts": facts},
+    ]
+
+    failures = context.get("gate_failures", [])
+    if failures:
+        lines = "\n".join(f"• {f}" for f in failures[:8])
+        body.append({
+            "type": "TextBlock",
+            "text": f"**Gate failures:**\n{lines}",
+            "wrap": True,
+            "color": "Attention",
+            "spacing": "Medium",
+        })
+
+    return {
+        "type": "message",
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "contentUrl": None,
+            "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": body,
+            },
+        }],
+    }
+
+
 # ── Senders ────────────────────────────────────────────────────────────────────
 
 def _send_webhook(url: str, quality_gate: str, context: dict) -> None:
     import urllib.request
     if not url:
         raise ValueError("Webhook URL is empty")
-    payload = json.dumps({**context, "event": f"quality_gate.{quality_gate}", "quality_gate": quality_gate}).encode()
+
+    if _is_teams_url(url):
+        payload_dict = _build_teams_payload(quality_gate, context)
+    else:
+        payload_dict = {**context, "event": f"quality_gate.{quality_gate}", "quality_gate": quality_gate}
+
+    payload = json.dumps(payload_dict).encode()
     req = urllib.request.Request(
         url,
         data=payload,
