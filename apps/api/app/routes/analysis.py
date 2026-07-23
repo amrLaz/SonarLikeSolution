@@ -18,6 +18,7 @@ from app.auth import require_platform_auth, require_ci_token_auth, require_role
 from app.db import get_session
 from app.models import AnalysisRecord, AzureDevOpsOrganizationConfig, ProjectIntegration
 from app.models import QualityGateConfig
+from app.notify import dispatch as notify_dispatch
 
 _log = logging.getLogger(__name__)
 
@@ -454,6 +455,18 @@ def create_analysis(
         record.pr_decoration_status = decoration_status
         record.pr_decoration_error = decoration_error
         session.commit()
+
+    notify_dispatch(quality_gate, {
+        "project_key": record.project_key,
+        "branch": record.branch,
+        "commit_sha": record.commit_sha,
+        "analysis_id": record.analysis_id,
+        "vulnerabilities": record.vulnerabilities,
+        "bugs": record.bugs,
+        "code_smells": record.code_smells,
+        "security_hotspots": record.security_hotspots,
+        "gate_failures": gate_failures,
+    })
 
     return to_response(record)
 

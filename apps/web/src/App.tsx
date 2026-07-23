@@ -20,6 +20,7 @@ type AdminSection =
   | "analysis-scope"
   | "data-retention"
   | "devops-integrations"
+  | "notifications"
   | "access-management"
   | "pat-management"
   | "audit-log"
@@ -181,6 +182,18 @@ type PlatformTokenHistoryItem = {
   is_current: boolean;
 };
 
+type NotificationChannel = {
+  id: string;
+  name: string;
+  channel_type: "webhook" | "email";
+  config: Record<string, string | boolean>;
+  enabled: boolean;
+  on_fail: boolean;
+  on_pass: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 type AuditLogEntry = {
   id: string;
   actor_email: string;
@@ -256,7 +269,8 @@ const ADMIN_NAV_BY_TAB: Record<AdminPrimaryTab, Array<{ id: AdminSection; label:
     { id: "general-settings", label: "General" },
     { id: "analysis-scope", label: "Analysis Scope" },
     { id: "data-retention", label: "Data Retention" },
-    { id: "devops-integrations", label: "DevOps Platform Integrations" }
+    { id: "devops-integrations", label: "DevOps Platform Integrations" },
+    { id: "notifications", label: "Notifications" }
   ],
   security: [
     { id: "access-management", label: "Authentication" },
@@ -451,6 +465,25 @@ export function App() {
     quality_gate_enabled: false
   });
 
+  const [notifChannels, setNotifChannels] = useState<NotificationChannel[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifTestingId, setNotifTestingId] = useState<string | null>(null);
+  const [notifMessage, setNotifMessage] = useState<string | null>(null);
+  const [showNotifForm, setShowNotifForm] = useState(false);
+  const [notifForm, setNotifForm] = useState({
+    name: "",
+    channel_type: "webhook" as "webhook" | "email",
+    url: "",
+    to_email: "",
+    smtp_host: "",
+    smtp_port: "587",
+    smtp_user: "",
+    smtp_password: "",
+    smtp_from: "",
+    on_fail: true,
+    on_pass: false,
+  });
+
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [auditLogTotal, setAuditLogTotal] = useState(0);
   const [auditLogOffset, setAuditLogOffset] = useState(0);
@@ -630,6 +663,63 @@ export function App() {
       })
       .catch(() => { /* admin only */ })
       .finally(() => setAuditLogLoading(false));
+  };
+
+  const loadNotifChannels = () => {
+    setNotifLoading(true);
+    apiFetch(`${API_BASE}/v1/notifications/channels`)
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+      .then((data: unknown) => { if (Array.isArray(data)) setNotifChannels(data as NotificationChannel[]); })
+      .catch(() => {})
+      .finally(() => setNotifLoading(false));
+  };
+
+  const saveNotifChannel = () => {
+    const { channel_type, name, url, to_email, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, on_fail, on_pass } = notifForm;
+    if (!name.trim()) { setNotifMessage("Name is required."); return; }
+    const config: Record<string, string> = channel_type === "webhook"
+      ? { url }
+      : { to_email, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from };
+    apiFetch(`${API_BASE}/v1/notifications/channels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), channel_type, config, on_fail, on_pass, enabled: true }),
+    })
+      .then((r) => { if (!r.ok) return r.json().then((e) => { throw new Error((e as {detail?: string}).detail ?? "Error"); }); return r.json(); })
+      .then(() => {
+        setShowNotifForm(false);
+        setNotifForm({ name: "", channel_type: "webhook", url: "", to_email: "", smtp_host: "", smtp_port: "587", smtp_user: "", smtp_password: "", smtp_from: "", on_fail: true, on_pass: false });
+        setNotifMessage("Channel created.");
+        loadNotifChannels();
+      })
+      .catch((e: Error) => setNotifMessage(e.message));
+  };
+
+  const deleteNotifChannel = (id: string) => {
+    apiFetch(`${API_BASE}/v1/notifications/channels/${id}`, { method: "DELETE" })
+      .then(() => { setNotifMessage("Channel deleted."); loadNotifChannels(); })
+      .catch(() => setNotifMessage("Delete failed."));
+  };
+
+  const testNotifChannel = (id: string) => {
+    setNotifTestingId(id);
+    setNotifMessage(null);
+    apiFetch(`${API_BASE}/v1/notifications/channels/${id}/test`, { method: "POST" })
+      .then((r) => r.json().then((body: { message?: string; detail?: string }) => {
+        setNotifMessage(r.ok ? (body.message ?? "Test sent.") : `Test failed: ${body.detail ?? "unknown error"}`);
+      }))
+      .catch(() => setNotifMessage("Test request failed."))
+      .finally(() => setNotifTestingId(null));
+  };
+
+  const toggleNotifChannel = (id: string, enabled: boolean) => {
+    apiFetch(`${API_BASE}/v1/notifications/channels/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    })
+      .then(() => loadNotifChannels())
+      .catch(() => {});
   };
 
   const addLocalUser = () => {
@@ -1385,6 +1475,13 @@ export function App() {
   useEffect(() => {
     if (activeAdminSection !== "access-management" || !canAccessAdministration || !sessionUser?.token) return;
     loadPlatformUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
+
+  // Load notification channels when the notifications section becomes active
+  useEffect(() => {
+    if (activeAdminSection !== "notifications" || !canAccessAdministration || !sessionUser?.token) return;
+    loadNotifChannels();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
 
@@ -4503,6 +4600,128 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                         </button>
                       </div>
                     )}
+                  </div>
+                </>
+              )}
+
+              {activeAdminSection === "notifications" && (
+                <>
+                  <h2>Notifications</h2>
+                  <p>Send alerts when a quality gate fails (or recovers). Supports generic webhooks (Teams, Slack, Power Automate…) and SMTP email.</p>
+
+                  {notifMessage && (
+                    <p style={{ padding: "0.6rem 0.8rem", borderRadius: "4px", marginBottom: "1rem",
+                      background: notifMessage.toLowerCase().includes("fail") || notifMessage.toLowerCase().includes("error")
+                        ? "var(--color-fail-bg, #fde8e8)" : "var(--color-pass-bg, #e8f5e9)",
+                      color: notifMessage.toLowerCase().includes("fail") || notifMessage.toLowerCase().includes("error")
+                        ? "var(--color-fail, #c0392b)" : "var(--color-pass, #27ae60)" }}>
+                      {notifMessage}
+                    </p>
+                  )}
+
+                  <div className="action-row" style={{ marginBottom: "1rem" }}>
+                    <button type="button" onClick={() => { setShowNotifForm((v) => !v); setNotifMessage(null); }}>
+                      {showNotifForm ? "Cancel" : "+ Add channel"}
+                    </button>
+                  </div>
+
+                  {showNotifForm && (
+                    <div className="auth-card" style={{ marginBottom: "1.5rem" }}>
+                      <h4 style={{ marginBottom: "1rem" }}>New notification channel</h4>
+                      <div className="form-grid compact">
+                        <label>Name<input value={notifForm.name} onChange={(e) => setNotifForm((f) => ({ ...f, name: e.target.value }))} placeholder="My Teams webhook" /></label>
+                        <label>
+                          Type
+                          <select value={notifForm.channel_type} onChange={(e) => setNotifForm((f) => ({ ...f, channel_type: e.target.value as "webhook" | "email" }))}>
+                            <option value="webhook">Webhook (Teams / Slack / generic HTTP POST)</option>
+                            <option value="email">Email (SMTP)</option>
+                          </select>
+                        </label>
+                      </div>
+
+                      {notifForm.channel_type === "webhook" ? (
+                        <div className="form-grid compact" style={{ marginTop: "0.75rem" }}>
+                          <label>Webhook URL<input value={notifForm.url} onChange={(e) => setNotifForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://outlook.office.com/webhook/..." /></label>
+                        </div>
+                      ) : (
+                        <div className="form-grid compact" style={{ marginTop: "0.75rem" }}>
+                          <label>To (recipient email)<input value={notifForm.to_email} onChange={(e) => setNotifForm((f) => ({ ...f, to_email: e.target.value }))} placeholder="devops-team@company.com" /></label>
+                          <label>SMTP host<input value={notifForm.smtp_host} onChange={(e) => setNotifForm((f) => ({ ...f, smtp_host: e.target.value }))} placeholder="smtp.office365.com" /></label>
+                          <label>SMTP port<input type="number" value={notifForm.smtp_port} onChange={(e) => setNotifForm((f) => ({ ...f, smtp_port: e.target.value }))} /></label>
+                          <label>SMTP user<input value={notifForm.smtp_user} onChange={(e) => setNotifForm((f) => ({ ...f, smtp_user: e.target.value }))} placeholder="noreply@company.com" /></label>
+                          <label>SMTP password<input type="password" autoComplete="new-password" value={notifForm.smtp_password} onChange={(e) => setNotifForm((f) => ({ ...f, smtp_password: e.target.value }))} /></label>
+                          <label>From address<input value={notifForm.smtp_from} onChange={(e) => setNotifForm((f) => ({ ...f, smtp_from: e.target.value }))} placeholder="sast-platform@company.com" /></label>
+                        </div>
+                      )}
+
+                      <div className="form-grid compact" style={{ marginTop: "0.75rem" }}>
+                        <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+                          <input type="checkbox" checked={notifForm.on_fail} onChange={(e) => setNotifForm((f) => ({ ...f, on_fail: e.target.checked }))} />
+                          Notify when quality gate <strong>fails</strong>
+                        </label>
+                        <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+                          <input type="checkbox" checked={notifForm.on_pass} onChange={(e) => setNotifForm((f) => ({ ...f, on_pass: e.target.checked }))} />
+                          Notify when quality gate <strong>passes</strong> (recovery alert)
+                        </label>
+                      </div>
+
+                      <div className="action-row" style={{ marginTop: "1rem" }}>
+                        <button type="button" onClick={saveNotifChannel}>Save channel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {notifLoading && <p style={{ opacity: 0.6 }}>Loading…</p>}
+
+                  {!notifLoading && notifChannels.length === 0 && !showNotifForm && (
+                    <div className="auth-card" style={{ textAlign: "center", padding: "2rem", opacity: 0.7 }}>
+                      No notification channels configured yet. Add one above to start receiving alerts.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {notifChannels.map((ch) => (
+                      <div key={ch.id} className="auth-card" style={{ display: "flex", alignItems: "center", gap: "1rem", opacity: ch.enabled ? 1 : 0.55 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                            <strong>{ch.name}</strong>
+                            <span style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", borderRadius: "3px",
+                              background: ch.channel_type === "webhook" ? "var(--color-medium-bg, #fff3e0)" : "var(--color-info-bg, #e3f2fd)",
+                              color: ch.channel_type === "webhook" ? "var(--color-medium, #f57c00)" : "var(--color-info, #1565c0)" }}>
+                              {ch.channel_type}
+                            </span>
+                            {!ch.enabled && <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>disabled</span>}
+                          </div>
+                          <div style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+                            {ch.on_fail && <span style={{ marginRight: "0.5rem" }}>🔴 on fail</span>}
+                            {ch.on_pass && <span>🟢 on pass</span>}
+                            {ch.channel_type === "webhook" && ch.config.url && (
+                              <span style={{ marginLeft: "0.5rem", fontFamily: "monospace" }}>
+                                {String(ch.config.url).slice(0, 60)}{String(ch.config.url).length > 60 ? "…" : ""}
+                              </span>
+                            )}
+                            {ch.channel_type === "email" && ch.config.to_email && (
+                              <span style={{ marginLeft: "0.5rem" }}>{String(ch.config.to_email)}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                          <button type="button" style={{ fontSize: "0.8rem" }}
+                            onClick={() => toggleNotifChannel(ch.id, !ch.enabled)}>
+                            {ch.enabled ? "Disable" : "Enable"}
+                          </button>
+                          <button type="button" style={{ fontSize: "0.8rem" }}
+                            disabled={notifTestingId === ch.id}
+                            onClick={() => testNotifChannel(ch.id)}>
+                            {notifTestingId === ch.id ? "Testing…" : "Test"}
+                          </button>
+                          <button type="button" style={{ fontSize: "0.8rem", color: "var(--color-fail, #e74c3c)" }}
+                            onClick={() => { if (window.confirm(`Delete "${ch.name}"?`)) deleteNotifChannel(ch.id); }}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </>
               )}

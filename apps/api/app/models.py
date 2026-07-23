@@ -259,6 +259,21 @@ class PlatformSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class NotificationChannel(Base):
+    """A destination for quality-gate event notifications (webhook or email)."""
+    __tablename__ = "notification_channels"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    channel_type: Mapped[str] = mapped_column(String(50))  # webhook | email
+    config: Mapped[str] = mapped_column(Text, default="{}")  # JSON: url / smtp + to_email
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    on_fail: Mapped[bool] = mapped_column(Boolean, default=True)   # fire when QG = fail
+    on_pass: Mapped[bool] = mapped_column(Boolean, default=False)  # fire when QG = pass (recovery)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class AuditLog(Base):
     """Immutable record of every security-relevant action on the platform."""
     __tablename__ = "audit_logs"

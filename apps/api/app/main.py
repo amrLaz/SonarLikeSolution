@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.db import init_db
 from app.routes.analysis import router as analysis_router
 from app.routes.audit_log import router as audit_log_router
+from app.routes.notifications import router as notifications_router
 from app.routes.auth_entra import router as auth_entra_router
 from app.routes.auth_local import router as auth_local_router
 from app.routes.gates import router as gates_router
@@ -64,6 +65,7 @@ app.add_middleware(
 )
 app.include_router(health_router)
 app.include_router(audit_log_router)
+app.include_router(notifications_router)
 app.include_router(auth_entra_router)
 app.include_router(auth_local_router)
 app.include_router(analysis_router)
