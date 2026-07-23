@@ -13,6 +13,8 @@ import base64
 import json
 import secrets
 import urllib.parse
+import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -20,8 +22,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.auth import sign_session_token
 from app.db import get_session
-from app.models import AuthProviderConfig
+from app.models import AuthProviderConfig, PlatformUser
 
 router = APIRouter(prefix="/api/v1/auth/entra", tags=["auth-entra"])
 
@@ -125,10 +128,36 @@ async def entra_callback(
         or claims.get("upn", "")
     )
 
+    # Upsert the user in platform_users
+    user = session.query(PlatformUser).filter(PlatformUser.email == email).first()
+    if not user:
+        user = PlatformUser(
+            user_id=str(uuid.uuid4()),
+            email=email,
+            full_name=full_name,
+            role="default",       # first SSO login gets viewer role; admin promotes manually
+            auth_provider="entra",
+            is_active=True,
+        )
+        session.add(user)
+    else:
+        user.full_name = full_name
+        user.last_login_at = datetime.now(timezone.utc)
+    session.commit()
+
+    # Issue a signed session token
+    platform_token = sign_session_token(
+        {"sub": user.user_id, "email": user.email, "full_name": user.full_name, "role": user.role},
+        session,
+    )
+
     session_b64 = base64.urlsafe_b64encode(
-        json.dumps(
-            {"full_name": full_name, "email": email, "access_role": "regular"}
-        ).encode()
+        json.dumps({
+            "full_name": user.full_name,
+            "email": user.email,
+            "access_role": user.role,
+            "token": platform_token,
+        }).encode()
     ).decode()
 
     return RedirectResponse(url=f"/?entra_session={session_b64}")

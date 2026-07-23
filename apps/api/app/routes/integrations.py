@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import require_platform_auth
+from app.auth import require_role
 from app.db import get_session
 from app.models import AzureDevOpsOrganizationConfig, AuthProviderConfig, ProjectIntegration
 
@@ -96,7 +96,7 @@ async def update_provider(
     provider_id: str,
     request: AuthProviderUpdateRequest,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Update an authentication provider's connection URL and/or OIDC config."""
     provider = _get_provider_or_404(session, provider_id)
@@ -123,7 +123,7 @@ async def update_provider(
 async def test_provider(
     provider_id: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Validate an authentication provider's configuration."""
     provider = _get_provider_or_404(session, provider_id)
@@ -152,7 +152,7 @@ async def test_provider(
 async def disable_provider(
     provider_id: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Disable an authentication provider."""
     provider = _get_provider_or_404(session, provider_id)
@@ -196,7 +196,7 @@ async def get_azure_configs(session: Session = Depends(get_session)) -> list:
 async def create_azure_config(
     request: AzureDevOpsConfigRequest,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> AzureDevOpsConfigResponse:
     """Create a new Azure DevOps configuration."""
     # Check if config_name already exists
@@ -251,7 +251,7 @@ async def update_azure_config(
     config_id: str,
     request: AzureDevOpsConfigRequest,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> AzureDevOpsConfigResponse:
     """Update an existing Azure DevOps configuration."""
     config = session.query(AzureDevOpsOrganizationConfig).filter(
@@ -308,7 +308,7 @@ async def update_azure_config(
 async def test_azure_config(
     config_id: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Test Azure DevOps configuration connectivity."""
     config = session.query(AzureDevOpsOrganizationConfig).filter(
@@ -375,7 +375,7 @@ async def test_azure_config(
 async def delete_azure_config(
     config_id: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Delete an Azure DevOps configuration."""
     config = session.query(AzureDevOpsOrganizationConfig).filter(
@@ -396,7 +396,7 @@ async def update_project_integration(
     project_key: str,
     request: ProjectIntegrationRequest,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth)
+    auth = Depends(require_role("admin"))
 ) -> dict:
     """Update project integration configuration."""
     # Find existing integration or create new one

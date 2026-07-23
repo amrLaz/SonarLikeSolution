@@ -131,6 +131,7 @@ type SessionUser = {
   full_name: string;
   email: string;
   access_role: LocalUserRole;
+  token?: string;  // HMAC-signed session token returned by the backend
 };
 
 type ProjectSummary = {
@@ -561,6 +562,8 @@ export function App() {
   const releaseName = useMemo(() => "Bootstrap 0.3", []);
 
   const canAccessAdministration = sessionUser?.access_role === "admin";
+  const canSuppressRules = sessionUser?.access_role === "admin" || sessionUser?.access_role === "regular";
+  const canDeleteData = sessionUser?.access_role === "admin";
   const visibleTabs = useMemo(() => {
     return canAccessAdministration ? TABS : TABS.filter((tab) => tab.id !== "administration");
   }, [canAccessAdministration]);
@@ -754,11 +757,13 @@ export function App() {
           full_name: string;
           email: string;
           access_role: "admin" | "regular" | "default";
+          token?: string;
         };
         const nextSession: SessionUser = {
           full_name: decoded.full_name ?? "Entra User",
           email: decoded.email ?? "",
-          access_role: decoded.access_role ?? "regular",
+          access_role: decoded.access_role ?? "default",
+          token: decoded.token,
         };
         setSessionUser(nextSession);
         window.localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(nextSession));
@@ -1032,7 +1037,14 @@ export function App() {
     };
   }, [scopeMode, selectedSummary, selectedBranch]);
 
-  const apiFetch = (url: string, init?: RequestInit) => fetch(url, init);
+  const apiFetch = (url: string, init?: RequestInit) => {
+    const token = sessionUser?.token;
+    const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+    return fetch(url, {
+      ...init,
+      headers: { ...authHeader, ...(init?.headers ?? {}) },
+    });
+  };
 
   const normalizeErrorMessage = (err: unknown, fallback = "Unknown error") => {
     if (err instanceof Error && err.message) {
@@ -1947,7 +1959,7 @@ export function App() {
     }));
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setSignInError(null);
     const email = (signInEmailRef.current?.value ?? signInForm.email).trim().toLowerCase();
     const password = (signInPasswordRef.current?.value ?? signInForm.password).trim();
@@ -1957,29 +1969,36 @@ export function App() {
       return;
     }
 
-    const matchedUser = localUsers.find(
-      (user) => user.email.toLowerCase() === email && user.password === password && user.status === "active"
-    );
-    if (!matchedUser) {
-      setSignInError("Invalid credentials or inactive local user.");
-      return;
+    try {
+      const resp = await fetch(`${API_BASE}/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setSignInError((err as { detail?: string }).detail ?? "Invalid credentials.");
+        return;
+      }
+      const data = await resp.json() as { token: string; user: { email: string; full_name: string; role: string } };
+      const nextSession: SessionUser = {
+        full_name: data.user.full_name,
+        email: data.user.email,
+        access_role: data.user.role as LocalUserRole,
+        token: data.token,
+      };
+      setSessionUser(nextSession);
+      if (signInForm.remember_me) {
+        window.localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(nextSession));
+      } else {
+        window.localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
+      }
+      setSignInForm((current) => ({ ...current, password: "" }));
+      setAdminMessage(`Welcome ${nextSession.full_name}.`);
+      setAuthScreen("app");
+    } catch {
+      setSignInError("Connection error — please try again.");
     }
-
-    const nextSession: SessionUser = {
-      full_name: matchedUser.full_name,
-      email: matchedUser.email,
-      access_role: matchedUser.access_role
-    };
-    setSessionUser(nextSession);
-    if (signInForm.remember_me) {
-      window.localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, JSON.stringify(nextSession));
-    } else {
-      window.localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
-    }
-
-    setSignInForm((current) => ({ ...current, password: "" }));
-    setAdminMessage(`Welcome ${matchedUser.full_name}.`);
-    setAuthScreen("app");
   };
 
   const handleEntraSignIn = async () => {
@@ -3223,6 +3242,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                       </div>
                     </div>
 
+                    {canSuppressRules && (
                     <div className="action-row" style={{ marginTop: "1.25rem" }}>
                       {selectedRule.status === "active" ? (
                         <button
@@ -3241,10 +3261,13 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                         </button>
                       )}
                     </div>
+                    )}
                     <p style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "0.75rem" }}>
                       {selectedRule.status === "suppressed"
                         ? "This rule is globally suppressed and will not count toward quality scores."
-                        : "Suppressing marks all occurrences as false positives across all projects."}
+                        : canSuppressRules
+                          ? "Suppressing marks all occurrences as false positives across all projects."
+                          : "Contact an admin or analyst to suppress this rule."}
                     </p>
                   </>
                 ) : (

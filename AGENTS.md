@@ -157,6 +157,9 @@ Configuration des agents experts pour le projet NewSASTProject. Chaque agent est
 ### Test Scenarios (See `/memories/repo/sast-pipeline-context.md`)
 
 #### Scenario 1: Local SAST Test
+
+> `POST /v1/analyses` now enforces a real CI/CD token (`require_ci_token_auth`, see `apps/api/app/auth.py`). The token below is a placeholder — generate a current one from Administration > Security > PAT Management and substitute it here.
+
 ```bash
 cd /tmp/Up.France.ODI.Commercant.Web
 PLATFORM_PROJECT_KEY="Commercant" \

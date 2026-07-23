@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth import require_platform_auth
+from app.auth import require_role
 from app.db import get_session
 from app.models import AnalysisRecord, RuleSuppression
 
@@ -184,7 +184,7 @@ def suppress_rule(
     rule_key: str,
     note: str | None = Query(None),
     session: Session = Depends(get_session),
-    _: None = Depends(require_platform_auth),
+    _: None = Depends(require_role("admin", "regular")),
 ) -> dict:
     """Mark a rule as suppressed (false positive / accepted risk)."""
     existing = session.query(RuleSuppression).filter(
@@ -205,7 +205,7 @@ def suppress_rule(
 def unsuppress_rule(
     rule_key: str,
     session: Session = Depends(get_session),
-    _: None = Depends(require_platform_auth),
+    _: None = Depends(require_role("admin", "regular")),
 ) -> dict:
     """Reactivate a previously suppressed rule."""
     session.query(RuleSuppression).filter(

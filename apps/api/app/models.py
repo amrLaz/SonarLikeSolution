@@ -227,6 +227,26 @@ class RuleSuppression(Base):
     note: Mapped[Optional[str]] = mapped_column(Text)
 
 
+class PlatformUser(Base):
+    """Platform user — local credentials or SSO-provisioned."""
+    __tablename__ = "platform_users"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(50), default="default")  # admin / regular / default
+    hashed_password: Mapped[Optional[str]] = mapped_column(Text)       # null for SSO-only users
+    auth_provider: Mapped[str] = mapped_column(String(50), default="local")  # local / entra
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("idx_platform_user_email", "email"),
+        Index("idx_platform_user_role", "role"),
+    )
+
+
 class PlatformSetting(Base):
     """Platform settings and configuration."""
     __tablename__ = "platform_settings"

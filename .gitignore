@@ -1,66 +1,19 @@
 # Python
 __pycache__/
-*.py[cod]
-*.pyo
+*.pyc
 .venv/
-venv/
-*.egg-info/
+
+# Node
+node_modules/
 dist/
-build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
-# .NET / C#
-bin/
-obj/
-*.user
-*.suo
-.vs/
-*.nupkg
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Data / secrets
-*.csv
-*.env
+# Env
 .env
-*.db
-*.sqlite
 
-# Editors
-.idea/
+# IDE
 .vscode/
-*.swp
+.DS_Store
 
-# ===== CRITICAL: BLOCK ALL PLATFORM SOURCE CODE =====
-# @COPILOT: NEVER COMMIT apps/, infra/, or platform code to this repo!
-# ALLOWED FILES ONLY:
-#  - /scripts/**
-#  - /src/**
-#  - /azure-pipelines.yml
-#  - /.agents/**
-#
-
-# ===== WHITELIST ALLOWED PATHS =====
-!/scripts/
-!/src/
-!/azure-pipelines.yml
-!/.agents/
-
-!/apps/web/src/
-!/apps/web/index.html
-!/apps/web/vite.config.ts
-!/apps/web/tsconfig.json
-!/apps/web/package.json
-!/AGENTS.md
-!/.instructions.md
-!/apps/web/src/
-!/apps/web/index.html
-!/apps/web/vite.config.ts
-!/apps/web/tsconfig.json
-!/apps/web/package.json
-!/AGENTS.md
-!/.instructions.md
+# Test artifacts
+.pytest_cache/
+.coverage

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import secrets
 import uuid
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
@@ -81,6 +82,7 @@ def init_db():
             for statement in _SCHEMA_PATCHES:
                 connection.execute(text(statement))
         _seed_default_auth_providers()
+        _seed_default_admin()
     except Exception as e:
         print(f"Error initializing database: {e}")
 
@@ -107,6 +109,36 @@ def _seed_default_auth_providers():
                     status="ready",
                 ))
         session.commit()
+    finally:
+        session.close()
+
+
+def _seed_default_admin():
+    """Create the initial admin user if no users exist yet."""
+    from app.auth import hash_password
+    from app.models import PlatformUser
+
+    session = SessionLocal()
+    try:
+        if session.query(PlatformUser).count() > 0:
+            return
+        admin_email = os.getenv("PLATFORM_ADMIN_EMAIL", "admin@platform.local")
+        admin_password = os.getenv("PLATFORM_ADMIN_PASSWORD", "")
+        if not admin_password:
+            admin_password = secrets.token_urlsafe(12)
+            print(f"[RBAC] No PLATFORM_ADMIN_PASSWORD set — generated password for {admin_email}: {admin_password}")
+        admin = PlatformUser(
+            user_id=str(uuid.uuid4()),
+            email=admin_email,
+            full_name="Platform Admin",
+            role="admin",
+            hashed_password=hash_password(admin_password),
+            auth_provider="local",
+            is_active=True,
+        )
+        session.add(admin)
+        session.commit()
+        print(f"[RBAC] Default admin created: {admin_email}")
     finally:
         session.close()
 

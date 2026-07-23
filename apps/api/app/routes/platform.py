@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.auth import require_platform_auth
+from app.auth import require_platform_auth, require_role
 from app.db import get_session
 from app.models import PlatformApiToken, PlatformSetting
 
@@ -71,7 +71,7 @@ async def generate_token(
     request: TokenGenerateRequest,
     authorization: str | None = Header(None),
     session: Session = Depends(get_session),
-    auth=Depends(require_platform_auth),
+    auth=Depends(require_role("admin")),
 ) -> dict:
     """Generate a new CI/CD token, or rotate the current one."""
     if request.require_current_token:
@@ -166,7 +166,7 @@ async def get_settings(session: Session = Depends(get_session)) -> PlatformSetti
 async def update_settings(
     request: PlatformSettingsUpdateRequest,
     session: Session = Depends(get_session),
-    auth=Depends(require_platform_auth),
+    auth=Depends(require_role("admin")),
 ) -> PlatformSettingsResponse:
     """Upsert global platform settings into the platform_settings table."""
     updates = request.model_dump(exclude_none=True)
@@ -284,7 +284,7 @@ def run_retention_cleanup(session: Session) -> dict:
 @router.post("/cleanup")
 async def trigger_cleanup(
     session: Session = Depends(get_session),
-    auth=Depends(require_platform_auth),
+    auth=Depends(require_role("admin")),
 ) -> dict:
     """Manually trigger a data retention cleanup."""
     return run_retention_cleanup(session)

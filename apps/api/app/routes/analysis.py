@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import require_platform_auth, require_ci_token_auth
+from app.auth import require_platform_auth, require_ci_token_auth, require_role
 from app.db import get_session
 from app.models import AnalysisRecord, AzureDevOpsOrganizationConfig, ProjectIntegration
 from app.models import QualityGateConfig
@@ -800,7 +800,7 @@ def get_analysis_view(
 def delete_project_analyses(
     project_key: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth),
+    auth = Depends(require_role("admin")),
 ):
     """Delete all analyses for a project"""
     from sqlalchemy import text
@@ -842,7 +842,7 @@ def delete_branch_analyses(
     project_key: str,
     branch: str,
     session: Session = Depends(get_session),
-    auth = Depends(require_platform_auth),
+    auth = Depends(require_role("admin")),
 ):
     """Delete all analyses for a specific branch in a project"""
     from sqlalchemy import text

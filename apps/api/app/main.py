@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.db import init_db
 from app.routes.analysis import router as analysis_router
 from app.routes.auth_entra import router as auth_entra_router
+from app.routes.auth_local import router as auth_local_router
 from app.routes.gates import router as gates_router
 from app.routes.health import router as health_router
 from app.routes.integrations import router as integrations_router
@@ -62,6 +63,7 @@ app.add_middleware(
 )
 app.include_router(health_router)
 app.include_router(auth_entra_router)
+app.include_router(auth_local_router)
 app.include_router(analysis_router)
 app.include_router(gates_router)
 app.include_router(integrations_router)
