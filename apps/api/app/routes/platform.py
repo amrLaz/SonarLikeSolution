@@ -30,12 +30,14 @@ DEFAULT_SETTINGS = {
     "report_max_size_mb": "450",
     "global_source_exclusions": "**/__tests__/**,**/*.snap",
     "source_file_exclusions": "**/*.generated.*,**/coverage/**",
-    # Retention
+    # Analyses retention
     "retention_keep_days": "90",
     "retention_keep_failed_days": "30",
     "retention_max_per_branch": "50",
     "retention_auto_cleanup": "true",
     "retention_protected_branches": "master,main,develop",
+    # Audit log retention (compliance default: 1 year)
+    "audit_log_retention_days": "365",
 }
 
 
@@ -49,6 +51,7 @@ class PlatformSettingsResponse(BaseModel):
     retention_max_per_branch: str = "50"
     retention_auto_cleanup: str = "true"
     retention_protected_branches: str = "master,main,develop"
+    audit_log_retention_days: str = "365"
 
 
 class PlatformSettingsUpdateRequest(BaseModel):
@@ -61,6 +64,7 @@ class PlatformSettingsUpdateRequest(BaseModel):
     retention_max_per_branch: str | None = None
     retention_auto_cleanup: str | None = None
     retention_protected_branches: str | None = None
+    audit_log_retention_days: str | None = None
 
 
 def _hash_token(token: str) -> str:
@@ -273,17 +277,28 @@ def run_retention_cleanup(session: Session) -> dict:
 
     session.commit()
 
+    # Audit log retention
+    audit_keep_days = max(30, int(_get_setting(session, "audit_log_retention_days", "365")))
+    audit_cutoff = (now - timedelta(days=audit_keep_days)).isoformat()
+    deleted_audit = session.execute(
+        text("DELETE FROM audit_logs WHERE created_at < :cutoff"),
+        {"cutoff": audit_cutoff},
+    ).rowcount
+    session.commit()
+
     _set_setting(session, "last_cleanup_at", now.isoformat())
     _set_setting(session, "last_cleanup_deleted", str(deleted))
     session.commit()
 
     return {
         "deleted_analyses": deleted,
+        "deleted_audit_logs": deleted_audit,
         "cleanup_at": now.isoformat(),
         "settings_applied": {
             "keep_days": keep_days,
             "keep_failed_days": keep_failed_days,
             "max_per_branch": max_per_branch,
+            "audit_log_retention_days": audit_keep_days,
         },
     }
 

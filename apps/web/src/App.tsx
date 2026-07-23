@@ -203,6 +203,7 @@ type PlatformSettings = {
   retention_max_per_branch: string;
   retention_auto_cleanup: string;
   retention_protected_branches: string;
+  audit_log_retention_days: string;
 };
 
 const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -215,6 +216,7 @@ const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   retention_max_per_branch: "50",
   retention_auto_cleanup: "true",
   retention_protected_branches: "master,main,develop",
+  audit_log_retention_days: "365",
 };
 
 type DevOpsProviderTab = "github" | "bitbucket" | "azure-devops" | "gitlab";
@@ -3780,6 +3782,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                               retention_max_per_branch: platformSettings.retention_max_per_branch,
                               retention_auto_cleanup: platformSettings.retention_auto_cleanup,
                               retention_protected_branches: platformSettings.retention_protected_branches,
+                              audit_log_retention_days: platformSettings.audit_log_retention_days,
                             },
                             "Retention policy saved."
                           )
@@ -3788,6 +3791,30 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                         {savingPlatformSettings ? "Saving…" : "Save retention policy"}
                       </button>
                     </div>
+                  </div>
+
+                  <div className="auth-card" style={{ marginTop: "1.5rem" }}>
+                    <h3>Audit log retention</h3>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+                      Audit entries older than this threshold are deleted during cleanup. Minimum enforced server-side: 30 days.
+                    </p>
+                    <div className="form-grid compact">
+                      <label>
+                        Keep audit logs (days)
+                        <input
+                          type="number"
+                          min="30"
+                          max="3650"
+                          value={platformSettings.audit_log_retention_days}
+                          onChange={(e) =>
+                            setPlatformSettings((s) => ({ ...s, audit_log_retention_days: e.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <p style={{ fontSize: "0.8rem", opacity: 0.6, marginTop: "0.4rem" }}>
+                      Default: 365 days (1 year). Recommended minimum for ISO 27001 / SOC 2: 90 days.
+                    </p>
                   </div>
 
                   <div className="auth-card" style={{ marginTop: "1.5rem" }}>
