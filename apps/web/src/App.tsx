@@ -1304,15 +1304,15 @@ export function App() {
   useEffect(() => {
     if (activeTab !== "rules") return;
     setRulesLoading(true);
-    const url = selectedSummary
-      ? `${API_BASE}/v1/rules?project_key=${encodeURIComponent(selectedSummary.projectKey)}`
+    const url = selectedProject
+      ? `${API_BASE}/v1/rules?project_key=${encodeURIComponent(selectedProject)}`
       : `${API_BASE}/v1/rules`;
     apiFetch(url)
       .then((r) => r.json())
       .then((data: RuleCard[]) => setRules(data))
       .catch(() => setRules([]))
       .finally(() => setRulesLoading(false));
-  }, [activeTab, selectedSummary]);
+  }, [activeTab, selectedProject]);
 
   useEffect(() => {
     if (authScreen === "app" && !sessionUser) {
@@ -3098,6 +3098,19 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
             <h3>Filters</h3>
 
             <div className="filter-block">
+              <label>Project</label>
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+              >
+                <option value="">All projects</option>
+                {summaries.map((s) => (
+                  <option key={s.projectKey} value={s.projectKey}>{s.projectKey}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="filter-block">
               <label>Category</label>
               <select value={ruleFilterCategory} onChange={(e) => setRuleFilterCategory(e.target.value)}>
                 <option value="all">All</option>
@@ -3141,6 +3154,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
               type="button"
               style={{ marginTop: "1rem", width: "100%" }}
               onClick={() => {
+                setSelectedProject("");
                 setRuleFilterCategory("all");
                 setRuleFilterSeverity("all");
                 setRuleFilterStatus("all");
