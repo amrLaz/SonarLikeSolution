@@ -497,8 +497,10 @@ export function App() {
     name: "Default Gate",
     min_maintainability_score: 80,
     min_security_score: 85,
+    min_reliability_score: 50,
     max_vulnerabilities: 0,
     max_security_hotspots: 2,
+    max_bugs: 10,
     max_code_smells: 25
   });
 
@@ -1547,8 +1549,10 @@ export function App() {
       name: selectedGate.name,
       min_maintainability_score: selectedGate.min_maintainability_score,
       min_security_score: selectedGate.min_security_score,
+      min_reliability_score: selectedGate.min_reliability_score ?? 50,
       max_vulnerabilities: selectedGate.max_vulnerabilities,
       max_security_hotspots: selectedGate.max_security_hotspots,
+      max_bugs: selectedGate.max_bugs ?? 10,
       max_code_smells: selectedGate.max_code_smells
     });
   }, [selectedGate]);
@@ -2064,13 +2068,13 @@ export function App() {
     apiFetch(`${API_BASE}/v1/gates`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, min_maintainability_score: 80, min_security_score: 85, min_reliability_score: 50, max_vulnerabilities: 0, max_security_hotspots: 2, max_code_smells: 25, max_bugs: 5 }),
+      body: JSON.stringify({ name: newName, min_maintainability_score: 80, min_security_score: 85, min_reliability_score: 50, max_vulnerabilities: 0, max_security_hotspots: 2, max_code_smells: 25, max_bugs: 0 }),
     })
       .then((r) => { if (!r.ok) throw new Error("Create failed"); return r.json(); })
       .then((g: GateLibraryItem) => {
         setGateLibrary((cur) => [...cur, { ...g, projectCount: 0 }]);
         setSelectedGateId(g.gate_id);
-        setGateForm({ name: g.name, min_maintainability_score: g.min_maintainability_score, min_security_score: g.min_security_score, max_vulnerabilities: g.max_vulnerabilities, max_security_hotspots: g.max_security_hotspots, max_code_smells: g.max_code_smells });
+        setGateForm({ name: g.name, min_maintainability_score: g.min_maintainability_score, min_security_score: g.min_security_score, min_reliability_score: g.min_reliability_score ?? 50, max_vulnerabilities: g.max_vulnerabilities, max_security_hotspots: g.max_security_hotspots, max_bugs: g.max_bugs ?? 0, max_code_smells: g.max_code_smells });
         setGateMessage(`Created ${g.name}.`);
       })
       .catch(() => setGateMessage("Failed to create gate."));
@@ -2082,7 +2086,7 @@ export function App() {
       const r = await apiFetch(`${API_BASE}/v1/gates/${selectedGateId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: gateForm.name, min_maintainability_score: gateForm.min_maintainability_score, min_security_score: gateForm.min_security_score, min_reliability_score: 50, max_vulnerabilities: gateForm.max_vulnerabilities, max_security_hotspots: gateForm.max_security_hotspots, max_code_smells: gateForm.max_code_smells, max_bugs: 10 }),
+        body: JSON.stringify({ name: gateForm.name, min_maintainability_score: gateForm.min_maintainability_score, min_security_score: gateForm.min_security_score, min_reliability_score: gateForm.min_reliability_score, max_vulnerabilities: gateForm.max_vulnerabilities, max_security_hotspots: gateForm.max_security_hotspots, max_code_smells: gateForm.max_code_smells, max_bugs: gateForm.max_bugs }),
       });
       if (!r.ok) throw new Error("Save failed");
       const g = await r.json() as GateLibraryItem;
@@ -3518,8 +3522,11 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
               {gateLibrary.map((gateItem) => (
                 <li key={gateItem.gate_id} className={selectedGateId === gateItem.gate_id ? "active" : ""}>
                   <button type="button" onClick={() => setSelectedGateId(gateItem.gate_id)}>
-                    <span>{gateItem.name}</span>
-                    <small>{gateItem.projectCount} projects</small>
+                    <span className="gate-name">{gateItem.name}</span>
+                    <span className="gate-meta">
+                      {gateItem.projectCount} project{gateItem.projectCount !== 1 ? "s" : ""}
+                      {gateItem.builtIn && <span className="gate-default-badge">Default</span>}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -3527,8 +3534,20 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
           </aside>
           <div className="gates-main">
             <header className="gates-title-row">
-              <h2>{selectedGate?.name ?? gate?.name ?? "Default Gate"}</h2>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, minWidth: 0 }}>
+                <input
+                  className="gate-title-input"
+                  value={gateForm.name}
+                  onChange={(event) => updateGateField("name", event.target.value)}
+                  title="Click to rename this gate"
+                />
+                {selectedGate?.builtIn && (
+                  <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 7px", borderRadius: "4px", background: "var(--primary)", color: "#fff", whiteSpace: "nowrap" }}>
+                    Default
+                  </span>
+                )}
+              </h2>
+              <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
                 <button type="button" onClick={() => void saveSelectedGate()} disabled={savingGate}>
                   {savingGate ? "Saving..." : "Save"}
                 </button>
@@ -3542,13 +3561,6 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
             </header>
             <p className="hint">Conditions on {scopeMode === "new-code" ? "New Code" : "Overall Code"}</p>
             <div className="gate-conditions">
-              <label>
-                Gate name
-                <input
-                  value={gateForm.name}
-                  onChange={(event) => updateGateField("name", event.target.value)}
-                />
-              </label>
               <label>
                 Min security score
                 <input
@@ -3566,6 +3578,14 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                 />
               </label>
               <label>
+                Min reliability score
+                <input
+                  type="number"
+                  value={gateForm.min_reliability_score}
+                  onChange={(event) => updateGateField("min_reliability_score", event.target.value)}
+                />
+              </label>
+              <label>
                 Max vulnerabilities
                 <input
                   type="number"
@@ -3579,6 +3599,14 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                   type="number"
                   value={gateForm.max_security_hotspots}
                   onChange={(event) => updateGateField("max_security_hotspots", event.target.value)}
+                />
+              </label>
+              <label>
+                Max bugs
+                <input
+                  type="number"
+                  value={gateForm.max_bugs}
+                  onChange={(event) => updateGateField("max_bugs", event.target.value)}
                 />
               </label>
               <label>

@@ -919,6 +919,38 @@ button:disabled,
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gates-sidebar li button .gate-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.gates-sidebar li button .gate-meta {
+  font-size: 11px;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gate-default-badge {
+  background-color: var(--primary);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gates-sidebar li.active button .gate-default-badge {
+  background-color: rgba(255,255,255,0.25);
+  color: white;
 }
 
 .gates-sidebar li button:hover {
@@ -932,6 +964,24 @@ button:disabled,
   border-color: var(--primary);
   color: white;
   font-weight: 700;
+}
+
+.gate-title-input {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  padding: 0;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.gate-title-input:hover,
+.gate-title-input:focus {
+  border-bottom-color: var(--primary);
 }
 
 .gates-main {
