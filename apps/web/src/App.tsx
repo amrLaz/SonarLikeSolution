@@ -566,7 +566,7 @@ export function App() {
   }, [localGroups]);
 
   const activeLocalUsers = useMemo(() => {
-    return platformUsers.filter((u) => u.is_active).length;
+    return Array.isArray(platformUsers) ? platformUsers.filter((u) => u.is_active).length : 0;
   }, [platformUsers]);
 
   const roleCapabilities: Record<LocalUserRole, string> = {
@@ -578,9 +578,14 @@ export function App() {
   const loadPlatformUsers = () => {
     setUsersLoading(true);
     apiFetch(`${API_BASE}/v1/auth/users`)
-      .then((r) => r.json())
-      .then((data: PlatformUser[]) => setPlatformUsers(data))
-      .catch(() => setAdminMessage("Failed to load users."))
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data: unknown) => {
+        if (Array.isArray(data)) setPlatformUsers(data as PlatformUser[]);
+      })
+      .catch(() => { /* admin only — silently ignore if not authorised */ })
       .finally(() => setUsersLoading(false));
   };
 
@@ -1333,12 +1338,12 @@ export function App() {
     }
   }, [activeTab, canAccessAdministration]);
 
-  // Load platform users whenever the IAM admin section becomes active
+  // Load platform users whenever the IAM admin section becomes active (admin only)
   useEffect(() => {
-    if (activeAdminSection !== "access-management" || !sessionUser?.token) return;
+    if (activeAdminSection !== "access-management" || !canAccessAdministration || !sessionUser?.token) return;
     loadPlatformUsers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAdminSection, sessionUser?.token]);
+  }, [activeAdminSection, canAccessAdministration, sessionUser?.token]);
 
   useEffect(() => {
     if (!adminForm.project_key) {
