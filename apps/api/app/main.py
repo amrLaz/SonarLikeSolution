@@ -18,12 +18,14 @@ from app.routes.platform import router as platform_router
 from app.routes.projects import router as projects_router
 from app.routes.rules import router as rules_router
 from app.routes.vulnerabilities import router as vulnerabilities_router
+from app.routes.kev import router as kev_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
     _auto_retention_cleanup()
+    _auto_kev_refresh()
     yield
 
 
@@ -55,6 +57,16 @@ def _auto_retention_cleanup() -> None:
         session.close()
 
 
+def _auto_kev_refresh() -> None:
+    from app.db import SessionLocal
+    from app.routes.kev import maybe_refresh_kev
+    session = SessionLocal()
+    try:
+        maybe_refresh_kev(session)
+    finally:
+        session.close()
+
+
 app = FastAPI(title="SAST Platform API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -75,6 +87,7 @@ app.include_router(platform_router)
 app.include_router(projects_router)
 app.include_router(rules_router)
 app.include_router(vulnerabilities_router)
+app.include_router(kev_router)
 
 
 @app.options("/{full_path:path}")

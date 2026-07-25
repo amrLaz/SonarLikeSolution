@@ -5,6 +5,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import './Vulnerabilities.css';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
+
 interface CVE {
   id: string;
   vulnerability_id: string;
@@ -21,6 +23,7 @@ interface CVE {
   line?: number | null;
   end_line?: number | null;
   source_url?: string | null;
+  kev?: boolean;
   vulnerability?: {
     cve_id: string;
     cvss_v3_score: number;
@@ -62,6 +65,7 @@ interface VulnerabilityData {
   high_count: number;
   medium_count: number;
   low_count: number;
+  kev_count?: number;
   vulnerabilities: CVE[];
   iocs: IOC[];
   last_scan_date?: string;
@@ -80,13 +84,60 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
   const [vulnSeverityFilter, setVulnSeverityFilter] = useState<VulnSeverityFilter>('all');
   const [iocRiskFilter, setIocRiskFilter] = useState<IOCRiskFilter>('all');
   const [iocTypeFilter, setIocTypeFilter] = useState<IOCTypeFilter>('all');
+  const [aiFixLoading, setAiFixLoading] = useState<Set<string>>(new Set());
+  const [aiFixResults, setAiFixResults] = useState<Map<string, string>>(new Map());
+  const [aiFixOpen, setAiFixOpen] = useState<Set<string>>(new Set());
+
+  const requestAiFix = async (vuln: CVE) => {
+    const key = vuln.id;
+    if (aiFixLoading.has(key)) return;
+    setAiFixLoading(prev => new Set(prev).add(key));
+    try {
+      const resp = await fetch(`${API_BASE}/v1/analyses/${analysisId}/ai-fix`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cve_id: vuln.vulnerability?.cve_id ?? '',
+          pkg_name: vuln.package_name ?? '',
+          version: vuln.current_version ?? '',
+          fixed_version: vuln.fixed_version ?? '',
+          description: vuln.vulnerability?.description ?? '',
+          language: vuln.language ?? '',
+          severity: vuln.severity ?? '',
+          rule_id: vuln.vulnerability_id ?? '',
+          message: vuln.vulnerability?.description ?? '',
+          file_path: vuln.file_path ?? '',
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setAiFixResults(prev => new Map(prev).set(key, `Erreur : ${err.detail ?? resp.status}`));
+      } else {
+        const data = await resp.json();
+        setAiFixResults(prev => new Map(prev).set(key, data.suggestion));
+      }
+      setAiFixOpen(prev => new Set(prev).add(key));
+    } catch (e) {
+      setAiFixResults(prev => new Map(prev).set(key, 'Impossible de contacter le service IA.'));
+      setAiFixOpen(prev => new Set(prev).add(key));
+    } finally {
+      setAiFixLoading(prev => { const s = new Set(prev); s.delete(key); return s; });
+    }
+  };
+
+  const toggleAiFix = (key: string) => {
+    setAiFixOpen(prev => {
+      const s = new Set(prev);
+      if (s.has(key)) s.delete(key); else s.add(key);
+      return s;
+    });
+  };
 
   useEffect(() => {
     const fetchVulnerabilities = async () => {
       try {
         setLoading(true);
-        const apiBase = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
-        const response = await fetch(`${apiBase}/v1/analyses/${analysisId}/vulnerabilities`);
+        const response = await fetch(`${API_BASE}/v1/analyses/${analysisId}/vulnerabilities`);
         if (!response.ok) throw new Error('Failed to fetch vulnerabilities');
         const data = await response.json();
         // Transform IOCs from API format to component format
@@ -162,6 +213,12 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
           <div className="stat-number">{vulnData.total_vulnerabilities}</div>
           <div className="stat-label">Total</div>
         </div>
+        {(vulnData.kev_count ?? 0) > 0 && (
+          <div className="stat-card kev" title="CVEs activement exploitées selon CISA KEV">
+            <div className="stat-number">{vulnData.kev_count}</div>
+            <div className="stat-label">Exploitées KEV</div>
+          </div>
+        )}
       </div>
 
       {/* Tab Navigation */}
@@ -208,11 +265,16 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
                     const severityLower = severity.toLowerCase();
                     const cvssScore = vuln.vulnerability?.cvss_v3_score;
                     return (
-                      <div key={vuln.id} className="vuln-card">
+                      <div key={vuln.id} className={`vuln-card${vuln.kev ? ' vuln-card--kev' : ''}`}>
                         <div className="vuln-header">
                           <span className={`severity-badge ${severityLower}`}>
                             {severity}
                           </span>
+                          {vuln.kev && (
+                            <span className="kev-badge" title="Activement exploitée dans la nature — CISA Known Exploited Vulnerabilities">
+                              ⚠ KEV
+                            </span>
+                          )}
                           <span className="cve-id">{vuln.vulnerability?.cve_id || 'N/A'}</span>
                           {cvssScore !== undefined && (
                             <span className="cvss-score">CVSS {cvssScore.toFixed(1)}</span>
@@ -228,12 +290,6 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
                           </div>
                           {vuln.language && vuln.language !== "unknown" && (
                             <span className="lang-badge">{vuln.language}</span>
-                          )}
-
-                          {vuln.vulnerable_versions && vuln.vulnerable_versions !== "unknown" && (
-                            <div className="vuln-range">
-                              Affected: {vuln.vulnerable_versions}
-                            </div>
                           )}
 
                           {vuln.vulnerability?.description && (
@@ -262,9 +318,36 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
 
                           {vuln.fix_available && vuln.fixed_version && (
                             <div className="vuln-fix">
-                              Fix available: Upgrade to v{vuln.fixed_version}
+                              Fix disponible : mettre à jour vers v{vuln.fixed_version}
                             </div>
                           )}
+
+                          {/* AI Fix */}
+                          <div className="ai-fix-section">
+                            {aiFixResults.has(vuln.id) ? (
+                              <button
+                                type="button"
+                                className="ai-fix-toggle"
+                                onClick={() => toggleAiFix(vuln.id)}
+                              >
+                                ✦ Suggestion IA {aiFixOpen.has(vuln.id) ? '▲' : '▼'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`ai-fix-btn${aiFixLoading.has(vuln.id) ? ' loading' : ''}`}
+                                onClick={() => requestAiFix(vuln)}
+                                disabled={aiFixLoading.has(vuln.id)}
+                              >
+                                {aiFixLoading.has(vuln.id) ? '…' : '✦ Suggestion IA'}
+                              </button>
+                            )}
+                            {aiFixOpen.has(vuln.id) && aiFixResults.has(vuln.id) && (
+                              <div className="ai-fix-result">
+                                <pre>{aiFixResults.get(vuln.id)}</pre>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

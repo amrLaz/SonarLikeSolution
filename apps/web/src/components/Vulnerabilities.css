@@ -986,3 +986,115 @@
     font-size: 13px;
   }
 }
+
+/* ── KEV badge ─────────────────────────────────────────────────────────────── */
+.kev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #7f1d1d;
+  color: #fef2f2;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid #991b1b;
+  cursor: help;
+  animation: kev-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes kev-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.25); }
+}
+
+.vuln-card--kev {
+  border-left: 3px solid #b91c1c;
+}
+
+.stat-card.kev {
+  background: #7f1d1d;
+  color: #fef2f2;
+  border-color: #991b1b;
+}
+
+.stat-card.kev .stat-label {
+  color: #fca5a5;
+}
+
+/* ── AI Fix ────────────────────────────────────────────────────────────────── */
+.ai-fix-section {
+  margin-top: 0.75rem;
+}
+
+.ai-fix-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.ai-fix-btn:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.ai-fix-btn:disabled,
+.ai-fix-btn.loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.ai-fix-toggle {
+  background: none;
+  border: 1px solid #7c3aed;
+  color: #7c3aed;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ai-fix-toggle:hover {
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.ai-fix-result {
+  margin-top: 0.6rem;
+  background: #1e1b4b;
+  border: 1px solid #4338ca;
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+}
+
+.ai-fix-result pre {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #e0e7ff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-color-scheme: light) {
+  .ai-fix-result {
+    background: #f5f3ff;
+    border-color: #c4b5fd;
+  }
+  .ai-fix-result pre {
+    color: #1e1b4b;
+  }
+}

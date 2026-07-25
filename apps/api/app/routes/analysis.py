@@ -755,6 +755,15 @@ def get_analysis_vulnerabilities(
                     },
                 })
 
+    # Enrich with CISA KEV flags
+    from app.routes.kev import get_kev_ids
+    kev_ids = get_kev_ids(session)
+    for v in vulnerabilities:
+        cve = (v.get("vulnerability") or {}).get("cve_id", "")
+        v["kev"] = bool(cve and cve.upper() in kev_ids)
+
+    kev_count = sum(1 for v in vulnerabilities if v.get("kev"))
+
     return {
         "analysis_id": record.analysis_id,
         "project_key": record.project_key,
@@ -767,9 +776,102 @@ def get_analysis_vulnerabilities(
         "high_count": high_count,
         "medium_count": medium_count,
         "low_count": low_count,
+        "kev_count": kev_count,
         "vulnerabilities": vulnerabilities,
-        "iocs": [],  # IOCs can be added later
+        "iocs": [],
         "last_scan_date": to_iso_string(record.created_at)
+    }
+
+
+class AiFixRequest(BaseModel):
+    cve_id: str = ""
+    pkg_name: str = ""
+    version: str = ""
+    fixed_version: str = ""
+    description: str = ""
+    language: str = ""
+    severity: str = ""
+    rule_id: str = ""
+    message: str = ""
+    file_path: str = ""
+
+
+@router.post("/{analysis_id}/ai-fix")
+async def ai_fix_suggestion(
+    analysis_id: str,
+    req: AiFixRequest,
+    _: None = Depends(require_platform_auth),
+    session: Session = Depends(get_session),
+):
+    """Return an AI-generated fix suggestion for a specific finding."""
+    import os
+    import httpx
+
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="AI fix suggestions not configured — set ANTHROPIC_API_KEY")
+
+    record = session.get(AnalysisRecord, analysis_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Build a focused, context-rich prompt
+    if req.cve_id and req.pkg_name:
+        context = f"""CVE: {req.cve_id}
+Package: {req.pkg_name}@{req.version} ({req.language})
+Severity: {req.severity}
+{"Fix: upgrade to " + req.fixed_version if req.fixed_version else "No official fix available yet"}
+Description: {req.description or "No description available"}"""
+        task = "dependency vulnerability (CVE in a third-party package)"
+    else:
+        context = f"""Rule: {req.rule_id}
+File: {req.file_path}
+Severity: {req.severity}
+Finding: {req.message}
+Language: {req.language or "unknown"}"""
+        task = "SAST finding (code issue)"
+
+    prompt = f"""You are a security expert reviewing a {task} found during a SAST scan.
+
+{context}
+
+Respond with:
+1. **Why it matters** — 1 sentence on the real-world risk
+2. **Fix** — the exact command, code change, or configuration to resolve it (be precise and concrete)
+3. **Verification** — 1 sentence on how to confirm it is fixed
+
+Keep the total response under 200 words. Use markdown formatting."""
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 512,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"AI service returned {resp.status_code}")
+        suggestion = resp.json()["content"][0]["text"]
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="AI service timeout") from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
+
+    return {
+        "suggestion": suggestion,
+        "cve_id": req.cve_id,
+        "rule_id": req.rule_id,
+        "model": "claude-haiku-4-5-20251001",
     }
 
 
