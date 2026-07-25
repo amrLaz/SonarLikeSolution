@@ -803,13 +803,21 @@ async def ai_fix_suggestion(
     _: None = Depends(require_platform_auth),
     session: Session = Depends(get_session),
 ):
-    """Return an AI-generated fix suggestion for a specific finding."""
+    """Return an AI-generated fix suggestion. Uses Azure OpenAI if configured, else Anthropic."""
     import os
     import httpx
 
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="AI fix suggestions not configured — set ANTHROPIC_API_KEY")
+    az_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    az_key = os.getenv("AZURE_OPENAI_API_KEY", "")
+    az_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+    az_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+
+    if not az_endpoint and not anthropic_key:
+        raise HTTPException(
+            status_code=503,
+            detail="AI fix suggestions not configured — set AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY, or ANTHROPIC_API_KEY",
+        )
 
     record = session.get(AnalysisRecord, analysis_id)
     if record is None:
@@ -817,49 +825,72 @@ async def ai_fix_suggestion(
 
     # Build a focused, context-rich prompt
     if req.cve_id and req.pkg_name:
-        context = f"""CVE: {req.cve_id}
-Package: {req.pkg_name}@{req.version} ({req.language})
-Severity: {req.severity}
-{"Fix: upgrade to " + req.fixed_version if req.fixed_version else "No official fix available yet"}
-Description: {req.description or "No description available"}"""
+        context = (
+            f"CVE: {req.cve_id}\n"
+            f"Package: {req.pkg_name}@{req.version} ({req.language})\n"
+            f"Severity: {req.severity}\n"
+            + (f"Fix: upgrade to {req.fixed_version}\n" if req.fixed_version else "No official fix available yet\n")
+            + f"Description: {req.description or 'No description available'}"
+        )
         task = "dependency vulnerability (CVE in a third-party package)"
     else:
-        context = f"""Rule: {req.rule_id}
-File: {req.file_path}
-Severity: {req.severity}
-Finding: {req.message}
-Language: {req.language or "unknown"}"""
+        context = (
+            f"Rule: {req.rule_id}\n"
+            f"File: {req.file_path}\n"
+            f"Severity: {req.severity}\n"
+            f"Finding: {req.message}\n"
+            f"Language: {req.language or 'unknown'}"
+        )
         task = "SAST finding (code issue)"
 
-    prompt = f"""You are a security expert reviewing a {task} found during a SAST scan.
-
-{context}
-
-Respond with:
-1. **Why it matters** — 1 sentence on the real-world risk
-2. **Fix** — the exact command, code change, or configuration to resolve it (be precise and concrete)
-3. **Verification** — 1 sentence on how to confirm it is fixed
-
-Keep the total response under 200 words. Use markdown formatting."""
+    prompt = (
+        f"You are a security expert reviewing a {task} found during a SAST scan.\n\n"
+        f"{context}\n\n"
+        "Respond with:\n"
+        "1. **Why it matters** — 1 sentence on the real-world risk\n"
+        "2. **Fix** — the exact command, code change, or configuration to resolve it (be precise and concrete)\n"
+        "3. **Verification** — 1 sentence on how to confirm it is fixed\n\n"
+        "Keep the total response under 200 words. Use markdown formatting."
+    )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 512,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"AI service returned {resp.status_code}")
-        suggestion = resp.json()["content"][0]["text"]
+            if az_endpoint and az_key:
+                # Azure OpenAI — OpenAI-compatible chat completions
+                url = f"{az_endpoint}/openai/deployments/{az_deployment}/chat/completions?api-version={az_api_version}"
+                resp = await client.post(
+                    url,
+                    headers={"api-key": az_key, "content-type": "application/json"},
+                    json={
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 512,
+                        "temperature": 0.3,
+                    },
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=502, detail=f"Azure OpenAI returned {resp.status_code}: {resp.text[:200]}")
+                suggestion = resp.json()["choices"][0]["message"]["content"]
+                model_used = f"azure/{az_deployment}"
+            else:
+                # Anthropic fallback
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": anthropic_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-haiku-4-5-20251001",
+                        "max_tokens": 512,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=502, detail=f"Anthropic returned {resp.status_code}")
+                suggestion = resp.json()["content"][0]["text"]
+                model_used = "claude-haiku-4-5-20251001"
+
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="AI service timeout") from exc
     except HTTPException:
@@ -871,7 +902,7 @@ Keep the total response under 200 words. Use markdown formatting."""
         "suggestion": suggestion,
         "cve_id": req.cve_id,
         "rule_id": req.rule_id,
-        "model": "claude-haiku-4-5-20251001",
+        "model": model_used,
     }
 
 
