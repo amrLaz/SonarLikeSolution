@@ -348,10 +348,53 @@ def list_analyses(
     _: None = Depends(require_platform_auth),
     session: Session = Depends(get_session),
 ) -> list[AnalysisResponse]:
-    records = session.scalars(
-        select(AnalysisRecord).order_by(AnalysisRecord.created_at.desc())
-    ).all()
-    return [to_response(record) for record in records]
+    # Exclude affected_files (heavy JSON blob) — not needed for the list view.
+    from sqlalchemy import text as _text
+    rows = session.execute(_text("""
+        SELECT analysis_id, project_key, commit_sha, branch, ci_provider,
+               status, quality_gate, maintainability_score, security_score,
+               reliability_score, code_smells, vulnerabilities, security_hotspots,
+               bugs, coverage, duplication, dependency_vulnerabilities,
+               gate_failures, created_at, pr_id, pr_decoration_status
+        FROM analysis_records
+        ORDER BY created_at DESC
+    """)).mappings().all()
+    return [_row_to_response(r) for r in rows]
+
+
+def _row_to_response(r: dict) -> AnalysisResponse:
+    try:
+        gate_failures = json.loads(r["gate_failures"] or "[]")
+        if not isinstance(gate_failures, list):
+            gate_failures = []
+    except (json.JSONDecodeError, TypeError):
+        gate_failures = []
+    return AnalysisResponse(
+        analysis_id=r["analysis_id"],
+        project_key=r["project_key"],
+        commit_sha=r["commit_sha"],
+        branch=r["branch"],
+        ci_provider=r["ci_provider"],
+        status=r["status"],
+        quality_gate=r["quality_gate"],
+        metrics=AnalysisMetrics(
+            maintainability_score=r["maintainability_score"],
+            security_score=r["security_score"],
+            reliability_score=r["reliability_score"],
+            code_smells=r["code_smells"],
+            vulnerabilities=r["vulnerabilities"],
+            security_hotspots=r["security_hotspots"],
+            bugs=r["bugs"],
+            coverage=r["coverage"],
+            duplication=r["duplication"],
+            dependency_vulnerabilities=r["dependency_vulnerabilities"] or 0,
+            affected_files=None,
+        ),
+        gate_failures=gate_failures,
+        created_at=str(r["created_at"]),
+        pr_id=r["pr_id"] or None,
+        pr_decoration_status=r["pr_decoration_status"] or None,
+    )
 
 
 @router.post("", response_model=AnalysisResponse)

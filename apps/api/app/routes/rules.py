@@ -1,6 +1,7 @@
 """SAST rules catalog — aggregated from real analysis findings."""
 
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -13,6 +14,10 @@ from app.db import get_session
 from app.models import AnalysisRecord, RuleSuppression
 
 router = APIRouter(prefix="/api/v1/rules", tags=["rules"])
+
+# In-memory cache: (project_key or None) → (timestamp, result)
+_rules_cache: dict[str | None, tuple[float, list]] = {}
+_CACHE_TTL = 60  # seconds
 
 _SCA_PREFIXES = ("trivy/", "dotnet-audit/", "composer-audit/", "npm-audit/", "pip-audit/")
 
@@ -91,40 +96,43 @@ def list_rules(
     SCA findings (Trivy, dotnet-audit, etc.) are excluded — they appear
     in the Vulnerabilities tab instead.
     """
+    cache_key = project_key
+    cached = _rules_cache.get(cache_key)
+    if cached and (time.monotonic() - cached[0]) < _CACHE_TTL:
+        return cached[1]
+
+    from sqlalchemy import text
+
     if project_key:
-        analyses = (
-            session.query(AnalysisRecord)
-            .filter(AnalysisRecord.project_key == project_key)
-            .order_by(AnalysisRecord.created_at.desc())
-            .limit(10)
-            .all()
-        )
+        rows = session.execute(text("""
+            SELECT analysis_id, project_key, affected_files
+            FROM analysis_records
+            WHERE project_key = :pk
+            ORDER BY created_at DESC
+            LIMIT 10
+        """), {"pk": project_key}).fetchall()
     else:
-        # Most recent analysis per project_key
-        from sqlalchemy import func, text
-        latest_ids = session.execute(text("""
-            SELECT DISTINCT ON (project_key) analysis_id
+        rows = session.execute(text("""
+            SELECT DISTINCT ON (project_key) analysis_id, project_key, affected_files
             FROM analysis_records
             ORDER BY project_key, created_at DESC
         """)).fetchall()
-        ids = [r[0] for r in latest_ids]
-        if not ids:
-            return []
-        analyses = session.query(AnalysisRecord).filter(
-            AnalysisRecord.analysis_id.in_(ids)
-        ).all()
+
+    if not rows:
+        return []
 
     # Aggregate
     rules: dict[str, dict] = {}
 
-    for analysis in analyses:
-        if not analysis.affected_files:
+    for row in rows:
+        analysis_id, project_key_val, affected_files_raw = row
+        if not affected_files_raw:
             continue
         try:
             af = (
-                json.loads(analysis.affected_files)
-                if isinstance(analysis.affected_files, str)
-                else analysis.affected_files
+                json.loads(affected_files_raw)
+                if isinstance(affected_files_raw, str)
+                else affected_files_raw
             )
         except (json.JSONDecodeError, TypeError):
             continue
@@ -155,7 +163,7 @@ def list_rules(
 
                 rules[rule_id]["occurrences"] += 1
                 rules[rule_id]["files"].add(file_path)
-                rules[rule_id]["projects"].add(analysis.project_key)
+                rules[rule_id]["projects"].add(project_key_val)
 
     # Load suppressions
     suppressed = {s.rule_key for s in session.query(RuleSuppression).all()}
@@ -177,6 +185,7 @@ def list_rules(
     ]
 
     result.sort(key=lambda r: r["occurrences"], reverse=True)
+    _rules_cache[cache_key] = (time.monotonic(), result)
     return result
 
 

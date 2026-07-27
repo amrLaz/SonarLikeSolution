@@ -250,32 +250,42 @@ async def list_branches(
     branches = session.execute(
         select(Branch).where(Branch.project_id == project_id).order_by(Branch.is_default.desc(), Branch.name)
     ).scalars().all()
-    
+
+    # Single query: latest analysis per branch (avoids N+1).
+    from sqlalchemy import text as _text
+    branch_names = [b.name for b in branches]
+    if branch_names:
+        latest_rows = session.execute(_text("""
+            SELECT DISTINCT ON (branch)
+                branch, analysis_id, maintainability_score, security_score,
+                reliability_score, coverage, duplication, code_smells,
+                vulnerabilities, bugs, quality_gate, created_at
+            FROM analysis_records
+            WHERE project_key = :pk AND branch = ANY(:branches)
+            ORDER BY branch, created_at DESC
+        """), {"pk": project_key, "branches": branch_names}).mappings().all()
+        latest_by_branch = {r["branch"]: r for r in latest_rows}
+    else:
+        latest_by_branch = {}
+
     results = []
     for branch in branches:
-        # Get latest analysis by project_key + branch name
-        latest_analysis = session.execute(
-            select(AnalysisRecord)
-            .where(AnalysisRecord.project_key == project_key, AnalysisRecord.branch == branch.name)
-            .order_by(desc(AnalysisRecord.created_at))
-            .limit(1)
-        ).scalar_one_or_none()
-        
+        a = latest_by_branch.get(branch.name)
         results.append(BranchMetrics(
             branch_name=branch.name,
-            latest_analysis_id=latest_analysis.analysis_id if latest_analysis else None,
-            maintainability_score=latest_analysis.maintainability_score if latest_analysis else None,
-            security_score=latest_analysis.security_score if latest_analysis else None,
-            reliability_score=latest_analysis.reliability_score if latest_analysis else None,
-            coverage=latest_analysis.coverage if latest_analysis else None,
-            duplication=latest_analysis.duplication if latest_analysis else None,
-            code_smells=latest_analysis.code_smells if latest_analysis else None,
-            vulnerabilities=latest_analysis.vulnerabilities if latest_analysis else None,
-            bugs=latest_analysis.bugs if latest_analysis else None,
-            quality_gate=latest_analysis.quality_gate if latest_analysis else None,
-            analysis_date=latest_analysis.created_at.isoformat() if latest_analysis else None
+            latest_analysis_id=a["analysis_id"] if a else None,
+            maintainability_score=a["maintainability_score"] if a else None,
+            security_score=a["security_score"] if a else None,
+            reliability_score=a["reliability_score"] if a else None,
+            coverage=a["coverage"] if a else None,
+            duplication=a["duplication"] if a else None,
+            code_smells=a["code_smells"] if a else None,
+            vulnerabilities=a["vulnerabilities"] if a else None,
+            bugs=a["bugs"] if a else None,
+            quality_gate=a["quality_gate"] if a else None,
+            analysis_date=a["created_at"].isoformat() if a else None
         ))
-    
+
     return results
 
 
