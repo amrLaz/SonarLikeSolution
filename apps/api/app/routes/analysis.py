@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from uuid import uuid4
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
