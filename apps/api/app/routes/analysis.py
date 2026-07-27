@@ -345,30 +345,49 @@ def to_response(record: AnalysisRecord) -> AnalysisResponse:
 
 @router.get("", response_model=list[AnalysisResponse])
 def list_analyses(
+    project_key: str | None = Query(None),
     _: None = Depends(require_platform_auth),
     session: Session = Depends(get_session),
 ) -> list[AnalysisResponse]:
-    # Exclude affected_files (heavy JSON blob) — not needed for the list view.
     from sqlalchemy import text as _text
-    rows = session.execute(_text("""
-        SELECT analysis_id, project_key, commit_sha, branch, ci_provider,
-               status, quality_gate, maintainability_score, security_score,
-               reliability_score, code_smells, vulnerabilities, security_hotspots,
-               bugs, coverage, duplication, dependency_vulnerabilities,
-               gate_failures, created_at, pr_id, pr_decoration_status
-        FROM analysis_records
-        ORDER BY created_at DESC
-    """)).mappings().all()
-    return [_row_to_response(r) for r in rows]
+    if project_key:
+        # Filtered by project: include affected_files (needed by Issues tab).
+        records = session.execute(_text("""
+            SELECT * FROM analysis_records
+            WHERE project_key = :pk
+            ORDER BY created_at DESC
+        """), {"pk": project_key}).mappings().all()
+        return [_row_to_response(r, include_findings=True) for r in records]
+    else:
+        # Global list: exclude affected_files (can be MB per row).
+        rows = session.execute(_text("""
+            SELECT analysis_id, project_key, commit_sha, branch, ci_provider,
+                   status, quality_gate, maintainability_score, security_score,
+                   reliability_score, code_smells, vulnerabilities, security_hotspots,
+                   bugs, coverage, duplication, dependency_vulnerabilities,
+                   gate_failures, created_at, pr_id, pr_decoration_status
+            FROM analysis_records
+            ORDER BY created_at DESC
+        """)).mappings().all()
+        return [_row_to_response(r) for r in rows]
 
 
-def _row_to_response(r: dict) -> AnalysisResponse:
+def _row_to_response(r: dict, include_findings: bool = False) -> AnalysisResponse:
     try:
         gate_failures = json.loads(r["gate_failures"] or "[]")
         if not isinstance(gate_failures, list):
             gate_failures = []
     except (json.JSONDecodeError, TypeError):
         gate_failures = []
+
+    affected_files = None
+    if include_findings and r.get("affected_files"):
+        try:
+            raw = r["affected_files"]
+            affected_files = json.loads(raw) if isinstance(raw, str) else raw
+        except (json.JSONDecodeError, TypeError):
+            affected_files = None
+
     return AnalysisResponse(
         analysis_id=r["analysis_id"],
         project_key=r["project_key"],
@@ -388,7 +407,7 @@ def _row_to_response(r: dict) -> AnalysisResponse:
             coverage=r["coverage"],
             duplication=r["duplication"],
             dependency_vulnerabilities=r["dependency_vulnerabilities"] or 0,
-            affected_files=None,
+            affected_files=affected_files,
         ),
         gate_failures=gate_failures,
         created_at=str(r["created_at"]),

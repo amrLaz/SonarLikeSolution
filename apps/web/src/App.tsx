@@ -409,6 +409,7 @@ export function App() {
   const [selectedBranch, setSelectedBranch] = useState("");
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
+  const [detailAnalyses, setDetailAnalyses] = useState<AnalysisRecord[]>([]);
   const [gate, setGate] = useState<QualityGate | null>(null);
   const [projectMeta, setProjectMeta] = useState<Record<string, ProjectMeta>>({});
   const [authProviders, setAuthProviders] = useState<AuthProvider[]>([]);
@@ -985,10 +986,11 @@ export function App() {
       return [] as Array<FindingIssue & { file_path: string; id: string }>;
     }
 
-    // Find analysis for the selected branch
-    const branchAnalysis = selectedProjectAnalyses.find(
-      (analysis) => Object.keys(analysis.metrics.affected_files ?? {}).length > 0
-    ) ?? selectedProjectAnalyses[0];
+    // Use detailAnalyses (loaded with affected_files) when available, otherwise fall back.
+    const source = detailAnalyses.length > 0 ? detailAnalyses : selectedProjectAnalyses;
+    const branchAnalysis = source.find(
+      (analysis) => analysis.branch === selectedBranch && Object.keys(analysis.metrics.affected_files ?? {}).length > 0
+    ) ?? source.find((analysis) => analysis.branch === selectedBranch) ?? source[0];
 
     if (!branchAnalysis) {
       return [];
@@ -1022,7 +1024,7 @@ export function App() {
       }
       return [];
     });
-  }, [selectedSummary, selectedBranch, selectedProjectAnalyses]);
+  }, [selectedSummary, selectedBranch, selectedProjectAnalyses, detailAnalyses]);
 
   const allIssueDetails = useMemo(() => {
     return summaries.flatMap((summary) => {
@@ -1461,6 +1463,16 @@ export function App() {
       .then((data: RuleCard[]) => setRules(data))
       .catch(() => setRules([]))
       .finally(() => setRulesLoading(false));
+  }, [activeTab, selectedProject]);
+
+  // Issues tab: lazy-load full analyses (with affected_files) for the selected project.
+  useEffect(() => {
+    if (activeTab !== "issues" || !selectedProject) return;
+    const url = `${API_BASE}/v1/analyses?project_key=${encodeURIComponent(selectedProject)}`;
+    apiFetch(url)
+      .then((r) => r.json())
+      .then((data: AnalysisRecord[]) => setDetailAnalyses(data))
+      .catch(() => setDetailAnalyses([]));
   }, [activeTab, selectedProject]);
 
   useEffect(() => {
