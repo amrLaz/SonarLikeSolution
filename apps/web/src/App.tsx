@@ -1027,12 +1027,22 @@ export function App() {
   }, [selectedSummary, selectedBranch, selectedProjectAnalyses, detailAnalyses]);
 
   const allIssueDetails = useMemo(() => {
+    // Build a lookup of detailAnalyses by project for fast access.
+    const detailByProject: Record<string, AnalysisRecord[]> = {};
+    for (const a of detailAnalyses) {
+      if (!detailByProject[a.project_key]) detailByProject[a.project_key] = [];
+      detailByProject[a.project_key].push(a);
+    }
+
     return summaries.flatMap((summary) => {
-      const analysisWithDetails =
-        summary.history.find(
-          (analysis) => Object.keys(analysis.metrics.affected_files ?? {}).length > 0
-        ) ?? summary.latest;
-      const affectedFiles = analysisWithDetails.metrics.affected_files ?? {};
+      // Prefer detailAnalyses (loaded with affected_files) when available.
+      const detailForProject = detailByProject[summary.projectKey];
+      const analysisWithDetails = detailForProject
+        ? (detailForProject.find((a) => Object.keys(a.metrics.affected_files ?? {}).length > 0) ?? detailForProject[0])
+        : (summary.history.find(
+            (analysis) => Object.keys(analysis.metrics.affected_files ?? {}).length > 0
+          ) ?? summary.latest);
+      const affectedFiles = analysisWithDetails?.metrics.affected_files ?? {};
       const meta = projectMeta[summary.projectKey];
       return Object.entries(affectedFiles).flatMap(([filePath, fileData]) => {
         // Handle both old format (array of issues) and new format (severity/issues object)
@@ -1070,7 +1080,7 @@ export function App() {
         return [];
       });
     });
-  }, [summaries, projectMeta]);
+  }, [summaries, projectMeta, detailAnalyses]);
 
   const filteredIssueDetails = useMemo(() => {
     const severityMap: Record<string, IssueSeverityFilter> = {
