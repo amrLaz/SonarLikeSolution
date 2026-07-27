@@ -226,8 +226,11 @@ Tous les templates sont dans `Up.France.ODI.AzurePipelines/DevSecOps/`.
 | **Commercant.Web** | React/TS | `az-platform-sast-react-tpl.yml` | `feature/add-sast-pipeline` |
 | **BmscServices** | PHP | `az-platform-sast-php-tpl.yml` | `feature/devsecops-platform-sast` |
 | **Loyalty** | .NET | `az-platform-sast-dotnet-tpl.yml` | `feature/devsecops-platform-sast` |
+| **Services MSC** | .NET 9.0 + Azure Functions | pipeline dédié `azure-pipelines-sast.yml` | `feature/devsecops-platform-sast` |
 
 Tous les projets pointent sur le tag **`v1.2.45-platform-sast`**.
+
+> **Services MSC** utilise un pipeline dédié plutôt qu'un appel direct au template : le projet consomme un feed NuGet privé (UpGroup) qui requiert `NuGetAuthenticate@1` avant le scan Roslyn — étape non supportée par le stage template générique. Le pipeline inline les mêmes logiques (caches Trivy + Semgrep, env vars, timeouts).
 
 ---
 
