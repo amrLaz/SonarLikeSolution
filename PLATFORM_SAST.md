@@ -33,15 +33,18 @@ Avant cette plateforme, chaque projet gérait ses propres scans de sécurité de
               │         Azure App Service (prod)             │
               │                                              │
               │   FastAPI (Python)   +   React SPA (TS)      │
-              │              │                               │
-              │         PostgreSQL                           │
+              │         │                    │               │
+              │      PostgreSQL        Azure OpenAI          │
+              │                       (via Key Vault)        │
               └──────────────────────────────────────────────┘
 ```
 
 **Backend :** FastAPI (Python 3.12), SQLAlchemy, PostgreSQL  
 **Frontend :** React 18 + TypeScript, SPA servie par le même process FastAPI  
-**Infrastructure :** Azure App Service (Linux), Azure Database for PostgreSQL  
+**Infrastructure :** Azure App Service (Linux, B1), Azure Database for PostgreSQL Flexible Server  
+**Secrets :** Azure Key Vault (`up-fr-odi-sast-prod-kv`) — identité managée SystemAssigned  
 **Templates CI :** repo central `Up.France.ODI.AzurePipelines`, consommé via tag Git fixe  
+**CI/CD plateforme :** GitHub Actions → build Docker multi-stage → push ACR → deploy App Service  
 
 ---
 
@@ -62,7 +65,7 @@ Avant cette plateforme, chaque projet gérait ses propres scans de sécurité de
 | **Maintainability score** | Basé sur les code smells |
 | **Coverage** | Taux de couverture de tests (cobertura/lcov) |
 | **Duplication** | Taux de code dupliqué (jscpd) |
-| **Dependency vulnerabilities** | CVEs dans les dépendances tierces |
+| **Dependency vulnerabilities** | CVEs dans les dépendances tierces (non comptées dans le security score) |
 
 ### Scanners intégrés par stack
 
@@ -82,6 +85,21 @@ Avant cette plateforme, chaque projet gérait ses propres scans de sécurité de
 - Seuils par axe : scores minimum, plafond de vulnérabilités / bugs / code smells
 - Assignation d'un gate par projet (ou gate par défaut)
 - Le pipeline retourne `exit 1` si le gate échoue → bloque la PR ou le merge
+
+### Catalogue KEV (CISA Known Exploited Vulnerabilities)
+- Synchronisation quotidienne automatique du catalogue CISA KEV au démarrage de la plateforme
+- Les CVE présents dans le catalogue sont marqués **⚠ KEV** dans l'onglet Vulnerabilities
+- Badge pulsant pour attirer l'attention sur les vulnérabilités activement exploitées dans la nature
+- Endpoint `POST /api/v1/kev/refresh` pour forcer un rafraîchissement manuel
+- Compteur KEV affiché dans les métriques de l'analyse
+
+### Suggestion IA (Azure OpenAI)
+- Bouton **✦ Suggestion IA** sur chaque finding dans l'onglet Vulnerabilities
+- Appelle Azure OpenAI (`gpt-4o-mini`) avec le contexte du finding (règle, fichier, description)
+- Retourne une suggestion de correction contextuelle directement dans l'interface
+- Fallback sur l'API Anthropic si Azure OpenAI n'est pas disponible
+- Secrets injectés via Azure Key Vault References — jamais en clair dans la configuration
+- Coût estimé : **< 0,01 €/jour** pour un usage normal (gpt-4o-mini à $0,15/1M tokens input)
 
 ### Notifications
 - Webhooks configurables (Teams, Slack, ou tout endpoint HTTP)
@@ -108,6 +126,60 @@ Avant cette plateforme, chaque projet gérait ses propres scans de sécurité de
 - Authentification via **Microsoft Entra ID** (SSO entreprise)
 - Rôles : `admin`, `analyst`, `viewer`
 - Gestion des utilisateurs locaux via l'Administration
+
+---
+
+## Infrastructure Azure
+
+| Ressource | Nom | Notes |
+|---|---|---|
+| Resource Group | `up-france-odi-sast-prod-rg` | westeurope |
+| App Service Plan | `up-france-odi-sast-prod-asp` | B1 Linux |
+| App Service | `up-france-odi-sast-prod-app` | Container Docker, identité SystemAssigned |
+| PostgreSQL Flexible Server | `up-france-odi-sast-prod-*` | 32 GB |
+| Key Vault | `up-fr-odi-sast-prod-kv` | RBAC, accès par identité managée |
+| Container Registry | `upgroup.azurecr.io` | Partagé `fd-devops`, rôle AcrPull sur identité managée |
+
+### Secrets dans le Key Vault
+
+| Secret | Variable injectée | Description |
+|---|---|---|
+| `azure-openai-endpoint` | `AZURE_OPENAI_ENDPOINT` | Endpoint Azure OpenAI (`westeurope.api.cognitive.microsoft.com`) |
+| `azure-openai-api-key` | `AZURE_OPENAI_API_KEY` | Clé API Azure OpenAI |
+| `azure-openai-deployment` | `AZURE_OPENAI_DEPLOYMENT` | Nom du déploiement (`gpt-4o-mini`) |
+| `azure-openai-api-version` | `AZURE_OPENAI_API_VERSION` | Version de l'API REST OpenAI |
+
+Les variables sont injectées dans l'App Service via la syntaxe `@Microsoft.KeyVault(VaultName=...;SecretName=...)` — l'App Service résout les valeurs au runtime via son identité managée (`Key Vault Secrets User`).
+
+### Infrastructure as Code
+
+Géré via Terraform dans le repo `devops-governance` (ADO) :
+
+```
+devops-governance/sast-platform/
+├── main.tf           # Provider, resource group, locals
+├── acr.tf            # Data source ACR partagé
+├── webapp.tf         # App Service Plan + Web App + AcrPull
+├── postgres.tf       # PostgreSQL Flexible Server
+├── keyvault.tf       # Key Vault + secrets AI + role assignments
+├── outputs.tf
+├── variables.tf
+└── variables/
+    ├── production.tfvars
+    └── backend-production.tfvars
+```
+
+---
+
+## CI/CD de la plateforme
+
+Le déploiement de la plateforme elle-même est géré par **GitHub Actions** (`.github/workflows/deploy-platform.yml`) :
+
+1. **Trigger** : push sur `master` touchant `apps/api/**`, `apps/web/**`, `Dockerfile`
+2. **Build** : Docker multi-stage — build React (Vite) puis image FastAPI avec le SPA intégré, push vers ACR avec cache layer
+3. **Deploy** : `az webapp config container set` + `az webapp restart`
+
+Le déploiement n'écrase jamais le Terraform — les `app_settings` sont gérés exclusivement via Terraform/Key Vault.
 
 ---
 
@@ -141,6 +213,7 @@ Tous les templates sont dans `Up.France.ODI.AzurePipelines/DevSecOps/`.
 - **Cache Semgrep rules** hebdomadaire → idem
 - **`fetchDepth: 1`** sur tous les checkouts → clone superficiel suffisant pour le SAST
 - **Mode `sast-only`** → saute la génération de coverage (économise 5–15 min sur les projets avec une grande suite de tests)
+- **Déduplication CVE** : un même CVE présent dans plusieurs `.csproj` d'une solution .NET n'est compté qu'une fois
 
 ---
 
@@ -236,4 +309,5 @@ Processus de mise à jour :
 | Dashboard | https://up-france-odi-sast-prod-app.azurewebsites.net |
 | Code source plateforme | https://github.com/amrLaz/SonarLikeSolution |
 | Templates ADO | `Up.France.ODI/Up.France.ODI.AzurePipelines` (repo ADO interne) |
+| Terraform infra | `Up.France.ODI/devops-governance` → `sast-platform/` (repo ADO interne) |
 | Guide onboarding 15 min | `DevSecOps/ONBOARDING-15MIN.md` dans le repo templates |
