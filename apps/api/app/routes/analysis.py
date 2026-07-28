@@ -541,7 +541,24 @@ def _build_repo_file_url(
     """Build a deep link to the exact file/line in the source repo, if possible."""
     if not repo_url or repo_provider != "azure-devops":
         return None
-    params = {"path": "/" + file_path.lstrip("/")}
+    # Strip git-clone credential prefix: https://user@host → https://host
+    import re as _re
+    clean_url = _re.sub(r'^https://[^/@]+@', 'https://', repo_url)
+    # Reject placeholder / non-ADO URLs
+    if 'github.com' in clean_url or 'your-org' in clean_url or 'your-repo' in clean_url:
+        return None
+    repo_url = clean_url
+    # Convert absolute build-agent paths to repo-relative paths.
+    # ADO clone URLs end with _git/{repo-name}; the checkout sits at .../{repo-name}/
+    rel_path = file_path
+    m = _re.search(r'/_git/([^/?#]+)', repo_url)
+    if m and _re.search(r'[\\/]' + _re.escape(m.group(1)) + r'[\\/]', file_path):
+        parts = _re.split(r'[\\/]' + _re.escape(m.group(1)) + r'[\\/]', file_path, maxsplit=1)
+        if len(parts) == 2:
+            rel_path = parts[1]
+    # Strip leftover MSBuild "N>" prefix that Roslyn sometimes prepends
+    rel_path = _re.sub(r'^\d+>', '', rel_path)
+    params = {"path": "/" + rel_path.lstrip("/\\")}
     if commit_sha:
         params["version"] = f"GC{commit_sha}"
     if start_line:

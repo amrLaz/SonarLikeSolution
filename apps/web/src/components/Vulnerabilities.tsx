@@ -328,13 +328,30 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
                                   className="vuln-source-link"
                                   style={{ marginLeft: '0.75rem' }}
                                 >
-                                  {vuln.source_url.includes('github.com/advisories') || vuln.source_url.includes('github.com/security')
-                                    ? 'View Advisory'
-                                    : vuln.source_url.includes('dev.azure.com')
-                                    ? 'Open in Azure DevOps'
-                                    : 'View source'}
+                                  Open in Azure DevOps
                                 </a>
                               )}
+                              {(() => {
+                                const cveId = vuln.vulnerability?.cve_id;
+                                if (!cveId) return null;
+                                const advisoryUrl = cveId.toUpperCase().startsWith('GHSA-')
+                                  ? `https://github.com/advisories/${cveId}`
+                                  : cveId.toUpperCase().startsWith('CVE-')
+                                  ? `https://nvd.nist.gov/vuln/detail/${cveId}`
+                                  : null;
+                                if (!advisoryUrl) return null;
+                                return (
+                                  <a
+                                    href={advisoryUrl}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="vuln-source-link"
+                                    style={{ marginLeft: '0.5rem' }}
+                                  >
+                                    View Advisory
+                                  </a>
+                                );
+                              })()}
                             </div>
                           )}
 
