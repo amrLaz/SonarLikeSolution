@@ -549,13 +549,21 @@ def _build_repo_file_url(
         return None
     repo_url = clean_url
     # Convert absolute build-agent paths to repo-relative paths.
-    # ADO clone URLs end with _git/{repo-name}; the checkout sits at .../{repo-name}/
     rel_path = file_path
+    # Strategy 1: repo name embedded in path (e.g. /mnt/vss/_work/4/s/RepoName/src/f.cs)
     m = _re.search(r'/_git/([^/?#]+)', repo_url)
     if m and _re.search(r'[\\/]' + _re.escape(m.group(1)) + r'[\\/]', file_path):
         parts = _re.split(r'[\\/]' + _re.escape(m.group(1)) + r'[\\/]', file_path, maxsplit=1)
         if len(parts) == 2:
             rel_path = parts[1]
+    else:
+        # Strategy 2: known ADO/VSTS agent prefix without repo name
+        # e.g. /home/vsts/work/1/app/src/f.cs  or  /mnt/vss/_work/4/s/src/f.cs
+        rel_path = _re.sub(
+            r'^(?:/home/vsts/work|/mnt/vss/_work|/agent/_work)/\d+/[^/]+/',
+            '',
+            file_path,
+        )
     # Strip leftover MSBuild "N>" prefix that Roslyn sometimes prepends
     rel_path = _re.sub(r'^\d+>', '', rel_path)
     params = {"path": "/" + rel_path.lstrip("/\\")}
