@@ -189,30 +189,48 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
   if (error) return <div className="vuln-error">Error: {error}</div>;
   if (!vulnData) return <div className="vuln-empty">No vulnerability data</div>;
 
+  const totalCount = vulnData.critical_count + vulnData.high_count + vulnData.medium_count + vulnData.low_count;
+
+  const makeStatCard = (
+    label: string,
+    count: number,
+    severity: VulnSeverityFilter,
+    colorClass: string,
+  ) => {
+    const isActive = activeTab === 'vulnerabilities' && vulnSeverityFilter === severity;
+    return (
+      <button
+        type="button"
+        className={`stat-card ${colorClass}${isActive ? ' stat-card--active' : ''}`}
+        onClick={() => {
+          setActiveTab('vulnerabilities');
+          setVulnSeverityFilter(isActive ? 'all' : severity);
+        }}
+        title={isActive ? 'Reset filter' : `Show ${label} only`}
+      >
+        <div className="stat-number">{count}</div>
+        <div className="stat-label">{label}</div>
+      </button>
+    );
+  };
+
   return (
     <div className="vulnerabilities-screen">
-      {/* Summary Stats */}
+      {/* Summary Stats — clickable to filter */}
       <div className="vuln-stats-grid">
-        <div className="stat-card critical">
-          <div className="stat-number">{vulnData.critical_count}</div>
-          <div className="stat-label">Critical</div>
-        </div>
-        <div className="stat-card high">
-          <div className="stat-number">{vulnData.high_count}</div>
-          <div className="stat-label">High</div>
-        </div>
-        <div className="stat-card medium">
-          <div className="stat-number">{vulnData.medium_count}</div>
-          <div className="stat-label">Medium</div>
-        </div>
-        <div className="stat-card low">
-          <div className="stat-number">{vulnData.low_count}</div>
-          <div className="stat-label">Low</div>
-        </div>
-        <div className="stat-card total">
-          <div className="stat-number">{vulnData.total_vulnerabilities}</div>
-          <div className="stat-label">Total</div>
-        </div>
+        {makeStatCard('CRITICAL', vulnData.critical_count, 'critical', 'critical')}
+        {makeStatCard('HIGH', vulnData.high_count, 'high', 'high')}
+        {makeStatCard('MEDIUM', vulnData.medium_count, 'medium', 'medium')}
+        {makeStatCard('LOW', vulnData.low_count, 'low', 'low')}
+        <button
+          type="button"
+          className={`stat-card total${activeTab === 'vulnerabilities' && vulnSeverityFilter === 'all' ? ' stat-card--active' : ''}`}
+          onClick={() => { setActiveTab('vulnerabilities'); setVulnSeverityFilter('all'); }}
+          title="Show all severities"
+        >
+          <div className="stat-number">{totalCount}</div>
+          <div className="stat-label">TOTAL</div>
+        </button>
         {(vulnData.kev_count ?? 0) > 0 && (
           <div className="stat-card kev" title="CVEs activement exploitées selon CISA KEV">
             <div className="stat-number">{vulnData.kev_count}</div>
@@ -310,7 +328,11 @@ export default function VulnerabilitiesTab({ analysisId }: { analysisId: string 
                                   className="vuln-source-link"
                                   style={{ marginLeft: '0.75rem' }}
                                 >
-                                  Open in Azure DevOps
+                                  {vuln.source_url.includes('github.com/advisories') || vuln.source_url.includes('github.com/security')
+                                    ? 'View Advisory'
+                                    : vuln.source_url.includes('dev.azure.com')
+                                    ? 'Open in Azure DevOps'
+                                    : 'View source'}
                                 </a>
                               )}
                             </div>

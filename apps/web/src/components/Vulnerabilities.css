@@ -34,15 +34,29 @@
   padding: 1.75rem;
   text-align: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: default;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
 }
 
 .stat-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  border-color: currentColor;
 }
+
+.stat-card--active {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  border-width: 2px;
+  border-style: solid;
+}
+
+.stat-card.critical.stat-card--active { border-color: #da3633; background: rgba(218, 54, 51, 0.07); }
+.stat-card.high.stat-card--active     { border-color: #d1360f; background: rgba(209, 54, 15, 0.07); }
+.stat-card.medium.stat-card--active   { border-color: #d4a574; background: rgba(212, 165, 116, 0.07); }
+.stat-card.low.stat-card--active      { border-color: #2ea44f; background: rgba(46, 164, 79, 0.07); }
+.stat-card.total.stat-card--active    { border-color: var(--primary); background: rgba(0, 102, 204, 0.07); }
 
 .stat-card.critical {
   border-top: 3px solid #da3633;
