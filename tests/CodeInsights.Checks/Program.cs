@@ -1,6 +1,10 @@
 await AuthChecks.RunAsync();
 
 AnalysisChecks.Run();
+await ReportImportChecks.RunAsync();
+await IngestionAdoChecks.RunAsync();
+IngestionComparisonChecks.Run();
+await IngestionChecks.RunAsync();
 await AnalysisChecks.RunExternalAsync();
 await NotificationChecks.RunAsync();
 

@@ -92,7 +92,7 @@ public sealed class NotificationService(
         }
     }
 
-    private async Task SendAsync(
+    public async Task SendAsync(
         string type,
         JsonObject config,
         string gate,

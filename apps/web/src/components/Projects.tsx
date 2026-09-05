@@ -22,7 +22,7 @@ export default function Projects({ summaries, filteredSummaries, selectedSummary
   return (<section className="content-grid">
     <aside className="left-filters">
       <h3>Filters</h3>
-      <p className="project-count-scope">Latest analysis per project, across branches.</p>
+      <p className="project-count-scope">Dernière analyse par projet de cette page et projet sélectionné, toutes branches.</p>
       <p>Projects: {filteredSummaries.length}</p>
       <p>Passed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === "pass").length}</p>
       <p>Failed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === "fail").length}</p>
@@ -71,7 +71,7 @@ export default function Projects({ summaries, filteredSummaries, selectedSummary
               existing.push(analysis);
               branchMap.set(branch, existing);
             }
-            const branches = Array.from(branchMap.keys()).sort();
+            const branches = selectedSummary.branches?.map(branch => branch.name).sort() ?? Array.from(branchMap.keys()).sort();
             const activeBranch = selectedBranch || (branches.length > 0 ? branches[0] : "");
 
             return (
@@ -122,7 +122,7 @@ export default function Projects({ summaries, filteredSummaries, selectedSummary
               existing.push(analysis);
               branchMap.set(branch, existing);
             }
-            const branches = Array.from(branchMap.entries())
+            const branches = selectedSummary.branches ?? Array.from(branchMap.entries())
               .map(([branchName, analyses]) => {
                 const sorted = [...analyses].sort((a, b) =>
                   b.created_at.localeCompare(a.created_at)
@@ -229,7 +229,7 @@ export default function Projects({ summaries, filteredSummaries, selectedSummary
               <button key={summary.projectKey} type="button" className="project-overview-card" onClick={() => { setSelectedProject(summary.projectKey); setSelectedBranch(""); }}>
                 <strong>{summary.projectKey}</strong>
                 <span>Analysis history</span>
-                <span className="project-overview-counts"><span>Passed: {summary.passCount}</span><span>Failed: {summary.failCount}</span><span>Unknown: {summary.history.length - summary.passCount - summary.failCount - summary.unknownCount}</span><span>Historique: {summary.unknownCount}</span></span>
+                <span className="project-overview-counts"><span>Passed: {summary.passCount}</span><span>Failed: {summary.failCount}</span><span>Unknown: {summary.unknownCount}</span><span>Historique: {summary.legacyCount ?? 0}</span></span>
                 <span>Last: {new Date(summary.latest.created_at).toLocaleDateString()}</span>
               </button>
             ))}

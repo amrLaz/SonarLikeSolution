@@ -94,7 +94,7 @@ public sealed class RetentionService(AppDbContext db, ILogger<RetentionService> 
             ct
         );
         var deleted = await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM analysis_records WHERE analysis_id IN (SELECT analysis_id FROM cleanup_analysis_ids)",
+            "DELETE FROM analysis_records WHERE analysis_id IN (SELECT analysis_id FROM cleanup_analysis_ids) AND analysis_id NOT IN (SELECT analysis_id FROM ingestions)",
             ct
         );
         var auditCutoff = now.AddDays(-auditKeep);

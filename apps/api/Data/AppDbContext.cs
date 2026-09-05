@@ -19,6 +19,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        IngestionModel.Configure(modelBuilder);
         modelBuilder.Entity<Project>(e =>
         {
             e.ToTable("projects");

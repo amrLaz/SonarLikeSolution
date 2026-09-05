@@ -84,6 +84,7 @@ export type GateConditionSnapshot = {
 };
 
 export type GateSnapshot = {
+  metrics?: Record<string, number | null>;
   gate_id: string;
   gate_name: string;
   profile_id: string;
@@ -208,9 +209,19 @@ export type ProjectSummary = {
   passCount: number;
   failCount: number;
   unknownCount: number;
+  totalCount?: number;
+  legacyCount?: number;
+  branches?: { name: string; count: number; latest: AnalysisRecord }[];
 };
 
+export type PortfolioSummary = { next_cursor?: string | null; projects: {
+  project_key: string; total_count: number; pass_count: number; fail_count: number;
+  unknown_count: number; legacy_count: number; latest: AnalysisRecord; branches_truncated?: boolean;
+  branches: { name: string; count: number; latest: AnalysisRecord }[];
+}[] };
+
 export type RuleCard = {
+  key?: string;
   rule_id: string;
   title: string;
   category: string;

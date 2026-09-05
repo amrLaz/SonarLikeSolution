@@ -28,14 +28,15 @@ export function completenessLabel(value: string | null | undefined): string {
   return 'Non disponible';
 }
 
-export type FindingCategory = 'secret' | 'dependency' | 'code' | 'ioc' | 'unknown';
+export type FindingCategory = 'secret' | 'dependency' | 'code' | 'ioc' | 'unknown' | 'bug' | 'code_smell' | 'vulnerability' | 'security_hotspot';
 
 export function findingCategory(value: string | null | undefined): FindingCategory {
-  return value === 'secret' || value === 'dependency' || value === 'code' || value === 'ioc' ? value : 'unknown';
+  return value === 'secret' || value === 'dependency' || value === 'code' || value === 'ioc' || value === 'bug' || value === 'code_smell' || value === 'vulnerability' || value === 'security_hotspot' ? value : 'unknown';
 }
 
 export function findingCategoryLabel(value: FindingCategory): string {
   return {
+    bug: 'Bug', code_smell: 'Code smell', vulnerability: 'Vulnérabilité', security_hotspot: 'Point sensible',
     secret: 'Secret',
     dependency: 'Dépendance / CVE',
     code: 'Code',

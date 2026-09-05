@@ -53,6 +53,13 @@ builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<RetentionService>();
 builder.Services.AddScoped<KevService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.Configure<IngestionOptions>(builder.Configuration.GetSection("Ingestion"));
+builder.Services.AddSingleton<ReportStorage>();
+builder.Services.AddScoped<IngestionProcessor>();
+builder.Services.AddScoped<IngestionAdo>();
+builder.Services.AddScoped<IngestionMaintenance>();
+builder.Services.AddHostedService<IngestionWorker>();
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 50L * 1024 * 1024);
 builder.Services.Configure<AnalysisOptions>(builder.Configuration.GetSection("Analysis"));
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
 builder.Services.AddHttpClient();
@@ -64,6 +71,7 @@ builder.Services.AddCors(o =>
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
+            .WithExposedHeaders("Link", "X-Next-Cursor")
             .AllowCredentials()
     )
 );
@@ -78,9 +86,6 @@ if (args.Contains("--migrate"))
     return 0;
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    await scope
-        .ServiceProvider.GetRequiredService<RetentionService>()
-        .StartupAsync(CancellationToken.None);
     await scope
         .ServiceProvider.GetRequiredService<KevService>()
         .MaybeRefreshAsync(CancellationToken.None);
@@ -126,6 +131,9 @@ app.MapAuthEndpoints();
 app.MapProjectEndpoints();
 app.MapGateEndpoints();
 app.MapAnalysisEndpoints();
+app.MapIngestionEndpoints();
+app.MapProfileEndpoints();
+app.MapInsightEndpoints();
 app.MapRuleEndpoints();
 app.MapPlatformEndpoints();
 app.MapIntegrationEndpoints();

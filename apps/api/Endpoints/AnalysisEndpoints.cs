@@ -13,70 +13,7 @@ public static class AnalysisEndpoints
     public static IEndpointRouteBuilder MapAnalysisEndpoints(this IEndpointRouteBuilder app)
     {
         var routes = app.MapGroup("/api/v1/analyses").RequireAuthorization();
-        routes
-            .MapGet(
-                "",
-                async (
-                    HttpContext context,
-                    AppDbContext db,
-                    AuthService auth,
-                    CancellationToken ct
-                ) =>
-                {
-                    var user = await auth.RequireAsync(context, ct: ct);
-                    var key = context.Request.Query["project_key"].ToString();
-                    var visible = await auth.AllowedProjectKeysAsync(user, ct: ct);
-                    if (key.Length > 0)
-                        await auth.AssertProjectAccessAsync(user, key, ct: ct);
-                    var query = db.Set<AnalysisRecord>()
-                        .AsNoTracking()
-                        .Where(x =>
-                            key.Length > 0 ? x.ProjectKey == key : visible.Contains(x.ProjectKey)
-                        )
-                        .OrderByDescending(x => x.CreatedAt);
-                    // ponytail: project lists retain findings; global projection excludes large finding JSON at the database boundary.
-                    var records =
-                        key.Length > 0
-                            ? await query.ToListAsync(ct)
-                            : await query
-                                .Select(x => new AnalysisRecord
-                                {
-                                    AnalysisId = x.AnalysisId,
-                                    ProjectKey = x.ProjectKey,
-                                    CommitSha = x.CommitSha,
-                                    Branch = x.Branch,
-                                    CiProvider = x.CiProvider,
-                                    Status = x.Status,
-                                    QualityGate = x.QualityGate,
-                                    MaintainabilityScore = x.MaintainabilityScore,
-                                    SecurityScore = x.SecurityScore,
-                                    ReliabilityScore = x.ReliabilityScore,
-                                    CodeSmells = x.CodeSmells,
-                                    Vulnerabilities = x.Vulnerabilities,
-                                    SecurityHotspots = x.SecurityHotspots,
-                                    Bugs = x.Bugs,
-                                    Coverage = x.Coverage,
-                                    Duplication = x.Duplication,
-                                    DependencyVulnerabilities = x.DependencyVulnerabilities,
-                                    GateFailures = x.GateFailures,
-                                    CreatedAt = x.CreatedAt,
-                                    PrId = x.PrId,
-                                    PrDecorationStatus = x.PrDecorationStatus,
-                                    Measurements = x.Measurements,
-                                    ToolExecutions = x.ToolExecutions,
-                                    Completeness = x.Completeness,
-                                    ProfileId = x.ProfileId,
-                                    ProfileVersion = x.ProfileVersion,
-                                    FormulaVersion = x.FormulaVersion,
-                                    GateSnapshot = x.GateSnapshot,
-                                })
-                                .ToListAsync(ct);
-                    return Results.Ok(
-                        records.Select(x => GateEvaluation.ToResponse(x, key.Length > 0))
-                    );
-                }
-            )
-            .Produces<List<AnalysisResponse>>();
+        routes.MapGet("", InsightEndpoints.ListAnalysesAsync);
         routes.MapPost("", CreateAsync).Produces<AnalysisResponse>();
         routes.MapGet(
             "/export/csv",
@@ -98,12 +35,22 @@ public static class AnalysisEndpoints
                         }
                     );
                 await auth.AssertProjectAccessAsync(user, key, ct: ct);
-                var rows = await db.Set<AnalysisRecord>()
+                var rows = db.Set<AnalysisRecord>().AsNoTracking()
                     .Where(x => x.ProjectKey == key)
                     .OrderByDescending(x => x.CreatedAt)
-                    .ToListAsync(ct);
-                return Results.File(
-                    ExportService.Csv(rows),
+                    .Select(InsightEndpoints.Summary)
+                    .AsAsyncEnumerable();
+                return Results.Stream(
+                    async output =>
+                    {
+                        var header = ExportService.Csv([]);
+                        await output.WriteAsync(header, ct);
+                        await foreach (var row in rows.WithCancellation(ct))
+                        {
+                            var csv = ExportService.Csv([row]);
+                            await output.WriteAsync(csv.AsMemory(header.Length), ct);
+                        }
+                    },
                     "text/csv",
                     $"sast-{new string(key.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray())}-history.csv"
                 );
@@ -363,6 +310,7 @@ public static class AnalysisEndpoints
             PrDecorationError = "",
         };
         db.Add(record);
+        db.AddRange(LegacyFindings.Normalize(record));
         await db.SaveChangesAsync(ct);
         if (
             !string.IsNullOrEmpty(request.PrId)
@@ -410,6 +358,14 @@ public static class AnalysisEndpoints
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var query = db.Set<AnalysisRecord>()
             .Where(x => x.ProjectKey == key && (branch == null || x.Branch == branch));
+        var ingestions = db.Set<IngestionRecord>().FromSqlInterpolated($"SELECT * FROM ingestions WHERE project_key = {key} AND ({branch}::text IS NULL OR manifest::jsonb->>'branch' = {branch})");
+        var ingestionIds = ingestions.Select(x => x.Id);
+        var analysisIds = query.Select(x => x.AnalysisId);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM durable_jobs WHERE split_part(resource_id, ':', 1) IN (SELECT id FROM ingestions WHERE project_key = {key} AND ({branch}::text IS NULL OR manifest::jsonb->>'branch' = {branch}))", ct);
+        await db.Set<FindingOccurrence>().Where(x => ingestionIds.Contains(x.IngestionId) || analysisIds.Contains(x.AnalysisId)).ExecuteDeleteAsync(ct);
+        await db.Set<CoverageLine>().Where(x => ingestionIds.Contains(x.IngestionId)).ExecuteDeleteAsync(ct);
+        await db.Set<SbomComponent>().Where(x => ingestionIds.Contains(x.IngestionId)).ExecuteDeleteAsync(ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM ingestions WHERE project_key = {key} AND ({branch}::text IS NULL OR manifest::jsonb->>'branch' = {branch})", ct);
         var deletedCount = await query.ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
         var label = branch == null ? $"project {key}" : $"{key}/{branch}";

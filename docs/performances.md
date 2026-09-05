@@ -5,27 +5,33 @@ description: Risques vérifiés, priorités d'optimisation et protocole de charg
 
 # Performances et capacité du hub
 
-## Limites observées dans le code
+## État implémenté et limites à mesurer
 
-| Point                      | Preuve                                                                            | Risque et première action                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Historique complet         | Lecture de la collection dans [AnalysisEndpoints.cs](../apps/api/Endpoints/AnalysisEndpoints.cs) | Taille croissante sans borne ; pagination et projection de synthèse |
-| Agrégation navigateur      | `loadDashboard` dans [App.tsx](../apps/web/src/App.tsx)                           | Transfert, parsing et tri de toutes les analyses ; agrégats serveur                                                       |
-| Findings JSON texte        | `AnalysisRecord` dans [Entities.cs](../apps/api/Data/Entities.cs) | Lecture d'un bloc volumineux pour une liste ; détails séparés et indexables |
-| Effets externes attendus   | [AnalysisExternal.cs](../apps/api/Services/AnalysisExternal.cs) | Latence de publication dépendante d'Azure DevOps ; traitement durable après ingestion |
-| Notifications en mémoire  | [NotificationService.cs](../apps/api/Services/NotificationService.cs) | Perte au redémarrage et concurrence non bornée ; file, reprise et limite de débit |
-| Pool par processus         | [Program.cs](../apps/api/Program.cs) : pool Npgsql configuré par la chaîne de connexion | Pool distinct par chaîne de connexion et processus ; budgéter chaque réplique |
-| Purge au démarrage         | [Program.cs](../apps/api/Program.cs), [RetentionService.cs](../apps/api/Services/RetentionService.cs) | Temps de démarrage et concurrence ; tâche contrôlée hors démarrage web |
-| Coût CI                    | Stage et runner du dépôt partagé, décrits dans son `docs/report-integration.md`   | Installations/tests répétés, POST par finding, artefacts trop larges ; réutiliser les rapports et publier par lots bornés |
+| Surface | État du checkout P1 | Limite résiduelle |
+|---|---|---|
+| Historiques d'analyse | Projections de synthèse paginées, curseurs déterministes ; mêmes bornes sur le GET legacy | Tester les filtres/indices sur les volumes A/B/C |
+| Portefeuille | Agrégats serveur par projet/branche, projets paginés | Branches par projet non bornées ; catalogue GET projets encore complet |
+| Findings et composants | Tables normalisées et détails paginés ; rapports hors des listes | Mesurer les plans SQL et la densité réelle des rapports |
+| Ingestion | Upload Blob borné et queue PostgreSQL durable avec baux/retries | JSON en mémoire jusqu'à 50 MiB, 250 000 entrées normalisées par lot ; EF AddRange sans bulk COPY |
+| Retours externes | Jobs durables ADO/notifications pour P1, hors transaction d'import | Livraison externe au moins une fois ; verrous par PR pendant les appels ADO |
+| Parcours legacy | Contrat POST conservé, mesures et gate P0 | Décoration synchrone et notifications mémoire toujours distinctes de P1 |
+| Rétention | Maintenance horaire durable et conservation des synthèses P1 | Lots de 100 détails ; mesurer retard de purge et scan des objets orphelins |
+| Coût CI | Client publication seule disponible ; artefacts producteurs isolés | Ancien stage full reste coûteux ; ne pas superposer deux parcours par défaut |
+
+Les sources sont les [routes de consultation](../apps/api/Endpoints/InsightEndpoints.cs),
+le [worker](../apps/api/Services/IngestionWorker.cs), le
+[processeur](../apps/api/Services/IngestionProcessor.cs) et le
+[contrat P1](p1-ingestion.md). Une borne de requête ne prouve pas à elle seule un
+SLO sous concurrence.
 
 La configuration Terraform B1/B1ms est un point de départ, **pas une capacité validée pour 20 analyses simultanées ni pour plusieurs centaines de projets**. Le nombre de projets seul ne détermine pas la charge : fréquence, historique, concurrence et densité de findings comptent davantage.
 
-## Ordre des optimisations
+## Mesures et optimisations restantes
 
-1. Instrumenter les durées scan, upload, attente, parsing, normalisation, gate, consultation et notification avec un identifiant de corrélation build/analyse.
-2. Borner pages, requêtes et réponses ; séparer synthèses et détails ; mesurer les plans SQL avant d'ajouter des index adaptés aux filtres projet/branche/date/état.
-3. Conserver les originaux dans Blob Storage ; découpler ingestion et effets externes ; borner concurrence, taille décompressée, durée de parsing et tentatives.
-4. Mettre en place rétention différenciée et migrations contrôlées ; ajuster SKU/pools après mesure. Ajouter un cache seulement pour une lecture répétée dont le coût résiduel est démontré.
+1. Compléter les mesures de parsing/normalisation/SQL et livraison externe ; corréler build, ingestion, révision et analyse aux durées client déjà journalisées.
+2. Vérifier plans SQL et indices sur les filtres projet/branche/date/état ; mesurer aussi catalogue projets et projets possédant beaucoup de branches.
+3. Mesurer uploads, consommation mémoire des parseurs et cadence de la queue avec le plafond 50 MiB/rapport et 250 MiB/lot ; évaluer bulk COPY seulement si le coût EF mesuré le justifie.
+4. Vérifier purge, reprises de baux et effets externes sous panne ; dimensionner SKU/pools à partir des mesures, avant tout cache supplémentaire.
 
 Budget SQL : `répliques × processus × plafond du pool + préparation du schéma + réserve exploitation` doit rester inférieur au plafond exploitable PostgreSQL. Le conteneur API démarre un processus .NET ; des chaînes de connexion distinctes peuvent créer des pools supplémentaires. Vérifier le plafond réel sur l'environnement de test ; ajouter une réplique web multiplie les pools, pas la capacité de la base.
 
@@ -41,9 +47,9 @@ Ces volumes sont des **jeux de test proposés**, pas la volumétrie constatée d
 | B      |     300 |                            300 |                    3 |                       20 |                  30 |
 | C      |     500 |                            500 |                    5 |                       50 |                  50 |
 
-Pour chaque palier, varier indépendamment taille de rapport (1, 10, 50 Mo), densité (100, 10 000, 100 000 findings) et concentration sur un projet. Ne pas remplir tous les rapports historiques au volume maximal par défaut : comparer une distribution réaliste puis une rafale défavorable. Les rapports au-delà d'une limite configurée doivent être rejetés explicitement ; 50 Mo est un scénario de validation, pas une promesse de prise en charge actuelle.
+Pour chaque palier, varier indépendamment taille de rapport (1, 10, 50 Mo), densité (100, 10 000, 100 000 findings) et concentration sur un projet. Ne pas remplir tous les rapports historiques au volume maximal par défaut : comparer une distribution réaliste puis une rafale défavorable. Les rapports au-delà d'une limite configurée doivent être rejetés explicitement ; le contrat accepte au maximum 50 MiB par rapport, sous réserve des bornes de parsing et du total de 250 MiB par lot. Une taille acceptée ne préjuge pas de sa latence.
 
-Après 5 minutes de chauffe, mesurer 30 minutes de charge stable puis une rafale de 5 minutes ; répéter trois fois avec la même configuration et noter les dispersions. Exécuter séparément le chargement à froid. Comparer avant/après sur le même jeu, même image, même région et mêmes SKU. Le runner de charge sera créé dans le lot performance, sans ajouter de dépendance pour la documentation.
+Après 5 minutes de chauffe, mesurer 30 minutes de charge stable puis une rafale de 5 minutes ; répéter trois fois avec la même configuration et noter les dispersions. Exécuter séparément le chargement à froid. Comparer avant/après sur le même jeu, même image, même région et mêmes SKU. Le [runner de charge](p1-load.md) existe dans `scripts/p1-load.py` et utilise seulement Python standard.
 
 ## Budgets initiaux à valider
 
@@ -66,4 +72,14 @@ Mesurer aussi p50/p99, débit soutenable, backlog/âge maximal, mémoire navigat
 - Purger des détails pendant les consultations : synthèses et décisions collaboratives conservées, latences mesurées.
 - Vérifier l'équité entre un gros dépôt et plusieurs petits ; surveiller connexions et mémoire au scale-out.
 
-Le lot est accepté après résultats reproductibles, comparaison aux budgets, explication des dépassements et absence de perte de données. Aucun benchmark n'a été exécuté dans cette intervention documentaire.
+Le lot sera accepté après campagne complète reproductible, comparaison aux budgets,
+explication des dépassements et absence de perte de données. Le smoke local
+(PostgreSQL/Azurite/API .NET) a réussi 75 publications et 6 064 lectures : p95 stable
+publication 1,187 s, lecture 0,032 s. Il emploie 2 projets, 2 synthèses historiques
+par projet, 3 rapports de 4 096 octets et 10 findings par rapport. Il ne valide
+aucun palier A/B/C. Les essais initiaux refusés/interrompus restent séparés du
+passage propre ; [protocole et preuves](p1-load.md).
+
+**La campagne A/B/C standard n'a pas été exécutée**, ni la matrice complète de
+formats/tailles/densités, ni la campagne de résilience distante. Les chiffres du
+smoke ne justifient aucune extrapolation de SKU, de coût ou de capacité Azure.

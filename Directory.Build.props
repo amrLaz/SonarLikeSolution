@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AzureStorageBlobsVersion>12.29.2</AzureStorageBlobsVersion>
+    <AzureIdentityVersion>1.21.0</AzureIdentityVersion>
     <NpgsqlVersion>10.0.3</NpgsqlVersion>
     <IdentityModelVersion>8.22.0</IdentityModelVersion>
     <PdfSharpVersion>6.2.4</PdfSharpVersion>

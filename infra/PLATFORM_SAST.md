@@ -20,6 +20,13 @@ Les deux définitions ciblent `Up.France.CodeInsights`, branche `master`, et uti
 
 ## Secrets et accès
 
+Le Terraform P1 prépare aussi un compte Blob privé et le conteneur `reports`,
+avec `Storage Blob Data Contributor` pour l'identité managée de l'application.
+Les clés partagées et l'accès public des blobs sont désactivés ; les suppressions
+disposent de sept jours de récupération. Les options `Ingestion__BlobServiceUri`
+et `Ingestion__PlatformUrl` sont injectées dans App Service. Cette évolution est
+validée localement, sans application Terraform ni preuve de droits Blob en Azure.
+
 Le groupe de variables `CodeInsights.Infrastructure` contient les valeurs secrètes PostgreSQL, bootstrap administrateur, signature JWT et Azure OpenAI. Terraform écrit les secrets JWT et bootstrap dans Key Vault, référencés par l'API. Ne jamais afficher ou versionner leur contenu. Les plans et l'état contiennent des valeurs sensibles même quand les sorties sont masquées.
 
 L'identité système de l'application reçoit `AcrPull` et `Key Vault Secrets User`. Le principal de la connexion Terraform gère le coffre. La connexion PostgreSQL utilise un mot de passe ; la règle `AllowAzureServices` autorise les adresses Azure. Une isolation réseau privée et une identité base dédiée restent des évolutions à concevoir.

@@ -77,7 +77,7 @@ Les transitions servent au retour d'interaction : **durée de référence de 150
 - Viser WCAG AA : contraste du texte normal au moins 4,5:1, grand texte et indicateurs nécessaires des contrôles au moins 3:1. Vérifier aussi survol, sélection, champs et messages.
 - Ne jamais remplacer une mesure absente par zéro, une estimation ou une donnée de démonstration. Un zéro explicitement reçu reste zéro ; absence, `null` ou valeur non finie donnent « Non disponible ».
 - Distinguer verdict qualité (`pass`, `fail`, `unknown`) et état technique de l'analyse. Afficher les motifs transmis sans inventer provenance ou complétude.
-- New Code reste indisponible tant que le contrat de mesures réelles n'existe pas. Aucun résultat global de substitution.
+- New Code affiche uniquement la comparaison Git et les mesures renvoyées par son endpoint dédié. Si cette comparaison est indisponible, conserver le motif explicite ; aucun résultat global de substitution.
 - Expliquer le périmètre des compteurs et listes. Ne pas assimiler Issues à l'inventaire Vulnerabilities & IOCs. Les fonctionnalités futures de la roadmap ne deviennent pas des contrôles factices.
 - Respecter les droits existants : lecture seule des gates pour les non-administrateurs. Un contrôle désactivé ne remplace jamais l'autorisation serveur.
 - Les limites des valeurs déjà produites par l'API sont détaillées dans [Interface](docs/interface.md) ; ne pas prétendre les résoudre par une modification visuelle.

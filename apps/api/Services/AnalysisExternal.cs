@@ -32,8 +32,6 @@ public static class AnalysisExternal
                         x => x.OrganizationUrl == orgUrl && x.QualityGateEnabled,
                         ct
                     );
-            config ??= await db.Set<AzureDevOpsOrganizationConfig>()
-                .FirstOrDefaultAsync(x => x.QualityGateEnabled && x.Pat != "", ct);
             if (config == null || string.IsNullOrEmpty(config.Pat))
                 return;
             using var client = clients.CreateClient("pr-decoration");
@@ -46,12 +44,15 @@ public static class AnalysisExternal
             client.DefaultRequestHeaders.Add("X-TFS-FedAuthRedirect", "Suppress");
             var enforcement = options.Enforcement.ToLowerInvariant();
             var informative = enforcement != "blocking";
+            using var snapshot = JsonDocument.Parse(record.GateSnapshot);
+            var technicallyComplete = snapshot.RootElement.TryGetProperty("technical_state", out var technicalState)
+                && technicalState.GetString() == "success";
             static string N(int? value) => value?.ToString() ?? "None";
             var description =
                 $"Quality Gate ({(informative ? "informative" : "blocking")}): {record.QualityGate.ToUpperInvariant()} — Security {N(metrics.SecurityScore)}/100, Reliability {N(metrics.ReliabilityScore)}/100, Maintainability {N(metrics.MaintainabilityScore)}/100";
             var body = new Dictionary<string, object>
             {
-                ["state"] = informative || record.QualityGate == "pass" ? "succeeded" : "failed",
+                ["state"] = !technicallyComplete || record.QualityGate == "unknown" ? "error" : informative || record.QualityGate == "pass" ? "succeeded" : "failed",
                 ["description"] = description[..Math.Min(description.Length, 200)],
                 ["context"] = new { name = "platform-quality-gate", genre = "static-analysis" },
             };
@@ -65,9 +66,8 @@ public static class AnalysisExternal
                 using var response = await client.PostAsJsonAsync(url + suffix, payload, ct);
                 if ((int)response.StatusCode is not (200 or 201))
                 {
-                    var text = await response.Content.ReadAsStringAsync(ct);
                     throw new HttpRequestException(
-                        $"ADO HTTP {(int)response.StatusCode}: {text[..Math.Min(512, text.Length)]}"
+                        $"ADO HTTP {(int)response.StatusCode}"
                     );
                 }
             }

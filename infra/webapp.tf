@@ -42,6 +42,9 @@ resource "azurerm_linux_web_app" "sast" {
       Bootstrap__RequireCompleteMappings = tostring(var.p0_require_complete_mappings)
       Authentication__SigningKey         = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=authentication-signing-key)"
       WEBSITES_PORT                      = "8000"
+      Ingestion__BlobServiceUri          = azurerm_storage_account.reports.primary_blob_endpoint
+      Ingestion__Container               = azurerm_storage_container.reports.name
+      Ingestion__PlatformUrl             = "https://${local.prefix}-app.azurewebsites.net"
     },
     local.ai_app_settings
   )

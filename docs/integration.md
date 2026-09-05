@@ -1,6 +1,6 @@
 ---
 title: Intégration des analyses et rapports
-description: Contrat actuel de publication et exigences du futur parcours multi-rapports Azure DevOps.
+description: Contrat actuel de publication et parcours durable multi-rapports Azure DevOps.
 ---
 
 # Intégration des analyses et rapports
@@ -14,9 +14,9 @@ Trois parcours coexistent dans le dépôt partagé : `platform-sast-stage.yml` o
 
 Le stage partagé exécute le mode métier `full` du runner canonique. Les findings sont transmis dans la création d'analyse ; aucune publication individuelle vers une route inexistante n'est effectuée.
 
-## Contrat disponible
+## Contrat legacy maintenu
 
-La source exacte est [AnalysisRequest](../apps/api/Contracts/AnalysisContracts.cs) et les [routes d'analyse](../apps/api/Endpoints/AnalysisEndpoints.cs) ASP.NET Core 10. La route de création est `POST /api/v1/analyses` ; la collection est consultable en `GET /api/v1/analyses`.
+La source exacte est [AnalysisRequest](../apps/api/Contracts/AnalysisContracts.cs) et les [routes d'analyse](../apps/api/Endpoints/AnalysisEndpoints.cs) ASP.NET Core 10. La route de création est `POST /api/v1/analyses` ; son corps reste inchangé. La collection `GET /api/v1/analyses` sert désormais des synthèses paginées, avec `limit` (1–100, défaut 50), `Link` et `X-Next-Cursor`. Les détails sont consultés séparément.
 
 | Champ / mécanisme | Contrat actuel                                                                                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -34,33 +34,39 @@ La publication exige `project_key`, `commit_sha`, `branch`, `ci_provider`, `prof
 
 Le catalogue version 1 attend Semgrep, Trivy et Gitleaks pour les profils `p0-dotnet` et `p0-react`. Le profil `p0-iac` attend Checkov, Trivy et Gitleaks, avec le score sécurité et les vulnérabilités comme dimensions obligatoires. `platform-sast` attend les quatre outils et les sept dimensions du gate. Chaque projet reçoit explicitement un profil et sa version.
 
-## Parcours cible à développer
+## Parcours multi-rapports P1 disponible localement
 
-L'équipe projet choisit sa connexion au hub et ses chemins de rapports ; le template déduit dépôt, build, commit, branche et PR d'Azure DevOps. Il consomme les fichiers déjà produits, sans réinstaller tous les scanners ni relancer les tests. Un scan supplémentaire reste explicite lorsqu'aucun producteur ne couvre le besoin.
+Le template canonique `platform-publish-reports-tpl.yml` publie les rapports déjà
+produits sans réinstaller les scanners ni relancer les tests. Le contexte ADO est
+déduit du build ; l'association dépôt/projet et le profil versionné doivent être
+configurés côté hub. Le mode `full` du stage historique reste un parcours de scan.
 
-Le parcours se termine par un lien d'analyse et un état distinct : accepté pour traitement, terminé, incomplet ou en échec. Le gate s'applique après finalisation des rapports attendus. L'artefact de diagnostic reste disponible même si le gate échoue.
+Le contrat version 1 est `POST /api/v1/ingestions`, suivi des uploads bruts
+`PUT /api/v1/ingestions/{id}/reports/{report_id}`, du POST `/finalize` et du GET du
+reçu. SARIF 2.1.0, Cobertura, LCOV, CycloneDX JSON 1.4–1.7 et SPDX JSON 2.3 sont
+pris en charge. Le manifeste déclare les producteurs attendus, leur état, les
+empreintes et le contexte Git. Une absence n'est jamais remplacée par zéro.
 
-## Contrats futurs, sans endpoint promis
+Les originaux sont conservés en Blob Storage ; PostgreSQL assure reçu, révisions,
+normalisation et jobs durables. La même publication rejouée conserve son identité ;
+les contributions complémentaires enrichissent la même analyse. Le gate suit la
+finalisation et le traitement, puis les retours ADO/notifications ont leurs propres
+jobs. Le client échoue sur `unknown`, échec technique, état incomplet ou timeout.
 
-| Interface à ajouter           | Exigences minimales                                                                                                                                                                                               |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Publication versionnée        | Contexte organisation/projet/dépôt/build/commit/branche/PR ; manifeste de rapports avec format/version, producteur/version, taille, empreinte et résultat d'exécution de l'outil                                  |
-| Import de rapports            | SARIF, CycloneDX, SPDX puis couverture selon les versions explicitement supportées ; validation des tailles et chemins, diagnostic de rejet ; aucune résolution distante automatique de références non approuvées |
-| Suivi d'ingestion             | Identifiant stable, état et progression, rapports reçus/attendus, erreurs par rapport, verdict final et lien UI ; attente du gate bornée côté CI                                                                  |
-| Idempotence et enrichissement | Même publication rejouée sans doublon ; plusieurs outils d'un même build rattachés à la même analyse ; rapport corrigé traité comme révision traçable                                                             |
-| Consultation                  | Listes paginées, filtres serveur, synthèses sans contenus bruts ; ordre déterministe et bornes de page                                                                                                            |
-| Finding durable               | Identité stable et provenance par outil, occurrences par analyse, première/dernière observation, état et décisions collaboratives ; éviter de fusionner des problèmes différents                                  |
-| Retour Azure DevOps           | Statut/commentaire actualisé après finalisation, limité au bon dépôt/commit/PR ; reprise sans multiplication de commentaires                                                                                      |
+Voir le [contrat P1 détaillé](p1-ingestion.md) pour les formats, profils,
+permissions, limites, états, diff Git, idempotence, pagination et configuration.
+Les [routes](../apps/api/Endpoints/IngestionEndpoints.cs) et
+[DTO](../apps/api/Contracts/IngestionContracts.cs) sont la source exacte.
 
-Le nom exact des nouvelles routes sera défini lors de l'implémentation. Publier une version unique du client/template pour les consommateurs.
+## Validation et activation
 
-## Acceptation du parcours
+Le parcours P1 a été exercé localement sur PostgreSQL/Azurite/API .NET : import,
+consultation, client canonique et republication idempotente avec gate `pass`.
+Le [smoke](p1-load.md) a réussi 75 publications et 6 064 lectures. Il ne valide
+pas la capacité A/B/C ni l'ensemble des matrices de rapports.
 
-- Un build existant publie ses rapports sans nouvelle exécution de ses tests/scanners.
-- Un upload répété ne crée pas de doublon ; deux outils complètent une analyse commune.
-- Rapport invalide, format non supporté, outil absent et mesure zéro restent distinguables.
-- Le token d'un autre projet est refusé ; l'identité de pipeline ne donne pas accès à l'administration.
-- Après timeout, réponse 429 ou arrêt worker, la publication reprend sans perte ni faux succès.
-- Une PR reçoit le verdict du bon commit ; un échec de gate conserve rapports et explication.
-
-Voir les [lots P0/P1](roadmap.md) et le [protocole de charge](performances.md).
+Le pilote Azure DevOps reste nécessaire : dépôt/organisation autorisés, droits
+PAT, statut rattaché à l'itération, commentaire mis à jour et branch policy requise.
+Le legacy `POST /analyses` conserve sa décoration synchrone et ses notifications
+en mémoire ; seule la nouvelle ingestion dispose du traitement durable décrit.
+Voir les [lots P1 restant à accepter](roadmap.md) et les [budgets](performances.md).

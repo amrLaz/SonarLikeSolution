@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, apiJson } from '../api';
+import { apiFetch, apiPage } from '../api';
 import type { RuleCard, ProjectSummary } from '../types';
 
 export default function Rules({ apiBase: API_BASE, authToken, selectedProject, onProjectChange, summaries, canSuppressRules }: {
@@ -18,11 +18,14 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
   const [ruleFilterStatus, setRuleFilterStatus] = useState<string>("all");
   const [ruleFilterLanguage, setRuleFilterLanguage] = useState<string>("all");
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const key = [selectedProject, ruleSearch, ruleFilterCategory, ruleFilterSeverity].join('|');
+  const [page, setPage] = useState({ key: '', cursor: '' });
+  const cursor = page.key === key ? page.cursor : '';
   const rulesQuery = useQuery({
-    queryKey: ['rules', selectedProject], enabled: !!authToken,
-    queryFn: ({ signal }) => apiJson<RuleCard[]>(`${API_BASE}/v1/rules${selectedProject ? `?project_key=${encodeURIComponent(selectedProject)}` : ''}`, authToken, { signal }),
+    queryKey: ['rules', key, cursor], enabled: !!authToken,
+    queryFn: ({ signal }) => apiPage<RuleCard>(`${API_BASE}/v1/insights/rules?${new URLSearchParams({ project_key: selectedProject, search: ruleSearch, category: ruleFilterCategory, severity: ruleFilterSeverity, cursor })}`, authToken, { signal }),
   });
-  const rules = rulesQuery.data ?? [];
+  const rules = rulesQuery.data?.items ?? [];
   const rulesLoading = rulesQuery.isLoading;
   const rulesError = rulesQuery.error?.message ?? null;
   const filteredRules = useMemo(() => {
@@ -38,7 +41,7 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
   }, [rules, ruleSearch, ruleFilterCategory, ruleFilterSeverity, ruleFilterStatus, ruleFilterLanguage]);
 
   const selectedRule = useMemo(
-    () => filteredRules.find((r) => r.rule_id === selectedRuleId) ?? filteredRules[0] ?? null,
+    () => filteredRules.find((r) => (r.key ?? r.rule_id) === selectedRuleId) ?? filteredRules[0] ?? null,
     [filteredRules, selectedRuleId]
   );
 
@@ -54,6 +57,8 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
   return (
         <>
         {suppressionMutation.error && <p className="feedback error" role="alert">{suppressionMutation.error.message}</p>}
+        <p className="hint">Règles observées dans la dernière analyse de chaque projet. Les exceptions des profils se configurent ci-dessus ; les suppressions globales historiques ne s’appliquent pas à ce catalogue.</p>
+        <div className="action-row">{cursor && <button type="button" onClick={() => setPage({ key, cursor: '' })}>Première page</button>}{rulesQuery.data?.next && <button type="button" onClick={() => setPage({ key, cursor: rulesQuery.data!.next! })}>Règles suivantes</button>}</div>
         <div className="tab-project-bar">
           <select
             aria-label="Project"
@@ -74,9 +79,7 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
               <label>Category</label>
               <select aria-label="Category" value={ruleFilterCategory} onChange={(e) => setRuleFilterCategory(e.target.value)}>
                 <option value="all">All</option>
-                <option value="security">Security</option>
-                <option value="reliability">Reliability</option>
-                <option value="maintainability">Maintainability</option>
+                <option value="bug">Bugs</option><option value="code_smell">Code smells</option><option value="vulnerability">Vulnérabilités</option><option value="security_hotspot">Points sensibles</option><option value="secret">Secrets</option><option value="dependency">Dependencies</option><option value="code">Code</option><option value="ioc">IOC</option><option value="unknown">Unknown</option>
               </select>
             </div>
 
@@ -147,11 +150,11 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
                 )}
                 {filteredRules.map((rule) => (
                   <article
-                    key={rule.rule_id}
-                    className={selectedRule?.rule_id === rule.rule_id ? "rule-card selected" : "rule-card"}
+                    key={rule.key ?? rule.rule_id}
+                    className={(selectedRule?.key ?? selectedRule?.rule_id) === (rule.key ?? rule.rule_id) ? "rule-card selected" : "rule-card"}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <h4 style={{ margin: 0, fontSize: "0.9rem", wordBreak: "break-word" }}><button type="button" className="rule-title-button" aria-pressed={selectedRule?.rule_id === rule.rule_id} onClick={() => setSelectedRuleId(rule.rule_id)}>{rule.title}</button></h4>
+                      <h4 style={{ margin: 0, fontSize: "0.9rem", wordBreak: "break-word" }}><button type="button" className="rule-title-button" aria-pressed={(selectedRule?.key ?? selectedRule?.rule_id) === (rule.key ?? rule.rule_id)} onClick={() => setSelectedRuleId(rule.key ?? rule.rule_id)}>{rule.title}</button></h4>
                       <p style={{ margin: "0.2rem 0 0", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
                         {rule.category} · {rule.severity} · {rule.language}
                       </p>

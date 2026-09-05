@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiJson } from '../api';
+import { apiPage } from '../api';
 import { findingCategory, findingCategoryLabel } from '../metric-display';
-import type { AnalysisRecord, IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
+import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
@@ -33,71 +33,24 @@ export default function Issues({ authToken, selectedProject, selectedBranch, sel
   const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>("all");
   const [issueRuleFilter, setIssueRuleFilter] = useState("");
   const [issueFileFilter, setIssueFileFilter] = useState("");
+  const filterKey = [selectedAnalysisId, issueSeverityFilter, issueTypeFilter, issueRuleFilter, issueFileFilter].join('|');
+  const [page, setPage] = useState({ key: '', cursor: '' });
+  const cursor = page.key === filterKey ? page.cursor : '';
   const issuesQuery = useQuery({
-    queryKey: ['analyses', selectedProject], enabled: !!selectedProject,
-    queryFn: ({ signal }) => apiJson<AnalysisRecord[]>(`${API_BASE}/v1/analyses?project_key=${encodeURIComponent(selectedProject)}`, authToken, { signal }),
+    queryKey: ['findings', filterKey, cursor], enabled: !!selectedAnalysisId,
+    queryFn: ({ signal }) => apiPage<{ id: number; tool: string; rule_id: string; severity: string; category: string; message: string; path: string | null; line: number | null }>(
+      `${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings?${new URLSearchParams({ severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, path: issueFileFilter, cursor })}`, authToken, { signal }),
   });
-  const detailAnalyses = issuesQuery.data ?? [];
   const issuesLoading = issuesQuery.isLoading;
   const issuesError = issuesQuery.error?.message ?? null;
-  const selectedAnalysis = detailAnalyses.find(analysis => analysis.analysis_id === selectedAnalysisId) ?? null;
-  const allIssueDetails = useMemo(() => {
-    if (!selectedAnalysis) return [];
-    const affectedFiles = selectedAnalysis.metrics.affected_files ?? {};
-    const meta = projectMeta[selectedAnalysis.project_key];
-
-    return Object.entries(affectedFiles).flatMap(([filePath, fileData]) => {
-      // Counts alone do not identify individual findings.
-      if (!Array.isArray(fileData)) return [];
-      return fileData.map((issue, index) => {
-        const rule = issue.rule_id ?? issue.rule ?? "Non disponible";
-        return {
-          id: `${selectedAnalysis.analysis_id}:${filePath}:${issue.line}:${rule}:${index}`,
-          project_key: selectedAnalysis.project_key,
-          file_path: filePath,
-          line: issue.line,
-          end_line: issue.end_line,
-          rule,
-          message: issue.message,
-          severity: String(issue.severity).toUpperCase(),
-          category: findingCategory(issue.category),
-          tool: issue.tool?.trim() || "Non disponible",
-          commit_sha: selectedAnalysis.commit_sha ?? "",
-          branch: selectedAnalysis.branch,
-          repo_url: meta?.repoUrl ?? "",
-          repo_provider: meta?.repoProvider ?? "other"
-        };
-      });
-    });
-  }, [selectedAnalysis, projectMeta]);
-
-  const filteredIssueDetails = useMemo(() => {
-    const severityMap: Record<string, IssueSeverityFilter> = {
-      CRITICAL: "blocker",
-      ERROR: "blocker",
-      BLOCKER: "blocker",
-      HIGH: "high",
-      WARNING: "medium",
-      MEDIUM: "medium",
-      LOW: "low",
-      INFO: "info",
-      CONVENTION: "low"
-    };
-    return allIssueDetails.filter((issue) => {
-      if (issueSeverityFilter !== "all") {
-        const mapped = severityMap[issue.severity] ?? "low";
-        if (mapped !== issueSeverityFilter) return false;
-      }
-      if (issueTypeFilter !== "all" && issue.category !== issueTypeFilter) return false;
-      if (issueRuleFilter.trim()) {
-        if (!issue.rule.toLowerCase().includes(issueRuleFilter.trim().toLowerCase())) return false;
-      }
-      if (issueFileFilter.trim()) {
-        if (!issue.file_path.toLowerCase().includes(issueFileFilter.trim().toLowerCase())) return false;
-      }
-      return true;
-    });
-  }, [allIssueDetails, issueSeverityFilter, issueTypeFilter, issueRuleFilter, issueFileFilter]);
+  const selectedAnalysis = selectedSummary?.history.find(item => item.analysis_id === selectedAnalysisId);
+  const filteredIssueDetails = useMemo(() => (issuesQuery.data?.items ?? []).map(issue => ({
+    id: String(issue.id), file_path: issue.path ?? '', line: issue.line, end_line: undefined as number | undefined,
+    rule: issue.rule_id, message: issue.message, severity: issue.severity.toUpperCase(), category: findingCategory(issue.category),
+    tool: issue.tool, commit_sha: selectedAnalysis?.commit_sha ?? '', branch: selectedAnalysis?.branch ?? '',
+    repo_url: projectMeta[selectedProject]?.repoUrl ?? '', repo_provider: projectMeta[selectedProject]?.repoProvider ?? 'other',
+  })), [issuesQuery.data, selectedAnalysis, projectMeta, selectedProject]);
+  const allIssueDetails = filteredIssueDetails;
 
   return (
         <section className="two-pane-screen issues-screen">
@@ -124,7 +77,7 @@ export default function Issues({ authToken, selectedProject, selectedBranch, sel
 
             <div className="issue-filter-group">
               <p className="issue-filter-label">Catégorie</p>
-              {(["all", "secret", "dependency", "code", "ioc", "unknown"] as IssueTypeFilter[]).map((t) => (
+              {(["all", "bug", "code_smell", "vulnerability", "security_hotspot", "secret", "dependency", "code", "ioc", "unknown"] as IssueTypeFilter[]).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -188,10 +141,14 @@ export default function Issues({ authToken, selectedProject, selectedBranch, sel
 
           {/* ── Right issues list ─────────────────────────────────── */}
           <div className="issues-main">
+            <div className="action-row">
+              {cursor && <button type="button" onClick={() => setPage({ key: filterKey, cursor: '' })}>Première page</button>}
+              {issuesQuery.data?.next && <button type="button" onClick={() => setPage({ key: filterKey, cursor: issuesQuery.data!.next! })}>Page suivante</button>}
+            </div>
             <header className="issues-toolbar">
               <h2 style={{ margin: 0 }}>Issues</h2>
               <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-                {filteredIssueDetails.length} issue{filteredIssueDetails.length !== 1 ? "s" : ""}
+                {filteredIssueDetails.length} sur cette page · issue{filteredIssueDetails.length !== 1 ? "s" : ""}
                 {allIssueDetails.length > 0 && filteredIssueDetails.length < allIssueDetails.length
                   ? ` (filtered from ${allIssueDetails.length})`
                   : ""}

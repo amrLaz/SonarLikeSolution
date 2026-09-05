@@ -149,7 +149,8 @@ public static class AuthChecks
                     await new DatabaseMigrator(parallel).MigrateAsync();
                 })
         );
-        Check((await db.Database.GetAppliedMigrationsAsync()).Count() == 1, "Initial migration applied once");
+        var appliedMigrations = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
+        Check(appliedMigrations.Count(x => x.EndsWith("_InitialCreate", StringComparison.Ordinal)) == 1 && !(await db.Database.GetPendingMigrationsAsync()).Any(), "Initial migration applied once and all versioned migrations applied");
         var suffix = Guid.NewGuid().ToString("N");
         var user = new PlatformUser
         {

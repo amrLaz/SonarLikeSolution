@@ -9,7 +9,7 @@ async function load(name) {
   });
   return import(`data:text/javascript;base64,${Buffer.from(outputText.replace("'@tanstack/react-query'", JSON.stringify(import.meta.resolve('@tanstack/react-query')))).toString('base64')}`);
 }
-const { apiFetch, apiJson } = await load('./api.ts');
+const { apiFetch, apiJson, apiPage } = await load('./api.ts');
 const { createSessionQueryClient } = await load('./query-client.ts');
 const originalFetch = globalThis.fetch;
 const clients = [];
@@ -28,6 +28,11 @@ try {
     return Response.json({ count: 0 });
   };
   assert.deepEqual(await apiJson('/read', 'test-only', { headers: { 'X-Request': 'preserved' } }), { count: 0 });
+
+  globalThis.fetch = async () => new Response('[]', { headers: { 'X-Next-Cursor': 'next-page' } });
+  assert.deepEqual(await apiPage('/read'), { items: [], next: 'next-page' });
+  globalThis.fetch = async () => Response.json([]);
+  assert.deepEqual(await apiPage('/read'), { items: [], next: null });
 
   const a = createSessionQueryClient(), b = createSessionQueryClient();
   clients.push(a, b);

@@ -28,6 +28,14 @@ Le mode `full-test` du runner partagé doit rester réservé à un environnement
 
 ## P1 — Intégrer les rapports sans alourdir les builds
 
+**État du checkout : fonctionnalités P1 implémentées, validation locale en cours de
+consolidation ; acceptation de généralisation non acquise.** Le client canonique,
+les imports, profils, queue durable, consultations et interface sont disponibles.
+Les contrats et limites exactes sont dans [P1 ingestion](p1-ingestion.md).
+Le smoke réel et la republication canonique ont réussi ; la campagne A/B/C complète
+et le pilote Azure DevOps restent à exécuter. Les critères du tableau sont les
+critères de sortie, pas une déclaration de validation intégrale.
+
 | Fonctionnalité / valeur                         | Dépendances et effort                                | Risque à traiter                                                 | Acceptation                                                                                                                                                         |
 | ----------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P1.1 Publication universelle et onboarding      | P0.1/P0.2, contrat [intégration](integration.md) ; L | Copies divergentes et paramètres impossibles à reproduire        | Une connexion et des chemins de rapports suffisent ; contexte ADO déduit ; exemple versionné et diagnostic du premier import ; aucun second test/scan implicite.    |
@@ -36,9 +44,19 @@ Le mode `full-test` du runner partagé doit rester réservé à un environnement
 | P1.4 Ingestion durable et consultations bornées | P0, instrumentation ; L                              | Doublons, mémoire non bornée, perte au redémarrage               | Rapports bruts conservés, retries idempotents, queue observable ; pagination et synthèses serveur ; campagne [performance](performances.md) reproductible.          |
 | P1.5 Profils et gouvernance des règles          | P0.3, formats normalisés ; M                         | Comparaison trompeuse entre stacks                               | Profils versionnés par stack et projet, exceptions explicites ; audit de changement ; afficher quand un outil ne mesure pas une dimension.                          |
 
-Le lot P1.4 est un prérequis de généralisation, pas une optimisation après livraison. Le client partagé est la source canonique.
+Le lot P1.4 est un prérequis de généralisation, pas une optimisation après livraison.
+Le client partagé est la source canonique. Le stockage Blob et la queue sont
+implémentés ; les budgets de charge restent à valider. P1.3 conserve les CVE et
+leur provenance lorsqu'elles sont incluses dans CycloneDX : aucun lookup distant,
+aucun zéro CVE déduit d'un SPDX ou d'un SBOM sans données de vulnérabilité.
 
 ## P1 — Faire de la PR le point d'action
+
+**État du checkout : comparaison Git et livraison ADO durable implémentées.**
+La comparaison utilise les SHA figés, signale baseline absente/incompatible et
+conserve les correspondances indéterminées. Les tests locaux ne remplacent pas
+le contrôle de l'itération, des permissions et de la branch policy sur un dépôt
+Azure DevOps réel ; le lot P1.7 n'est donc pas accepté en production.
 
 | Fonctionnalité / valeur     | Dépendances et effort                                    | Risque à traiter                                                              | Acceptation                                                                                                                                                       |
 | --------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |

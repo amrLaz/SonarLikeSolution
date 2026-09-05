@@ -25,6 +25,7 @@ public static partial class AnalysisFindings
 
     public static int? Line(JsonElement element, string key) =>
         element.TryGetProperty(key, out var value)
+        && value.ValueKind == JsonValueKind.Number
         && value.TryGetInt32(out var number)
         && number != 0
             ? number

@@ -32,7 +32,7 @@ export default function ProjectHeader({
     if (!selectedSummary) return [];
     
     const branches = new Map<string, AnalysisRecord>();
-    for (const analysis of selectedSummary.history) {
+    for (const analysis of selectedSummary.branches?.map(branch => branch.latest) ?? selectedSummary.history) {
       if (!branches.has(analysis.branch)) {
         branches.set(analysis.branch, analysis);
       }

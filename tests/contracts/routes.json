@@ -488,5 +488,100 @@
     "methods": [
       "GET"
     ]
+  },
+  {
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "path": "/api/v1/ingestions"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/ingestions/{id}"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ingestions/{id}/finalize"
+  },
+  {
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "path": "/api/v1/ingestions/{id}/reports/{reportId}"
+  },
+  {
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "path": "/api/v1/profiles"
+  },
+  {
+    "methods": [
+      "GET",
+      "PUT"
+    ],
+    "path": "/api/v1/profiles/projects/{key}"
+  },
+  {
+    "methods": [
+      "GET",
+      "POST"
+    ],
+    "path": "/api/v1/profiles/projects/{key}/exceptions"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/summary"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/analyses"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/rules"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/analyses/{id}/findings"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/analyses/{id}/components"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/analyses/{id}/comparison"
+  },
+  {
+    "path": "/api/v1/ingestions/queue",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/branches"
   }
 ]

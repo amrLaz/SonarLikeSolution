@@ -42,9 +42,9 @@ docs/                      -> documentation faisant autorité — la lire avant 
 
 ## Configuration
 
-- La connexion utilise `ConnectionStrings__CodeInsights` ; les options sont regroupées dans `Authentication`, `Bootstrap`, `Analysis` et `Cors`.
+- La connexion utilise `ConnectionStrings__CodeInsights` ; les options sont regroupées dans `Authentication`, `Bootstrap`, `Analysis`, `Ingestion` et `Cors`.
 - `apps/web` n'a pas de `package.json` suivi en git ; il est généré inline par le [Dockerfile](Dockerfile) — un `npm install` seul dans ce dossier ne fonctionne pas.
-- La rétention s'exécute au démarrage de l'API ; les migrations versionnées sont exécutées avant le serveur web par le point d'entrée de l'image.
+- La rétention s'exécute via le worker et sa maintenance horaire ; les migrations versionnées sont exécutées avant le serveur web par le point d'entrée de l'image.
 
 ## Boundaries
 

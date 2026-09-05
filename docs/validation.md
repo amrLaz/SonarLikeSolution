@@ -5,6 +5,36 @@ description: Commandes .NET 10, tests isolés et résultats de la campagne local
 
 # Validation de CodeInsights
 
+## Validation P1 du 5 septembre 2026
+
+Le nouveau [parcours d'ingestion](p1-ingestion.md) a été vérifié sur PostgreSQL et
+Azurite isolés, avec l'API Windows puis l'image Linux `codeinsights:p1-local`.
+L'image finale `sha256:0d78ea1dbb2ccaa077937cc3663bba54b6380e6f126de4b00264ff98f7182b4c`
+est saine et s'exécute avec l'UID 1654. Aucun déploiement Azure n'a été effectué.
+
+- Build Release, publish et construction de l'image réussis, sans avertissement de compilation ; aucune vulnérabilité NuGet signalée dans les sources configurées.
+- Checks console complets avec DB, URL et SPA : migrations répétées/concurrentes, identités, contrats historiques, exports et administration ; 91 requêtes anonymes refusées.
+- Checks P1 réels : création concurrente idempotente, finalisation incomplète refusée, SHA incorrect, téléchargement autorisé, refus interprojets, contributions et révisions `pass` puis `fail`, historique préservé, SARIF corrompu en échec avec événement ADO durable, tailles, reprise de bail et états de mesure absent/échoué/zéro.
+- Imports SARIF/Cobertura/LCOV/CycloneDX/SPDX et comparaison Git vérifiés ; ADO utilise un substitut HTTP pour itérations, statuts, commentaire, réponse perdue, 429 et erreurs. Aucune publication vers une PR réelle pendant ces checks.
+- Baseline et analyse distinctes persistées via HTTP : la comparaison restitue un finding nouveau, un persistant et zéro résolu. Chrome sur l'image finale confirme ces valeurs ; la couverture des lignes modifiées non fournie reste indisponible.
+- Typage frontend avec `--noUnusedLocals` et checks métriques, formulaires, cache paginé et administration réussis dans le stage web avec les sources du checkout montées.
+- `tests/insights.check.mjs` : requêtes SQL réelles, curseurs, filtres invalides, affectation JSON `null` et fixture de 101 branches paginées 50/50/1 sans doublon. Les synthèses sont bornées au SQL, pas uniquement tronquées après chargement.
+- Navigateur intégré indisponible ; vérification locale avec Chrome à 390, 768 et 1440 px : connexion, lien direct conservé après connexion, Issues/Rules, pages historiques/imports/branches, filtre vide, erreur JSON, clavier/focus et absence de débordement global. Cela ne constitue pas un audit exhaustif WCAG.
+- Compose et Terraform validés ; syntaxe Bash/YAML de la validation CI PostgreSQL + Azurite vérifiée. Aucun pipeline déclenché.
+
+Le client partagé a passé 8 checks de publication et les 16 checks existants du
+runner. Une publication réelle puis son rejeu conservent les mêmes identifiants
+et un gate `pass`. Le smoke a traité 75 publications et 6 064 lectures sans erreur
+(p95 stable : 1,187 s publication, 0,032 s lecture). Il précède les derniers
+correctifs de revue ; les checks fonctionnels ci-dessus portent sur l'image finale.
+Les scénarios et résultats sont décrits dans [la campagne locale](p1-load.md).
+Un smoke supplémentaire sur l'image finale (10 secondes, rapports 4 Kio,
+10 findings) a réussi 10 publications et 1 263 lectures sans erreur :
+p95 publication 1,172 s et lecture 0,032 s. Il s'agit d'un contrôle court,
+pas d'une mesure de capacité aux paliers A/B/C.
+La campagne standard A/B/C de six heures, les matrices complètes de taille/densité,
+les droits Blob réels et le pilote ADO/branch policy restent non validés.
+
 ## Construction
 
 [CodeInsights.slnx](../CodeInsights.slnx) regroupe l'API ASP.NET Core 10 et le programme de checks. [Directory.Build.props](../Directory.Build.props) centralise framework et versions des dépendances. Depuis la racine avec le SDK .NET 10 :

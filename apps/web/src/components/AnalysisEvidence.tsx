@@ -36,7 +36,7 @@ export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecor
       <div className="analysis-evidence-heading">
         <h4>Preuves de calcul</h4>
         <span className={`status-pill completeness-${completeness}`}>Complétude : {completenessLabel(completeness)}</span>
-        <span className={`status-pill technical-${technicalState}`}>État technique : {technicalStateLabel[technicalState]}</span>
+        <span className={`status-pill technical-${technicalState}`}>État technique : {technicalStateLabel[technicalState] ?? technicalState}</span>
       </div>
       <p className="scope-note">
         Profil <code>{analysis.profile_id ?? "Non disponible"}</code> · version <code>{analysis.profile_version ?? "Non disponible"}</code> · formule{" "}
@@ -60,7 +60,7 @@ export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecor
                 <tr key={dimension}>
                   <th scope="row"><code>{dimension}</code></th>
                   <td><span className={`status-pill measurement-${measurement.state}`}>{measurementStateLabel(measurement.state)}</span></td>
-                  <td>{measurement.state === "measured" ? formatMetric(measurement.value) : "Non disponible"}</td>
+                  <td>{measurement.state === "measured" ? formatMetric(analysis.gate_snapshot?.metrics?.[dimension] ?? measurement.value) : "Non disponible"}</td>
                   <td>
                     {measurement.tool ? (
                       <><code>{measurement.tool}</code>{measurement.tool_version ? ` ${measurement.tool_version}` : ""}</>

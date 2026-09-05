@@ -27,7 +27,7 @@ export default function Evolution({ summaries, selectedSummary, selectedProject,
       </select>
       {selectedSummary && (
         <select aria-label="Branch" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-          {[...new Set(selectedSummary.history.map((a) => a.branch))].map((b) => (
+          {(selectedSummary.branches?.map(branch => branch.name) ?? [...new Set(selectedSummary.history.map((a) => a.branch))]).map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>

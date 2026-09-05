@@ -15,3 +15,8 @@ export async function apiFetch(url: string, token?: string, init?: RequestInit):
 export async function apiJson<T>(url: string, token?: string, init?: RequestInit): Promise<T> {
   return (await apiFetch(url, token, init)).json() as Promise<T>;
 }
+
+export async function apiPage<T>(url: string, token?: string, init?: RequestInit): Promise<{ items: T[]; next: string | null }> {
+  const response = await apiFetch(url, token, init);
+  return { items: await response.json() as T[], next: response.headers.get('X-Next-Cursor') };
+}

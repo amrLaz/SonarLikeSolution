@@ -295,7 +295,7 @@ public static class AnalysisChecks
         );
         await db.SaveChangesAsync();
         var handler = new PrHandler();
-        var record = new AnalysisRecord { AnalysisId = "fixture-id", QualityGate = "fail" };
+        var record = new AnalysisRecord { AnalysisId = "fixture-id", QualityGate = "fail", GateSnapshot = "{\"technical_state\":\"success\"}" };
         var request = new AnalysisRequest
         {
             PrAdoOrgUrl = orgUrl + "/",
@@ -376,6 +376,17 @@ public static class AnalysisChecks
                 informative.RootElement.GetProperty("state").GetString() == "succeeded",
                 "informative PR status"
             );
+        handler.Bodies.Clear();
+        record.GateSnapshot = "{\"technical_state\":\"incomplete\"}";
+        await AnalysisExternal.DecorateAsync(record, request, metrics, [], db, new PrFactory(handler), options, CancellationToken.None);
+        using (var incomplete = JsonDocument.Parse(handler.Bodies[0]))
+            Check(incomplete.RootElement.GetProperty("state").GetString() == "error", "informative technical failure is not success");
+        handler.Bodies.Clear();
+        var originalOrg = request.PrAdoOrgUrl;
+        request.PrAdoOrgUrl = "https://unconfigured.invalid";
+        await AnalysisExternal.DecorateAsync(record, request, metrics, [], db, new PrFactory(handler), options, CancellationToken.None);
+        Check(handler.Bodies.Count == 0 && record.PrDecorationStatus == "skipped", "no fallback to another configured organization");
+        request.PrAdoOrgUrl = originalOrg;
         handler.Failure = true;
         await AnalysisExternal.DecorateAsync(
             record,

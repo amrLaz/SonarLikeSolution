@@ -397,6 +397,334 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("branches", (string)null);
                 });
 
+            modelBuilder.Entity("CodeInsights.Api.Data.CoverageLine", b =>
+                {
+                    b.Property<string>("IngestionId")
+                        .HasColumnType("text")
+                        .HasColumnName("ingestion_id");
+
+                    b.Property<string>("Path")
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<int>("Line")
+                        .HasColumnType("integer")
+                        .HasColumnName("line");
+
+                    b.Property<bool>("Covered")
+                        .HasColumnType("boolean")
+                        .HasColumnName("covered");
+
+                    b.HasKey("IngestionId", "Path", "Line");
+
+                    b.ToTable("coverage_lines", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.DurableJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LeaseOwner")
+                        .HasColumnType("text")
+                        .HasColumnName("lease_owner");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind", "ResourceId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "AvailableAt");
+
+                    b.ToTable("durable_jobs", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.FindingOccurrence", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AnalysisId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("category");
+
+                    b.Property<bool>("Excepted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("excepted");
+
+                    b.Property<string>("Fingerprint")
+                        .HasColumnType("text")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<string>("IngestionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ingestion_id");
+
+                    b.Property<int?>("Line")
+                        .HasColumnType("integer")
+                        .HasColumnName("line");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("message");
+
+                    b.Property<string>("OriginalSeverity")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("original_severity");
+
+                    b.Property<string>("OriginalTool")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("original_tool");
+
+                    b.Property<string>("Path")
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<string>("ReportId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("report_id");
+
+                    b.Property<string>("RuleId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rule_id");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Tool")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("tool");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IngestionId", "Id");
+
+                    b.HasIndex("AnalysisId", "Tool", "RuleId");
+
+                    b.ToTable("finding_occurrences", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.IngestionProjectPolicy", b =>
+                {
+                    b.Property<string>("ProjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Enforcement")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("enforcement");
+
+                    b.Property<string>("ProfileId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("profile_id");
+
+                    b.Property<string>("ProfileVersion")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("profile_version");
+
+                    b.HasKey("ProjectKey");
+
+                    b.ToTable("ingestion_project_policies", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.IngestionRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnalysisId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("BuildKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("build_key");
+
+                    b.Property<string>("Comparison")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("comparison");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("DetailsPurged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("details_purged");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("ExceptionSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("exception_snapshot");
+
+                    b.Property<string>("GateSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("gate_snapshot");
+
+                    b.Property<string>("Manifest")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("manifest");
+
+                    b.Property<string>("ManifestHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("manifest_hash");
+
+                    b.Property<string>("ProfileSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("profile_snapshot");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("QualityGate")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("quality_gate");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<string>("TechnicalState")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("technical_state");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnalysisId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("BuildKey", "ManifestHash")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectKey", "CreatedAt");
+
+                    b.ToTable("ingestions", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.IngestionReport", b =>
+                {
+                    b.Property<string>("IngestionId")
+                        .HasColumnType("text")
+                        .HasColumnName("ingestion_id");
+
+                    b.Property<string>("ReportId")
+                        .HasColumnType("text")
+                        .HasColumnName("report_id");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("blob_name");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("sha256");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.HasKey("IngestionId", "ReportId");
+
+                    b.ToTable("ingestion_reports", (string)null);
+                });
+
             modelBuilder.Entity("CodeInsights.Api.Data.NotificationChannel", b =>
                 {
                     b.Property<string>("Id")
@@ -656,6 +984,75 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("platform_users", (string)null);
                 });
 
+            modelBuilder.Entity("CodeInsights.Api.Data.ProfileException", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Path")
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<string>("ProjectKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RuleId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("rule_id");
+
+                    b.Property<string>("Tool")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("tool");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectKey", "ExpiresAt");
+
+                    b.ToTable("profile_exceptions", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.ProfileVersion", b =>
+                {
+                    b.Property<string>("ProfileId")
+                        .HasColumnType("text")
+                        .HasColumnName("profile_id");
+
+                    b.Property<string>("Version")
+                        .HasColumnType("text")
+                        .HasColumnName("version");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Definition")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("definition");
+
+                    b.HasKey("ProfileId", "Version");
+
+                    b.ToTable("profile_versions", (string)null);
+                });
+
             modelBuilder.Entity("CodeInsights.Api.Data.Project", b =>
                 {
                     b.Property<string>("Id")
@@ -903,6 +1300,93 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("rule_suppressions", (string)null);
                 });
 
+            modelBuilder.Entity("CodeInsights.Api.Data.SbomComponent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AnalysisId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("Dependencies")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("dependencies");
+
+                    b.Property<string>("Ecosystem")
+                        .HasColumnType("text")
+                        .HasColumnName("ecosystem");
+
+                    b.Property<string>("IngestionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ingestion_id");
+
+                    b.Property<string>("LicenseDecision")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("license_decision");
+
+                    b.Property<string>("Licenses")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("licenses");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("ObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("observed_at");
+
+                    b.Property<string>("Purl")
+                        .HasColumnType("text")
+                        .HasColumnName("purl");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("reference");
+
+                    b.Property<string>("Relationship")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("relationship");
+
+                    b.Property<string>("ReportId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("report_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Version")
+                        .HasColumnType("text")
+                        .HasColumnName("version");
+
+                    b.Property<string>("Vulnerabilities")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("vulnerabilities");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IngestionId", "Id");
+
+                    b.ToTable("sbom_components", (string)null);
+                });
+
             modelBuilder.Entity("CodeInsights.Api.Data.TokenProjectAccess", b =>
                 {
                     b.Property<string>("TokenId")
@@ -967,6 +1451,15 @@ namespace CodeInsights.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.IngestionReport", b =>
+                {
+                    b.HasOne("CodeInsights.Api.Data.IngestionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("IngestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

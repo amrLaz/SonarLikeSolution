@@ -1,3 +1,5 @@
+import AnalysisProfiles from './components/AnalysisProfiles';
+import IngestionDetails, { NewCode } from './components/IngestionDetails';
 import AuthProviderSettings from './components/AuthProviderSettings';
 import { useWorkspaceData } from './useWorkspaceData';
 import Issues from './components/Issues';
@@ -14,8 +16,8 @@ import Notifications from './components/Notifications';
 import { useEffect, useMemo, useRef, useState } from "react";
 import VulnerabilitiesTab from "./components/Vulnerabilities";
 import ProjectHeader from "./components/ProjectHeader";
-import { QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch as request } from './api';
+import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch as request, apiJson } from './api';
 import { createSessionQueryClient } from './query-client';
 
 const API_BASE =
@@ -25,7 +27,7 @@ const LOCAL_STORAGE_GATE_LIBRARY_KEY = "sast-quality-gates-v1";
 const LOCAL_STORAGE_SESSION_KEY = "sast-platform-session-v1";
 const LOCAL_STORAGE_NAV_KEY = "sast-nav-v1";
 
-import type { ApiConnectionState, ScopeMode, AppTab, AdminPrimaryTab, AdminSection, AnalysisRecord, ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary } from './types';
+import type { ApiConnectionState, ScopeMode, AppTab, AdminPrimaryTab, AdminSection,  ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary } from './types';
 
 const TABS: Array<{ id: AppTab; label: string }> = [
   { id: "projects", label: "Projects" },
@@ -151,11 +153,32 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
 
   const queryClient = useQueryClient();
   const signedIn = !!sessionUser?.token;
-  const { meQuery, analysesQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery } = useWorkspaceData(sessionUser?.token, activeTab, activeAdminSection);
+  const [linkedAnalysisId] = useState(() => new URLSearchParams(window.location.search).get('analysis_id') ?? '');
+  const linkedAnalysis = useQuery({ queryKey: ['analysis-link', linkedAnalysisId], enabled: signedIn && !!linkedAnalysisId,
+    queryFn: ({ signal }) => apiJson<import('./types').AnalysisRecord>(`${API_BASE}/v1/analyses/${encodeURIComponent(linkedAnalysisId)}`, sessionUser?.token, { signal }) });
+  const linkedSelectionApplied = useRef(false);
+  useEffect(() => {
+    if (!linkedAnalysis.data || linkedSelectionApplied.current) return;
+    linkedSelectionApplied.current = true;
+    setSelectedProject(linkedAnalysis.data.project_key); setSelectedBranch(linkedAnalysis.data.branch);
+    setSelectedAnalysisId(linkedAnalysis.data.analysis_id); setActiveTab('issues');
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [linkedAnalysis.data]);
+  const [branchPage, setBranchPage] = useState({ project: '', cursor: '' });
+  const branchCursor = branchPage.project === selectedProject ? branchPage.cursor : '';
+  const [projectCursor, setProjectCursor] = useState('');
+  const [historyPage, setHistoryPage] = useState({ project: '', branch: '', cursor: '' });
+  const historyCursor = historyPage.project === selectedProject && historyPage.branch === selectedBranch ? historyPage.cursor : '';
+  const { meQuery, analysesQuery, summaryQuery, selectedSummaryQuery, branchesQuery, selectedBranchQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery } = useWorkspaceData(sessionUser?.token, activeTab, activeAdminSection, selectedProject, selectedBranch, historyCursor, projectCursor, branchCursor);
   const canAccessAdministration = !meQuery.isError && meQuery.data?.permissions?.is_admin === true;
   const apiFetch = (url: string, init?: RequestInit) => request(url, sessionUser?.token, init);
 
-  const analyses = analysesQuery.data ?? [];
+  const analyses = useMemo(() => {
+    const page = analysesQuery.data?.items ?? [];
+    const linked = linkedAnalysis.data;
+    return linked && linked.project_key === selectedProject && linked.branch === selectedBranch && !historyCursor && !page.some(item => item.analysis_id === linked.analysis_id)
+      ? [linked, ...page] : page;
+  }, [analysesQuery.data, linkedAnalysis.data, selectedProject, selectedBranch, historyCursor]);
   const projectMeta = useMemo<Record<string, ProjectMeta>>(() => Object.fromEntries((integrationsQuery.data ?? []).map(item => [item.project_key, {
     repoProvider: item.repo_provider, repoUrl: item.repo_url, pipelineProvider: item.pipeline_provider,
     pipelineUrl: item.pipeline_url, updatedAt: item.updated_at,
@@ -166,8 +189,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     .map(g => ({ ...g, projectCount: g.project_count ?? 0, builtIn: g.is_default ?? g.gate_id === defaultGateQuery.data?.gate_id })), [gatesQuery.data, defaultGateQuery.data]);
   const gateAssignments = assignmentsQuery.data ?? {};
   const azureDevOpsConfigs = devOpsQuery.data ?? [];
-  const loading = analysesQuery.isFetching || defaultGateQuery.isFetching || integrationsQuery.isFetching;
-  const dashboardError = analysesQuery.error ?? defaultGateQuery.error ?? integrationsQuery.error;
+  const loading = summaryQuery.isFetching || analysesQuery.isFetching || defaultGateQuery.isFetching || integrationsQuery.isFetching;
+  const dashboardError = linkedAnalysis.error ?? summaryQuery.error ?? analysesQuery.error ?? defaultGateQuery.error ?? integrationsQuery.error;
   const apiStatus: ApiConnectionState = dashboardError ? 'disconnected' : loading ? 'checking' : 'connected';
   const error = actionError ?? meQuery.error?.message ?? dashboardError?.message ?? (signedIn ? providersQuery.error?.message : null);
   const adminReadError = devOpsQuery.error?.message;
@@ -183,30 +206,12 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     return canAccessAdministration ? TABS : TABS.filter((tab) => tab.id !== "administration");
   }, [canAccessAdministration]);
 
-  const summaries = useMemo<ProjectSummary[]>(() => {
-    const grouped = new Map<string, AnalysisRecord[]>();
-    for (const analysis of analyses) {
-      const existing = grouped.get(analysis.project_key) ?? [];
-      existing.push(analysis);
-      grouped.set(analysis.project_key, existing);
-    }
-
-    return Array.from(grouped.entries())
-      .map(([projectKey, history]) => {
-        const sorted = [...history].sort((left, right) =>
-          right.created_at.localeCompare(left.created_at)
-        );
-        return {
-          projectKey,
-          latest: sorted[0],
-          history: sorted,
-          passCount: sorted.filter((analysis) => analysis.completeness != null && analysis.quality_gate === "pass").length,
-          failCount: sorted.filter((analysis) => analysis.completeness != null && analysis.quality_gate === "fail").length,
-          unknownCount: sorted.filter((analysis) => analysis.quality_gate === "unknown").length
-        };
-      })
-      .sort((left, right) => left.projectKey.localeCompare(right.projectKey));
-  }, [analyses]);
+  const summaries = useMemo<ProjectSummary[]>(() => ([...new Map([...(summaryQuery.data?.projects ?? []), ...(selectedSummaryQuery.data?.projects ?? [])].map(item => [item.project_key, item])).values()]).filter(item => item.latest).map(item => ({
+    projectKey: item.project_key, latest: item.latest,
+    history: item.project_key === selectedProject ? analyses : [item.latest],
+    passCount: item.pass_count, failCount: item.fail_count, unknownCount: item.unknown_count,
+    legacyCount: item.legacy_count, totalCount: item.total_count, branches: item.project_key === selectedProject ? [...new Map([...(branchesQuery.data?.items ?? []), ...(selectedBranchQuery.data?.items ?? [])].map(branch => [branch.name, branch])).values()] : item.branches,
+  })), [summaryQuery.data, selectedSummaryQuery.data, branchesQuery.data, selectedBranchQuery.data, analyses, selectedProject]);
 
   const filteredSummaries = useMemo(() => {
     const query = projectSearch.trim().toLowerCase();
@@ -227,7 +232,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     const fragmentParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const entraSession = fragmentParams.get("entra_session") ?? queryParams.get("entra_session");
     const entraError = fragmentParams.get("entra_error") ?? queryParams.get("entra_error");
-    window.history.replaceState({}, "", window.location.pathname);
+    window.history.replaceState({}, "", window.location.pathname + (linkedAnalysisId ? `?analysis_id=${encodeURIComponent(linkedAnalysisId)}` : ""));
 
     if (entraError) {
       setSignInError(`Azure AD sign-in failed: ${decodeURIComponent(entraError)}`);
@@ -281,6 +286,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   }, [selectedAnalysisId, selectedProjectAnalyses]);
 
   useEffect(() => {
+    if (linkedAnalysisId && !linkedAnalysis.isError && !linkedSelectionApplied.current) return;
     if (!selectedProjectAnalyses.some((analysis) => analysis.analysis_id === selectedAnalysisId)) {
       setSelectedAnalysisId(selectedProjectAnalyses[0]?.analysis_id ?? "");
     }
@@ -328,15 +334,12 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   const initializedProjectSelection = useRef(false);
   const hydratedProject = useRef('');
   useEffect(() => {
-    if (!analysesQuery.data) return;
+    if (!summaryQuery.data) return;
     if (!initializedProjectSelection.current) {
       initializedProjectSelection.current = true;
-      if (!selectedProject) setSelectedProject(analysesQuery.data[0]?.project_key ?? '');
-    } else if (selectedProject && !analysesQuery.data.some(item => item.project_key === selectedProject)) {
-      setSelectedProject(analysesQuery.data[0]?.project_key ?? '');
-      setSelectedBranch('');
+      if (!selectedProject) setSelectedProject(summaryQuery.data.projects[0]?.project_key ?? '');
     }
-  }, [analysesQuery.data, selectedProject]);
+  }, [summaryQuery.data, selectedProject]);
 
   useEffect(() => {
     if (!adminForm.project_key) {
@@ -663,16 +666,33 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       </section>
 
 
-      {scopeMode === "new-code" && <section className="panel empty-state" role="status"><h2>New Code — Non disponible</h2><p>Le calcul réel nécessite une branche de référence et un diff Git. Aucun résultat ni verdict n’est calculé pour ce périmètre.</p><button type="button" onClick={() => setScopeMode("overall")}>Revenir à Overall</button></section>}
+      {scopeMode === "new-code" && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
       {loading && <p className="feedback" role="status">Loading analysis data…</p>}
       {error && <p className="feedback error" role="alert">Failed to load data: {error}. Previously loaded results may be out of date.</p>}
       {adminMessage && <p className="feedback" role="status">{adminMessage}</p>}
 
+      <div className="action-row" aria-label="Project pages">
+        <span>Projets : page de 50 maximum, plus le projet sélectionné s’il est hors page.</span>
+        {projectCursor && <button type="button" onClick={() => { setSelectedProject(''); setProjectCursor(''); }}>Première page de projets</button>}
+        {summaryQuery.data?.next_cursor && <button type="button" onClick={() => { setSelectedProject(''); setProjectCursor(summaryQuery.data!.next_cursor!); }}>Projets suivants</button>}
+      </div>
+      {selectedProject && <div className="action-row" aria-label="Branch pages">
+        <span>Branches : 50 par page, plus la branche sélectionnée si elle est hors page.</span>
+        {branchCursor && <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>Première page de branches</button>}
+        {branchesQuery.data?.next && <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>Branches suivantes</button>}
+        {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
+      </div>}
+      {selectedProject && ['projects', 'issues', 'vulnerabilities', 'evolution'].includes(activeTab) && <div className="action-row" aria-label="Analysis history pages">
+        <span>Historique : {analyses.length} analyses sur cette page (50 par page ; un lien direct peut ajouter son analyse).</span>
+        {historyCursor && <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>Première page</button>}
+        {analysesQuery.data?.next && <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>Analyses précédentes</button>}
+      </div>}
       {activeTab === "projects" && scopeMode === "overall" && (
         <Projects summaries={summaries} filteredSummaries={filteredSummaries} selectedSummary={selectedSummary}
           selectedProject={selectedProject} selectedBranch={selectedBranch} setSelectedProject={setSelectedProject}
           setSelectedBranch={setSelectedBranch} setProjectSearch={setProjectSearch} loading={loading} error={error} downloadExport={downloadExport} />
       )}
+      {activeTab === "projects" && selectedProject && <IngestionDetails project={selectedProject} analysisId={selectedAnalysisId} token={sessionUser?.token} />}
       {activeTab === "issues" && scopeMode === "overall" && <Issues
         authToken={sessionUser?.token} selectedProject={selectedProject} selectedBranch={selectedBranch}
         selectedAnalysisId={selectedAnalysisId} selectedSummary={selectedSummary} summaries={summaries}
@@ -708,7 +728,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         </section>
       )}
 
-      {activeTab === "rules" && <Rules apiBase={API_BASE} authToken={sessionUser?.token} selectedProject={selectedProject} onProjectChange={(project) => { setSelectedProject(project); setSelectedBranch(""); }} summaries={summaries} canSuppressRules={canAccessAdministration} />}
+      {activeTab === "rules" && <AnalysisProfiles key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />}
+      {activeTab === "rules" && <Rules apiBase={API_BASE} authToken={sessionUser?.token} selectedProject={selectedProject} onProjectChange={(project) => { setSelectedProject(project); setSelectedBranch(""); }} summaries={summaries} canSuppressRules={false} />}
 
       {activeTab === "quality-gates" && <>
         {(gatesQuery.error ?? assignmentsQuery.error) && <p className="feedback error" role="alert">

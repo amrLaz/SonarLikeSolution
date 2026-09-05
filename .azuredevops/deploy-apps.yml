@@ -60,14 +60,26 @@ stages:
               export ConnectionStrings__CodeInsights="$CODEINSIGHTS_TEST_DB"
               export Authentication__SigningKey="$(openssl rand -hex 32)"
               export CODEINSIGHTS_TEST_URL=http://127.0.0.1:5086 ASPNETCORE_URLS=http://127.0.0.1:5086
+              reports_port=55433
+              reports_account=codeinsightschecks
+              reports_key="$(openssl rand -base64 64 | tr -d '\n')"
+              export AZURITE_ACCOUNTS="$reports_account:$reports_key"
+              export Ingestion__BlobConnectionString="DefaultEndpointsProtocol=http;AccountName=$reports_account;AccountKey=$reports_key;BlobEndpoint=http://127.0.0.1:$reports_port/$reports_account;"
               container="codeinsights-checks-$(Build.BuildId)"
-              docker run -d --name "$container" -e POSTGRES_PASSWORD="$DB_PASSWORD" -e POSTGRES_DB="$DB_NAME" -p "127.0.0.1:$DB_PORT:5432" postgres:16
+              reports_container="codeinsights-reports-checks-$(Build.BuildId)"
               api_pid=''
-              trap 'if [ -n "$api_pid" ]; then kill "$api_pid" 2>/dev/null || true; fi; docker rm -f "$container" >/dev/null' EXIT
+              trap 'if [ -n "$api_pid" ]; then kill "$api_pid" 2>/dev/null || true; fi; docker rm -f "$container" "$reports_container" >/dev/null 2>&1 || true' EXIT
+              docker run -d --name "$container" -e POSTGRES_PASSWORD="$DB_PASSWORD" -e POSTGRES_DB="$DB_NAME" -p "127.0.0.1:$DB_PORT:5432" postgres:16
+              docker run -d --name "$reports_container" -e AZURITE_ACCOUNTS -p "127.0.0.1:$reports_port:10000" mcr.microsoft.com/azure-storage/azurite@sha256:830430c1da1a2d537e08f3e6764dd1f5ae00cf0346bcaf625b968ec3f0971fd5 azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
               for attempt in $(seq 1 30); do
                 if docker exec "$container" pg_isready -U postgres >/dev/null; then break; fi
                 sleep 1
               done
+              for attempt in $(seq 1 30); do
+                if curl --silent --connect-timeout 2 --max-time 3 -o /dev/null "http://127.0.0.1:$reports_port/$reports_account"; then break; fi
+                sleep 1
+              done
+              curl --silent --connect-timeout 2 --max-time 3 -o /dev/null "http://127.0.0.1:$reports_port/$reports_account"
               dotnet apps/api/bin/Release/net10.0/CodeInsights.Api.dll >api-checks.log 2>&1 &
               api_pid=$!
               for attempt in $(seq 1 60); do
@@ -78,7 +90,7 @@ stages:
               curl --fail --silent "$CODEINSIGHTS_TEST_URL/api/v1/health"
               dotnet run --project tests/CodeInsights.Checks -c Release --no-build
               dotnet publish apps/api/CodeInsights.Api.csproj -c Release --no-build -o /tmp/codeinsights-publish
-            displayName: "Validate API contracts against isolated PostgreSQL"
+            displayName: "Validate API contracts against isolated PostgreSQL and Azurite"
 
           - task: AzureCLI@2
             displayName: "Login ACR via token Azure + docker build & push"

@@ -27,6 +27,8 @@ assert.equal(measurementStateLabel(undefined), 'Non mesurée');
 assert.equal(completenessLabel('complete'), 'Complète');
 assert.equal(completenessLabel(undefined), 'Non disponible');
 assert.equal(findingCategory('dependency'), 'dependency');
+assert.equal(findingCategory('code_smell'), 'code_smell');
+assert.equal(findingCategoryLabel('vulnerability'), 'Vulnérabilité');
 assert.equal(findingCategory('dependency_vulnerability'), 'unknown');
 assert.equal(findingCategory(undefined), 'unknown');
 assert.equal(findingCategoryLabel('ioc'), 'IOC');

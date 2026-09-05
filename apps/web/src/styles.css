@@ -1688,3 +1688,10 @@ button.primary:hover:not(:disabled) { background: var(--primary-dark); border-co
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* P1 detail panels remain in document flow; sticky navigation belongs to sidebars. */
+.analysis-profiles, .ingestion-details, .comparison-panel { position: static; min-width: 0; }
+.analysis-profiles form { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
+.analysis-profiles label { display: grid; gap: 0.5rem; }
+.analysis-profiles input, .analysis-profiles textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.analysis-profiles pre { white-space: pre-wrap; overflow-wrap: anywhere; }

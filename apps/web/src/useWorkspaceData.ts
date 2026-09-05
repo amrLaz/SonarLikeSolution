@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiJson } from './api';
+import { apiJson, apiPage } from './api';
+import type { PortfolioSummary } from './types';
 import type { AnalysisRecord, GateLibraryItem, ProjectIntegrationRecord, AuthProvider, SessionUser, LocalUserRole, AzureDevOpsOrganizationConfig, AppTab, AdminSection } from './types';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 
-export function useWorkspaceData(authToken: string | undefined, activeTab: AppTab, activeAdminSection: AdminSection) {
+export function useWorkspaceData(authToken: string | undefined, activeTab: AppTab, activeAdminSection: AdminSection, project = '', branch = '', cursor = '', projectCursor = '', branchCursor = '') {
   const signedIn = !!authToken;
   const meQuery = useQuery({
     queryKey: ['me'], enabled: signedIn,
@@ -13,8 +14,26 @@ export function useWorkspaceData(authToken: string | undefined, activeTab: AppTa
   const canAccessAdministration = !meQuery.isError && meQuery.data?.permissions?.is_admin === true;
   const adminActive = canAccessAdministration && activeTab === 'administration';
   const analysesQuery = useQuery({
-    queryKey: ['analyses'], enabled: signedIn,
-    queryFn: ({ signal }) => apiJson<AnalysisRecord[]>(`${API_BASE}/v1/analyses`, authToken, { signal }),
+    queryKey: ['analyses', project, branch, cursor], enabled: signedIn && !!project,
+    queryFn: ({ signal }) => apiPage<AnalysisRecord>(`${API_BASE}/v1/insights/analyses?${new URLSearchParams({ project_key: project, branch, cursor })}`, authToken, { signal }),
+  });
+  const summaryQuery = useQuery({
+    queryKey: ['analyses', 'summary', projectCursor], enabled: signedIn,
+    queryFn: ({ signal }) => apiJson<PortfolioSummary>(`${API_BASE}/v1/insights/summary?cursor=${encodeURIComponent(projectCursor)}`, authToken, { signal }),
+  });
+
+  const selectedSummaryQuery = useQuery({
+    queryKey: ['analyses', 'summary-project', project], enabled: signedIn && !!project,
+    queryFn: ({ signal }) => apiJson<PortfolioSummary>(`${API_BASE}/v1/insights/summary?project_key=${encodeURIComponent(project)}`, authToken, { signal }),
+  });
+
+  const branchesQuery = useQuery({
+    queryKey: ['branches', project, branchCursor], enabled: signedIn && !!project,
+    queryFn: ({ signal }) => apiPage<{ name: string; count: number; latest: AnalysisRecord }>(`${API_BASE}/v1/insights/branches?${new URLSearchParams({ project_key: project, cursor: branchCursor })}`, authToken, { signal }),
+  });
+  const selectedBranchQuery = useQuery({
+    queryKey: ['branches', project, 'selected', branch], enabled: signedIn && !!project && !!branch,
+    queryFn: ({ signal }) => apiPage<{ name: string; count: number; latest: AnalysisRecord }>(`${API_BASE}/v1/insights/branches?${new URLSearchParams({ project_key: project, branch })}`, authToken, { signal }),
   });
 
   const defaultGateQuery = useQuery({
@@ -47,5 +66,5 @@ export function useWorkspaceData(authToken: string | undefined, activeTab: AppTa
     queryFn: ({ signal }) => apiJson<AzureDevOpsOrganizationConfig[]>(`${API_BASE}/v1/integrations/azure-devops/configs`, authToken, { signal }),
   });
 
-  return { meQuery, analysesQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery };
+  return { meQuery, analysesQuery, summaryQuery, selectedSummaryQuery, branchesQuery, selectedBranchQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery };
 }
