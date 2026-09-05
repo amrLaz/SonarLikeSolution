@@ -26,6 +26,7 @@ resource "azurerm_linux_web_app" "sast" {
   site_config {
     container_registry_use_managed_identity = true
     health_check_path                       = "/api/v1/health"
+    health_check_eviction_time_in_min       = 2
 
     application_stack {
       docker_image_name   = "sast-platform:latest"
