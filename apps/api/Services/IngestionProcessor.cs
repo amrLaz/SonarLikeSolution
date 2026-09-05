@@ -109,6 +109,7 @@ public sealed class IngestionProcessor(AppDbContext db, ReportStorage storage, I
             analysis.ToolExecutions = JsonSerializer.Serialize(manifest.Reports.Select(r => new { tool = r.Tool, version = r.ToolVersion, status = r.State == "measured" ? "success" : r.State }), ApiJson.Options);
             analysis.GateFailures = JsonSerializer.Serialize(conditions.Where(x => x.result != "pass").Select(x => $"{x.metric}: {x.value?.ToString() ?? "not measured"} {x.@operator} {x.threshold} ({x.result})"));
             analysis.PrId = manifest.PrId; analysis.PrRepoId = manifest.PrRepoId; analysis.PrAdoProject = manifest.PrAdoProject; analysis.PrTargetBranch = "";
+            await FindingCollaboration.ObserveAsync(db, analysis, findings, ct);
             db.Add(new DurableJob { Kind = "ado", ResourceId = id });
             var channels = await db.Set<NotificationChannel>().Where(x => x.Enabled && (row.QualityGate == "fail" && x.OnFail || row.QualityGate == "pass" && x.OnPass)).Select(x => x.Id).ToListAsync(ct);
             foreach (var channel in channels) db.Add(new DurableJob { Kind = "notification", ResourceId = id + ":" + channel });

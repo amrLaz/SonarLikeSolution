@@ -67,6 +67,14 @@ La politique distingue échec technique et non-respect qualité. Une attente dé
 
 ## P2 — Collaborer et piloter la progression
 
+**État du checkout : capacités P2 implémentées et vérifiées localement ;
+acceptation du pilote non acquise.** [Assignation et revue](p2-collaboration.md),
+[Azure Boards et boîte ciblée](p2-boards.md), [portefeuille et historique](p2-portfolio.md)
+décrivent les contrats et limites. La correspondance sans fingerprint reste
+conservatrice ; les décisions de revue ne changent pas le gate. Une création
+Boards à résultat ambigu requiert une réconciliation, sans nouvelle création
+automatique. Aucun déploiement ni pilote Azure n'est déclaré réalisé.
+
 | Fonctionnalité / valeur                    | Dépendances et effort                   | Risque à traiter                                            | Acceptation                                                                                                                                                              |
 | ------------------------------------------ | --------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | P2.1 Propriétaires, équipes et assignation | P0.1, identité finding durable P1.2 ; M | Attribution perdue au scan suivant                          | Assignation conservée entre analyses, filtres « mes problèmes » et équipe, droits serveur testés.                                                                        |

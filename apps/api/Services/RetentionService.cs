@@ -13,7 +13,7 @@ public sealed class RetentionService(AppDbContext db, ILogger<RetentionService> 
             if ((await GetSettingAsync("retention_auto_cleanup", "true", ct)).ToLowerInvariant() is not ("1" or "true" or "yes")) return;
             var value = await GetSettingAsync("last_cleanup_at", "", ct);
             if (DateTimeOffset.TryParse(value, out var last) && DateTimeOffset.UtcNow - last < TimeSpan.FromHours(24)) return;
-            logger.LogInformation("Startup retention deleted {Count} analyses", (await RunAsync(ct)).DeletedAnalyses);
+            logger.LogInformation("Startup retention purged details for {Count} analyses", (await RunAsync(ct)).DeletedAnalyses);
         }
         catch (Exception exception) when (!ct.IsCancellationRequested) { logger.LogWarning(exception, "Startup retention failed"); }
     }
@@ -86,15 +86,20 @@ public sealed class RetentionService(AppDbContext db, ILogger<RetentionService> 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // ponytail: apply retention rules in order; SQL ranks runs without materializing the catalog.
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"CREATE TEMP TABLE cleanup_analysis_ids ON COMMIT DROP AS SELECT analysis_id FROM analysis_records WHERE (status = 'failed' AND created_at < {failedCutoff}) OR (NOT (branch = ANY({branches})) AND created_at < {cutoff})",
+            $"CREATE TEMP TABLE cleanup_analysis_ids ON COMMIT DROP AS SELECT analysis_id FROM analysis_records WHERE NOT details_purged AND ((status = 'failed' AND created_at < {failedCutoff}) OR (NOT (branch = ANY({branches})) AND created_at < {cutoff}))",
             ct
         );
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO cleanup_analysis_ids SELECT analysis_id FROM (SELECT analysis_id, ROW_NUMBER() OVER (PARTITION BY project_key, branch ORDER BY created_at DESC) AS rank FROM analysis_records WHERE analysis_id NOT IN (SELECT analysis_id FROM cleanup_analysis_ids)) ranked WHERE rank > {maximum}",
+            $"INSERT INTO cleanup_analysis_ids SELECT analysis_id FROM (SELECT analysis_id, ROW_NUMBER() OVER (PARTITION BY project_key, branch ORDER BY created_at DESC, analysis_id DESC) AS rank FROM analysis_records WHERE NOT details_purged AND analysis_id NOT IN (SELECT analysis_id FROM cleanup_analysis_ids)) ranked WHERE rank > {maximum}",
             ct
         );
+        await db.Database.ExecuteSqlRawAsync(
+            "DELETE FROM finding_occurrences WHERE analysis_id IN (SELECT analysis_id FROM cleanup_analysis_ids) AND analysis_id NOT IN (SELECT analysis_id FROM ingestions)",
+            ct
+        );
+        // ponytail: the existing record is the durable summary; keep its stable ID and measured versions.
         var deleted = await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM analysis_records WHERE analysis_id IN (SELECT analysis_id FROM cleanup_analysis_ids) AND analysis_id NOT IN (SELECT analysis_id FROM ingestions)",
+            "UPDATE analysis_records SET affected_files = '{{}}', details_purged = TRUE WHERE analysis_id IN (SELECT analysis_id FROM cleanup_analysis_ids) AND analysis_id NOT IN (SELECT analysis_id FROM ingestions)",
             ct
         );
         var auditCutoff = now.AddDays(-auditKeep);

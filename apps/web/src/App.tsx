@@ -5,6 +5,8 @@ import { useWorkspaceData } from './useWorkspaceData';
 import Issues from './components/Issues';
 import Projects from './components/Projects';
 import Evolution from './components/Evolution';
+import Collaboration from './components/Collaboration';
+import Portfolio from './components/Portfolio';
 import Rules from './components/Rules';
 import CiTokens from './components/CiTokens';
 import DevOpsIntegrations from './components/DevOpsIntegrations';
@@ -36,6 +38,8 @@ const TABS: Array<{ id: AppTab; label: string }> = [
   { id: "rules", label: "Rules" },
   { id: "quality-gates", label: "Quality Gates" },
   { id: "evolution", label: "Evolution" },
+  { id: "collaboration", label: "Collaboration" },
+  { id: "portfolio", label: "Portefeuille" },
   { id: "administration", label: "Administration" }
 ];
 
@@ -105,6 +109,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     } catch { return "general-settings"; }
   });
   const [scopeMode, setScopeMode] = useState<ScopeMode>("overall");
+  const independentScope = activeTab === 'collaboration' || activeTab === 'portfolio';
   const [projectSearch, setProjectSearch] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
@@ -154,6 +159,11 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   const queryClient = useQueryClient();
   const signedIn = !!sessionUser?.token;
   const [linkedAnalysisId] = useState(() => new URLSearchParams(window.location.search).get('analysis_id') ?? '');
+  const [linkedFindingId] = useState(() => new URLSearchParams(window.location.search).get('finding_id') ?? '');
+  useEffect(() => {
+    if (linkedFindingId) setActiveTab('collaboration');
+    else if (new URLSearchParams(window.location.search).get('tab') === 'portfolio') setActiveTab('portfolio');
+  }, [linkedFindingId]);
   const linkedAnalysis = useQuery({ queryKey: ['analysis-link', linkedAnalysisId], enabled: signedIn && !!linkedAnalysisId,
     queryFn: ({ signal }) => apiJson<import('./types').AnalysisRecord>(`${API_BASE}/v1/analyses/${encodeURIComponent(linkedAnalysisId)}`, sessionUser?.token, { signal }) });
   const linkedSelectionApplied = useRef(false);
@@ -232,7 +242,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     const fragmentParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const entraSession = fragmentParams.get("entra_session") ?? queryParams.get("entra_session");
     const entraError = fragmentParams.get("entra_error") ?? queryParams.get("entra_error");
-    window.history.replaceState({}, "", window.location.pathname + (linkedAnalysisId ? `?analysis_id=${encodeURIComponent(linkedAnalysisId)}` : ""));
+    queryParams.delete('entra_session'); queryParams.delete('entra_error');
+    window.history.replaceState({}, "", window.location.pathname + (queryParams.size ? `?${queryParams}` : ""));
 
     if (entraError) {
       setSignInError(`Azure AD sign-in failed: ${decodeURIComponent(entraError)}`);
@@ -635,13 +646,13 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           <h1>{visibleTabs.find((tab) => tab.id === activeTab)?.label}</h1>
           <p>Quality, security and analysis results</p>
         </div>
-        <div className="workspace-context">
+        {!independentScope && <div className="workspace-context">
           <span>{selectedProject || "All projects"}</span>
           {selectedProject && selectedBranch && <code>{selectedBranch}</code>}
-        </div>
+        </div>}
       </header>
 
-      <section className="global-tools">
+      {!independentScope && <section className="global-tools">
         <div className="scope-toggle">
           <button
             type="button"
@@ -663,20 +674,20 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         <button type="button" onClick={() => void loadDashboard()} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
-      </section>
+      </section>}
 
 
-      {scopeMode === "new-code" && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
-      {loading && <p className="feedback" role="status">Loading analysis data…</p>}
-      {error && <p className="feedback error" role="alert">Failed to load data: {error}. Previously loaded results may be out of date.</p>}
+      {!independentScope && scopeMode === "new-code" && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
+      {!independentScope && loading && <p className="feedback" role="status">Loading analysis data…</p>}
+      {!independentScope && error && <p className="feedback error" role="alert">Failed to load data: {error}. Previously loaded results may be out of date.</p>}
       {adminMessage && <p className="feedback" role="status">{adminMessage}</p>}
 
-      <div className="action-row" aria-label="Project pages">
+      {!independentScope && <div className="action-row" aria-label="Project pages">
         <span>Projets : page de 50 maximum, plus le projet sélectionné s’il est hors page.</span>
         {projectCursor && <button type="button" onClick={() => { setSelectedProject(''); setProjectCursor(''); }}>Première page de projets</button>}
         {summaryQuery.data?.next_cursor && <button type="button" onClick={() => { setSelectedProject(''); setProjectCursor(summaryQuery.data!.next_cursor!); }}>Projets suivants</button>}
-      </div>
-      {selectedProject && <div className="action-row" aria-label="Branch pages">
+      </div>}
+      {!independentScope && selectedProject && <div className="action-row" aria-label="Branch pages">
         <span>Branches : 50 par page, plus la branche sélectionnée si elle est hors page.</span>
         {branchCursor && <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>Première page de branches</button>}
         {branchesQuery.data?.next && <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>Branches suivantes</button>}
@@ -694,7 +705,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       )}
       {activeTab === "projects" && selectedProject && <IngestionDetails project={selectedProject} analysisId={selectedAnalysisId} token={sessionUser?.token} />}
       {activeTab === "issues" && scopeMode === "overall" && <Issues
-        authToken={sessionUser?.token} selectedProject={selectedProject} selectedBranch={selectedBranch}
+        authToken={sessionUser?.token} isAdmin={canAccessAdministration} selectedProject={selectedProject} selectedBranch={selectedBranch}
         selectedAnalysisId={selectedAnalysisId} selectedSummary={selectedSummary} summaries={summaries}
         setSelectedProject={setSelectedProject} setSelectedBranch={setSelectedBranch} setSelectedAnalysisId={setSelectedAnalysisId}
         projectMeta={projectMeta} />}
@@ -745,6 +756,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         <Evolution summaries={summaries} selectedSummary={selectedSummary} selectedProject={selectedProject} selectedBranch={selectedBranch}
           setSelectedProject={setSelectedProject} setSelectedBranch={setSelectedBranch} selectedProjectAnalyses={selectedProjectAnalyses} />
       )}
+      {activeTab === 'collaboration' && <Collaboration authToken={sessionUser?.token} isAdmin={canAccessAdministration} summaries={summaries} initialFindingId={linkedFindingId} />}
+      {activeTab === 'portfolio' && <Portfolio apiBase={API_BASE} authToken={sessionUser?.token} isAdmin={canAccessAdministration} />}
       {activeTab === "administration" && canAccessAdministration && (
         <section className="admin-screen">
           <div className="admin-top-nav">

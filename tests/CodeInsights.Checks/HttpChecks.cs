@@ -43,6 +43,7 @@ public static class HttpChecks
             foreach (var method in route.GetProperty("methods").EnumerateArray())
             {
                 var concrete = System.Text.RegularExpressions.Regex.Replace(path, "\\{[^}]+\\}", "missing");
+                if (path.StartsWith("/api/v1/collaboration/occurrences/")) concrete = "/api/v1/collaboration/occurrences/1";
                 await Call(client, method.GetString()!, concrete, expected: 401);
                 checkedRoutes++;
             }

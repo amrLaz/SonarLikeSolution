@@ -1,6 +1,9 @@
 await AuthChecks.RunAsync();
 
 AnalysisChecks.Run();
+await CollaborationChecks.RunAsync();
+await PortfolioChecks.RunAsync();
+await BoardsChecks.RunAsync();
 await ReportImportChecks.RunAsync();
 await IngestionAdoChecks.RunAsync();
 IngestionComparisonChecks.Run();

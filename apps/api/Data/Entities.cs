@@ -26,6 +26,7 @@ public sealed class Branch
 
 public sealed class AnalysisRecord
 {
+    public bool DetailsPurged { get; set; }
     public string AnalysisId { get; set; } = string.Empty;
     public string ProjectKey { get; set; } = string.Empty;
     public string CommitSha { get; set; } = string.Empty;

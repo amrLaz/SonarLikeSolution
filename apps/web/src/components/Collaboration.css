@@ -1,0 +1,12 @@
+.collaboration-screen, .collaboration-review { min-width: 0; }
+.collaboration-screen p, .collaboration-review p { overflow-wrap: anywhere; }
+.collaboration-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; margin: 1rem 0; align-items: end; }
+.collaboration-screen label, .collaboration-review label { display: grid; gap: .5rem; min-width: 0; }
+.collaboration-screen input, .collaboration-screen select, .collaboration-screen textarea, .collaboration-review input, .collaboration-review select, .collaboration-review textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.collaboration-screen .collaboration-checkbox { display: flex; align-items: center; }
+.collaboration-checkbox input, .issue-filter-group .collaboration-checkbox input { width: auto; }
+.issue-filter-group .collaboration-checkbox { display: flex; align-items: center; gap: .5rem; }
+.collaboration-review { border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem; }
+.collaboration-screen pre, .collaboration-review pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.collaboration-screen form, .collaboration-review form { margin: 1rem 0; }
+.collaboration-screen td, .collaboration-screen th { max-width: 32rem; overflow-wrap: anywhere; }

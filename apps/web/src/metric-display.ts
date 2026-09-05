@@ -2,6 +2,10 @@ export function formatMetric(value: number | null | undefined, unit = ''): strin
   return typeof value === 'number' && Number.isFinite(value) ? `${value}${unit}` : 'Non disponible';
 }
 
+export function comparableVersions(previous: { profile_id?: string | null; profile_version?: string | null; formula_version?: string | null }, current: typeof previous): boolean {
+  return (['profile_id', 'profile_version', 'formula_version'] as const).every(key => !!current[key] && current[key] !== '0' && current[key] !== 'unknown' && current[key] === previous[key]);
+}
+
 export function gateLabel(value: string | null | undefined): string {
   return value === 'pass' ? 'Pass' : value === 'fail' ? 'Fail' : 'Unknown';
 }

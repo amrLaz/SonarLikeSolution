@@ -4,9 +4,10 @@ import { apiPage } from '../api';
 import { findingCategory, findingCategoryLabel } from '../metric-display';
 import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
+import { FindingReview, FINDING_STATES, type Team } from './Collaboration';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
-  authToken?: string; selectedProject: string; selectedBranch: string; selectedAnalysisId: string;
+  authToken?: string; isAdmin: boolean; selectedProject: string; selectedBranch: string; selectedAnalysisId: string;
   selectedSummary: ProjectSummary | null; summaries: ProjectSummary[]; projectMeta: Record<string, ProjectMeta>;
   setSelectedProject: (value: string) => void; setSelectedBranch: (value: string) => void; setSelectedAnalysisId: (value: string) => void;
 };
@@ -27,25 +28,32 @@ const buildFileUrl = (
   return base;
 };
 
-export default function Issues({ authToken, selectedProject, selectedBranch, selectedAnalysisId, selectedSummary, summaries, projectMeta, setSelectedProject, setSelectedBranch, setSelectedAnalysisId }: Props) {
+export default function Issues({ authToken, isAdmin, selectedProject, selectedBranch, selectedAnalysisId, selectedSummary, summaries, projectMeta, setSelectedProject, setSelectedBranch, setSelectedAnalysisId }: Props) {
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>("all");
   const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>("all");
   const [issueRuleFilter, setIssueRuleFilter] = useState("");
   const [issueFileFilter, setIssueFileFilter] = useState("");
-  const filterKey = [selectedAnalysisId, issueSeverityFilter, issueTypeFilter, issueRuleFilter, issueFileFilter].join('|');
+  const [mine, setMine] = useState(false);
+  const [state, setState] = useState('');
+  const [team, setTeam] = useState({ project: '', id: '', cursor: '' });
+  const teamId = team.project === selectedProject ? team.id : '';
+  const teamCursor = team.project === selectedProject ? team.cursor : '';
+  const teams = useQuery({ queryKey: ['collaboration', 'teams', selectedProject, teamCursor], enabled: !!selectedProject,
+    queryFn: ({ signal }) => apiPage<Team>(`${API_BASE}/v1/collaboration/teams?${new URLSearchParams({ project_key: selectedProject, cursor: teamCursor })}`, authToken, { signal }) });
+  const filterKey = [selectedAnalysisId, issueSeverityFilter, issueTypeFilter, issueRuleFilter, issueFileFilter, mine, state, teamId].join('|');
   const [page, setPage] = useState({ key: '', cursor: '' });
   const cursor = page.key === filterKey ? page.cursor : '';
   const issuesQuery = useQuery({
     queryKey: ['findings', filterKey, cursor], enabled: !!selectedAnalysisId,
-    queryFn: ({ signal }) => apiPage<{ id: number; tool: string; rule_id: string; severity: string; category: string; message: string; path: string | null; line: number | null }>(
-      `${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings?${new URLSearchParams({ severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, path: issueFileFilter, cursor })}`, authToken, { signal }),
+    queryFn: ({ signal }) => apiPage<{ id: number; finding_id: string | null; tool: string; rule_id: string; severity: string; category: string; message: string; path: string | null; line: number | null }>(
+      `${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings?${new URLSearchParams({ severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, path: issueFileFilter, mine: mine ? 'true' : '', state, team_id: teamId, cursor })}`, authToken, { signal }),
   });
   const issuesLoading = issuesQuery.isLoading;
   const issuesError = issuesQuery.error?.message ?? null;
   const selectedAnalysis = selectedSummary?.history.find(item => item.analysis_id === selectedAnalysisId);
   const filteredIssueDetails = useMemo(() => (issuesQuery.data?.items ?? []).map(issue => ({
-    id: String(issue.id), file_path: issue.path ?? '', line: issue.line, end_line: undefined as number | undefined,
+    id: String(issue.id), finding_id: issue.finding_id, file_path: issue.path ?? '', line: issue.line, end_line: undefined as number | undefined,
     rule: issue.rule_id, message: issue.message, severity: issue.severity.toUpperCase(), category: findingCategory(issue.category),
     tool: issue.tool, commit_sha: selectedAnalysis?.commit_sha ?? '', branch: selectedAnalysis?.branch ?? '',
     repo_url: projectMeta[selectedProject]?.repoUrl ?? '', repo_provider: projectMeta[selectedProject]?.repoProvider ?? 'other',
@@ -74,6 +82,14 @@ export default function Issues({ authToken, selectedProject, selectedBranch, sel
           {/* ── Left sidebar filters ──────────────────────────────── */}
           <aside className="issues-sidebar">
             <h3>Filters</h3>
+            <div className="issue-filter-group">
+              <label className="collaboration-checkbox"><input type="checkbox" checked={mine} onChange={event => setMine(event.target.checked)} /> Mes problèmes</label>
+              <label>État collaboratif<select value={state} onChange={event => setState(event.target.value)}><option value="">Tous les états</option>{Object.entries(FINDING_STATES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label>Équipe<select value={teamId} disabled={!teams.isSuccess} onChange={event => setTeam({ project: selectedProject, id: event.target.value, cursor: teamCursor })}><option value="">Toutes les équipes</option>{teamId && !teams.data?.items.some(item => item.id === teamId) && <option value={teamId}>Équipe sélectionnée hors page</option>}{teams.data?.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              {teams.error && <p role="alert">{teams.error.message}</p>}
+              {teamCursor && <button type="button" onClick={() => setTeam({ project: selectedProject, id: teamId, cursor: '' })}>Premières équipes</button>}
+              {teams.data?.next && <button type="button" onClick={() => setTeam({ project: selectedProject, id: teamId, cursor: teams.data!.next! })}>Équipes suivantes</button>}
+            </div>
 
             <div className="issue-filter-group">
               <p className="issue-filter-label">Catégorie</p>
@@ -133,6 +149,7 @@ export default function Issues({ authToken, selectedProject, selectedBranch, sel
                 setIssueTypeFilter("all");
                 setIssueRuleFilter("");
                 setIssueFileFilter("");
+                setMine(false); setState(''); setTeam({ project: selectedProject, id: '', cursor: '' });
               }}
             >
               Reset filters
@@ -262,6 +279,7 @@ ${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
                               </a>
                             </div>
                           )}
+                          <FindingReview key={`${selectedAnalysisId}:${issue.id}`} findingId={issue.finding_id} occurrenceId={Number(issue.id)} projectKey={selectedProject} authToken={authToken} isAdmin={isAdmin} />
                         </div>
                       )}
                     </article>

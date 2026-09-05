@@ -583,5 +583,119 @@
       "GET"
     ],
     "path": "/api/v1/insights/branches"
+  },
+  {
+    "path": "/api/v1/collaboration/teams",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/people",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/ownership/{key}",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/occurrences/{id}",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}/decisions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}/comments",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/projects/{projectKey}/boards",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}/boards",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}/boards/reconcile",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/subscriptions",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/subscriptions/{id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/notifications",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/notifications/{id}/read",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/portfolio/history",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/portfolio/export",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/portfolio/objectives",
+    "methods": [
+      "PUT"
+    ]
   }
 ]

@@ -35,6 +35,14 @@ KEV conserve son contrôle de fraîcheur au démarrage. La rétention s'exécute
 
 ## Hébergement et évolutions
 
+P2 ajoute une identité de finding indépendante des occurrences, l'assignation
+projet/équipe, les décisions de revue conservées, une boîte personnelle ciblée
+et des effets Boards dans la queue durable existante. Les synthèses legacy sont
+conservées après purge des détails. Le portefeuille compare chaque dimension
+uniquement à profil et formule compatibles. Les contrats et limites sont dans
+[collaboration](p2-collaboration.md), [Boards](p2-boards.md) et
+[portefeuille](p2-portfolio.md).
+
 Le [Terraform](../infra/PLATFORM_SAST.md) définit les ressources Azure. La [pipeline](../.azuredevops/deploy-apps.yml) construit et déploie l’image. Le [Compose](../docker-compose.yml) est destiné au développement local ; son existence ne prouve pas un déploiement Azure.
 
 P1 implémente stockage Blob, queue PostgreSQL, import SARIF/couverture/SBOM et agrégats serveur. `Ingestion:BlobServiceUri` utilise `DefaultAzureCredential` ; `BlobConnectionString` permet notamment le développement Azurite. Le conteneur de rapports est privé et sa création Azure appartient à Terraform. La concurrence est bornée par processus : ajouter une réplique augmente les connexions et la pression sur PostgreSQL. Le parsing conserve un plafond mémoire/entrées, mais ne constitue pas un traitement streaming intégral. Le catalogue des projets et les branches détaillées des synthèses restent des points à mesurer. Le smoke local ne certifie pas la capacité pour plusieurs centaines de projets ; la campagne A/B/C et le pilote Azure restent à réaliser. Voir [intégration](integration.md), [performances](performances.md) et [roadmap](roadmap.md).

@@ -20,6 +20,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         IngestionModel.Configure(modelBuilder);
+        CollaborationModel.Configure(modelBuilder);
+        BoardsModel.Configure(modelBuilder);
+        PortfolioModel.Configure(modelBuilder);
         modelBuilder.Entity<Project>(e =>
         {
             e.ToTable("projects");
@@ -197,6 +200,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasColumnName("created_at")
                 .HasColumnType("character varying(64)")
                 .IsRequired();
+            e.Property(x => x.DetailsPurged).HasColumnName("details_purged").HasDefaultValue(false);
             e.HasKey(x => x.AnalysisId);
         });
         modelBuilder.Entity<RetentionPolicy>(e =>

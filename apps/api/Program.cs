@@ -57,6 +57,7 @@ builder.Services.Configure<IngestionOptions>(builder.Configuration.GetSection("I
 builder.Services.AddSingleton<ReportStorage>();
 builder.Services.AddScoped<IngestionProcessor>();
 builder.Services.AddScoped<IngestionAdo>();
+builder.Services.AddScoped<BoardsDelivery>();
 builder.Services.AddScoped<IngestionMaintenance>();
 builder.Services.AddHostedService<IngestionWorker>();
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 50L * 1024 * 1024);
@@ -134,6 +135,9 @@ app.MapAnalysisEndpoints();
 app.MapIngestionEndpoints();
 app.MapProfileEndpoints();
 app.MapInsightEndpoints();
+app.MapCollaborationEndpoints();
+app.MapBoardsEndpoints();
+app.MapPortfolioEndpoints();
 app.MapRuleEndpoints();
 app.MapPlatformEndpoints();
 app.MapIntegrationEndpoints();

@@ -23,6 +23,7 @@ public static class InsightEndpoints
         PrDecorationStatus = x.PrDecorationStatus, Measurements = x.Measurements,
         ToolExecutions = x.ToolExecutions, Completeness = x.Completeness, ProfileId = x.ProfileId,
         ProfileVersion = x.ProfileVersion, FormulaVersion = x.FormulaVersion, GateSnapshot = x.GateSnapshot,
+        DetailsPurged = x.DetailsPurged,
     };
 
     public static IEndpointRouteBuilder MapInsightEndpoints(this IEndpointRouteBuilder app)
@@ -86,7 +87,7 @@ public static class InsightEndpoints
     private static async Task<IResult> FindingsAsync(string id, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
     {
         var ingestion = await LatestAsync(id, context, db, auth, ct);
-        if (ingestion?.DetailsPurged == true) throw new ApiException(410, "Analysis details were purged");
+        if (ingestion?.DetailsPurged == true || await db.Set<AnalysisRecord>().AnyAsync(x => x.AnalysisId == id && x.DetailsPurged, ct)) throw new ApiException(410, "Analysis details were purged");
         var query = db.Set<FindingOccurrence>().AsNoTracking().Where(x => x.AnalysisId == id && (ingestion == null || x.IngestionId == ingestion.Id));
         var category = context.Request.Query["category"].ToString();
         var severity = context.Request.Query["severity"].ToString();
@@ -100,9 +101,20 @@ public static class InsightEndpoints
         }
         if (rule.Length > 0) query = query.Where(x => x.RuleId.ToLower().Contains(rule.ToLower()));
         if (path.Length > 0) query = query.Where(x => x.Path != null && x.Path.ToLower().Contains(path.ToLower()));
+        var mine = context.Request.Query["mine"] == "true";
+        var team = context.Request.Query["team_id"].ToString();
+        var state = context.Request.Query["state"].ToString();
+        if (mine || team.Length > 0 || state.Length > 0 && state != "all")
+        {
+            var actor = await auth.RequireAsync(context, "user", ct);
+            var findings = CollaborationEndpoints.FilterState(db.Set<DurableFinding>().AsNoTracking(), state);
+            if (mine) findings = findings.Where(x => x.AssigneeUserId == actor.Sub);
+            if (team.Length > 0) findings = findings.Where(x => x.TeamId == team);
+            query = query.Where(x => findings.Any(f => f.Id == x.FindingId));
+        }
         var cursor = NumericCursor(context.Request); var size = PageSize(context.Request);
         var rows = await query.Where(x => x.Id > cursor).OrderBy(x => x.Id).Take(size + 1).Select(x => new
-        { x.Id, x.Tool, x.RuleId, x.Severity, x.OriginalSeverity, x.Category, x.Message, x.Path, x.Line, x.Fingerprint, x.Excepted }).ToListAsync(ct);
+        { x.Id, x.FindingId, x.Tool, x.RuleId, x.Severity, x.OriginalSeverity, x.Category, x.Message, x.Path, x.Line, x.Fingerprint, x.Excepted }).ToListAsync(ct);
         if (rows.Count > size) { rows.RemoveAt(size); Continuation(context, rows[^1].Id.ToString()); }
         return Results.Ok(rows);
     }

@@ -53,6 +53,7 @@ public sealed class DurableJob
 public sealed class FindingOccurrence
 {
     public long Id { get; set; }
+    public string? FindingId { get; set; }
     public string IngestionId { get; set; } = "";
     public string AnalysisId { get; set; } = "";
     public string ReportId { get; set; } = "";

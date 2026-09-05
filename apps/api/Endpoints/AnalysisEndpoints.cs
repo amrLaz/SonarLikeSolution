@@ -309,9 +309,15 @@ public static class AnalysisEndpoints
             PrDecorationStatus = "",
             PrDecorationError = "",
         };
-        db.Add(record);
-        db.AddRange(LegacyFindings.Normalize(record));
-        await db.SaveChangesAsync(ct);
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            db.Add(record);
+            var occurrences = LegacyFindings.Normalize(record).ToList();
+            db.AddRange(occurrences);
+            await FindingCollaboration.ObserveAsync(db, record, occurrences, ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
         if (
             !string.IsNullOrEmpty(request.PrId)
             && !string.IsNullOrEmpty(request.PrRepoId)

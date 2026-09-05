@@ -6,9 +6,16 @@ import ts from 'typescript';
 const { outputText } = ts.transpileModule(readFileSync(new URL('./metric-display.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
 });
-const { analysisGateClass, analysisGateLabel, completenessLabel, findingCategory, findingCategoryLabel, formatMetric, gateLabel, measurementStateLabel, scopedMetrics, metricPoint } = await import(
+const { analysisGateClass, analysisGateLabel, comparableVersions, completenessLabel, findingCategory, findingCategoryLabel, formatMetric, gateLabel, measurementStateLabel, scopedMetrics, metricPoint } = await import(
   `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`
 );
+
+const versioned = { profile_id: 'dotnet', profile_version: '1', formula_version: 'formula/1' };
+assert.equal(comparableVersions(versioned, { ...versioned }), true);
+assert.equal(comparableVersions(versioned, { ...versioned, formula_version: 'formula/2' }), false, 'Formula changes must break trend segments');
+assert.equal(comparableVersions(versioned, { ...versioned, profile_id: 'react' }), false);
+assert.equal(comparableVersions({}, {}), false, 'Missing versions do not prove comparability');
+assert.equal(comparableVersions({ ...versioned, profile_version: '0' }, { ...versioned, profile_version: '0' }), false);
 
 assert.equal(formatMetric(undefined, '%'), 'Non disponible');
 assert.equal(formatMetric(null), 'Non disponible');

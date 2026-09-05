@@ -5,6 +5,48 @@ description: Commandes .NET 10, tests isolés et résultats de la campagne local
 
 # Validation de CodeInsights
 
+## Validation P2 du 5 septembre 2026
+
+Le lot [collaboration](p2-collaboration.md), [Boards](p2-boards.md) et
+[portefeuille](p2-portfolio.md) utilise une base PostgreSQL et un Azurite dédiés
+au test local, avec l'API Windows sur loopback. La migration
+`CollaborationAndPortfolio` a été appliquée sur cette base ; le modèle EF ne
+présente aucun changement non migré.
+
+La même suite complète a ensuite réussi sur l'image Linux finale
+`codeinsights:p2-local`, ID
+`sha256:b16d4eeaf31d885d92b4f280e2222dfdfa7b9bd5d4e6b45b239641a1d4ec8d29`,
+avec SPA servi et healthcheck `healthy` sous UID 1654. Le Compose a été validé
+avec des valeurs de test explicites. Pour l'Azurite local depuis Docker Desktop,
+utiliser un endpoint IP (style émulateur) : un hostname peut modifier
+l'interprétation du chemin compte/conteneur par le SDK Blob.
+
+- Compilation Release sans avertissement ni erreur ; checks console avec
+  `CODEINSIGHTS_TEST_DB` et `CODEINSIGHTS_TEST_URL` réussis, incluant les
+  régressions P0/P1 et 115 refus de routes anonymes.
+- `CollaborationChecks` vérifie fingerprint/déplacement, périmètre projet/branche,
+  réouverture et assignation au scan suivant, expiration idempotente, preuve
+  modifiée invalidant une exception, audit rattaché au scan courant, refus
+  interprojets, motifs invalides, version obsolète, filtres serveur et survie
+  des décisions après purge. Les fixtures restent dans la base jetable.
+- `PortfolioChecks` vérifie absence versus zéro, versions incompatibles,
+  régression, fraîcheur, objectifs et rétention. Le check HTTP exerce la
+  traduction PostgreSQL du filtre équipe et des bornes de période inclusives.
+- `BoardsChecks` utilise un substitut HTTP : cible autorisée, marqueur exact,
+  création/reprise, résultat POST perdu, 429 et mise à jour idempotente.
+  L'abonnement rejoué et la boîte dédupliquée sont aussi vérifiés sur PostgreSQL.
+- Build du stage frontend, TypeScript strict et cinq checks Node (dont
+  `collaboration.check.mjs`) réussis. Aucun nouveau manifeste npm suivi.
+- Le navigateur intégré a vérifié les écrans P2 à 390, 768 et 1440 px,
+  la revue après purge, commentaire au clavier/focus visible et notification
+  ciblée unique. Le portefeuille montre les mesures absentes, les régressions
+  et les synthèses purgées ; un objectif a été enregistré sur une mesure réelle.
+  L'échéance est relue avec le même jour UTC ; le filtre sans résultat est
+  conservé dans l'URL après reconnexion et l'export restitue le périmètre choisi.
+
+Ces contrôles ne valident ni un Work Item Azure réel, ni un déploiement, ni la
+capacité aux paliers A/B/C, ni un audit exhaustif WCAG. Le pilote reste nécessaire.
+
 ## Validation P1 du 5 septembre 2026
 
 Le nouveau [parcours d'ingestion](p1-ingestion.md) a été vérifié sur PostgreSQL et

@@ -1,5 +1,5 @@
 import type { AnalysisRecord, ProjectSummary } from '../types';
-import { analysisGateLabel, formatMetric, metricPoint } from '../metric-display';
+import { analysisGateLabel, comparableVersions, formatMetric, metricPoint } from '../metric-display';
 import { METRIC_FIELDS } from './AnalysisEvidence';
 
 type EvolutionProps = {
@@ -43,7 +43,7 @@ export default function Evolution({ summaries, selectedSummary, selectedProject,
         {(() => {
           const history = [...selectedProjectAnalyses].sort((a, b) => a.created_at.localeCompare(b.created_at));
           return history.length === 0 ? <p className="empty-state">No analyses available for this branch.</p> : <>
-            <p className="hint">Valeurs publiées par analyse. Les mesures absentes interrompent les courbes ; les tableaux donnent les valeurs exactes.</p>
+            <p className="hint">Valeurs publiées par analyse. Les mesures absentes et les changements ou absences de version de profil/formule interrompent les courbes ; les tableaux donnent les valeurs exactes. Le portefeuille permet la recherche sur tout l’historique conservé.</p>
             <div className="charts-grid">
               {METRIC_FIELDS.map(([key, label, unit]) => {
                 const values = history.map(a => a.metrics[key]);
@@ -54,7 +54,7 @@ export default function Evolution({ summaries, selectedSummary, selectedProject,
                   <p className="hint">Scale: 0–{maximum}{unit === "%" ? "%" : ""}</p>
                   {points.some(Boolean) ? <svg viewBox="0 0 360 150" className="trend-chart" role="img" aria-label={label + " trend. Exact values in the table below."}>
                     {points.map((point, index) => point && <g key={index}>
-                      {index > 0 && points[index - 1] && <line x1={points[index - 1]!.x} y1={points[index - 1]!.y} x2={point.x} y2={point.y} stroke="var(--primary)" strokeWidth="2" />}
+                      {index > 0 && points[index - 1] && comparableVersions(history[index - 1], history[index]) && <line x1={points[index - 1]!.x} y1={points[index - 1]!.y} x2={point.x} y2={point.y} stroke="var(--primary)" strokeWidth="2" />}
                       <circle cx={point.x} cy={point.y} r="3" fill="var(--primary)" />
                     </g>)}
                   </svg> : <p className="empty-state">Non disponible</p>}
@@ -63,9 +63,9 @@ export default function Evolution({ summaries, selectedSummary, selectedProject,
             </div>
             <div className="table-wrap" tabIndex={0} role="region" aria-label="Evolution values">
               <table><caption>Metrics by analysis — {selectedProject} · {selectedBranch}</caption>
-                <thead><tr><th scope="col">Date</th><th scope="col">Commit</th><th scope="col">Analysis</th><th scope="col">Quality Gate</th>{METRIC_FIELDS.map(([key, label]) => <th scope="col" key={key}>{label}</th>)}</tr></thead>
+                <thead><tr><th scope="col">Date</th><th scope="col">Commit</th><th scope="col">Analysis</th><th scope="col">Quality Gate</th><th scope="col">Profil / version / formule</th>{METRIC_FIELDS.map(([key, label]) => <th scope="col" key={key}>{label}</th>)}</tr></thead>
                 <tbody>{history.map(analysis => <tr key={analysis.analysis_id}>
-                  <th scope="row">{new Date(analysis.created_at).toLocaleString()}</th><td><code>{analysis.commit_sha || "Non disponible"}</code></td><td>{analysis.status}</td><td>{analysisGateLabel(analysis.quality_gate, analysis.completeness)}</td>
+                  <th scope="row">{new Date(analysis.created_at).toLocaleString()}</th><td><code>{analysis.commit_sha || "Non disponible"}</code></td><td>{analysis.status}</td><td>{analysisGateLabel(analysis.quality_gate, analysis.completeness)}</td><td>{analysis.profile_id || 'Non disponible'} / {analysis.profile_version || 'Non disponible'} / {analysis.formula_version || 'Non disponible'}</td>
                   {METRIC_FIELDS.map(([key, , unit]) => <td key={key}>{formatMetric(analysis.metrics[key], unit)}</td>)}
                 </tr>)}</tbody>
               </table>
