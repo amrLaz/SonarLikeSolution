@@ -9,7 +9,7 @@ resource "azurerm_key_vault" "sast" {
   location                   = azurerm_resource_group.sast.location
   tenant_id                  = data.azurerm_client_config.current.tenant_id
   sku_name                   = "standard"
-  enable_rbac_authorization  = true
+  rbac_authorization_enabled = true
   soft_delete_retention_days = 7
   purge_protection_enabled   = false
   tags                       = local.common_tags
@@ -86,6 +86,13 @@ locals {
 resource "azurerm_key_vault_secret" "authentication_signing_key" {
   name         = "authentication-signing-key"
   value        = var.authentication_signing_key
+  key_vault_id = azurerm_key_vault.sast.id
+  depends_on   = [azurerm_role_assignment.kv_admin]
+}
+
+resource "azurerm_key_vault_secret" "bootstrap_admin_password" {
+  name         = "bootstrap-admin-password"
+  value        = var.platform_admin_password
   key_vault_id = azurerm_key_vault.sast.id
   depends_on   = [azurerm_role_assignment.kv_admin]
 }

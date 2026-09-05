@@ -87,6 +87,7 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
+                set -euo pipefail
                 TOKEN=$(az acr login \
                   --name upgroup \
                   --expose-token \
@@ -125,6 +126,7 @@ stages:
                     scriptType: bash
                     scriptLocation: inlineScript
                     inlineScript: |
+                      set -euo pipefail
                       az webapp config container set \
                         --name "$(CONTAINER_APP_NAME)" \
                         --resource-group "$(RESOURCE_GROUP)" \
@@ -138,6 +140,14 @@ stages:
                         --name "$(CONTAINER_APP_NAME)" \
                         --resource-group "$(RESOURCE_GROUP)" \
                         --query "defaultHostName" --output tsv)
+
+                      for attempt in $(seq 1 60); do
+                        if curl --fail --silent --max-time 10 "https://${FQDN}/api/v1/health" >/dev/null; then break; fi
+                        sleep 10
+                      done
+                      curl --fail --silent --max-time 20 "https://${FQDN}/api/v1/health"
+                      curl --fail --silent --max-time 20 "https://${FQDN}/healthz"
+                      curl --fail --silent --max-time 20 "https://${FQDN}/" | grep -q '<div id="root">'
 
                       echo "════════════════════════════════════════════════════════"
                       echo "  Déploiement terminé — image :$(IMAGE_TAG)"

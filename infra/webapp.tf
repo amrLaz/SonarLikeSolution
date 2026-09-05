@@ -25,6 +25,7 @@ resource "azurerm_linux_web_app" "sast" {
 
   site_config {
     container_registry_use_managed_identity = true
+    health_check_path                       = "/api/v1/health"
 
     application_stack {
       docker_image_name   = "sast-platform:latest"
@@ -36,7 +37,7 @@ resource "azurerm_linux_web_app" "sast" {
     {
       ConnectionStrings__CodeInsights    = format("Host=%s;Database=\"%s\";Username=\"%s\";Password=\"%s\";SSL Mode=Require", azurerm_postgresql_flexible_server.sast.fqdn, replace(var.postgres_db_name, "\"", "\"\""), replace(var.postgres_admin_login, "\"", "\"\""), replace(var.postgres_admin_password, "\"", "\"\""))
       Bootstrap__AdminEmail              = var.platform_admin_email
-      Bootstrap__AdminPassword           = var.platform_admin_password
+      Bootstrap__AdminPassword           = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=bootstrap-admin-password)"
       Bootstrap__RequireCompleteMappings = tostring(var.p0_require_complete_mappings)
       Authentication__SigningKey         = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=authentication-signing-key)"
       WEBSITES_PORT                      = "8000"

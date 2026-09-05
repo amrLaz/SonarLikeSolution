@@ -53,7 +53,7 @@ variable "authentication_signing_key" {
 variable "platform_admin_email" {
   description = "Email du premier administrateur local créé uniquement lorsqu'aucun administrateur n'existe."
   type        = string
-  default     = "admin@platform.local"
+  default     = "admin@codeinsights.local"
 }
 
 variable "platform_admin_password" {
