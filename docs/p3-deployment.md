@@ -66,6 +66,11 @@ de ticket Azure Boards n'est utilisé par les scénarios locaux.
   `/api/v1/projects`, `/api/v1/profiles` et `/api/v1/ingestions/queue` réussies.
   Ces lectures vérifient aussi PostgreSQL, sans exécuter la suite de tests
   créatrice de données contre la production.
+- App Service a terminé un dernier redémarrage à 21:19:24 UTC, après les
+  sondes du pipeline. Les journaux attestent le démarrage de l'image `276085` ;
+  les contrôles indépendants suivants confirment santé et page web HTTP 200,
+  puis actualisation authentifiée dans le navigateur avec API connectée.
+  La réussite du pipeline seule ne prouve donc pas la fin du basculement.
 
 Le navigateur intégré retrouve la session utilisateur existante : l'API est
 connectée, la liste des projets charge et le nouvel onglet **Code** affiche
