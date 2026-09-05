@@ -39,8 +39,41 @@ permet de reprendre le même plan, sans recréer PostgreSQL ni le compte Blob.
   succès, rôle de déploiement initialisé puis plan complet appliqué
   (2 ajouts, 2 modifications, aucune suppression).
 - Client canonique publié dans `Up.France.ODI.AzurePipelines`, commit
-  `7352cb223ad3731139dc06e65472351a5416051e` ; 11 tests Python réussis.
+  `dd7560c1f349d20e583732d6bff2bbe2dc6c2e10` ; 14 tests Python réussis.
+- [Pilote natif](p3-native-pilot.md) : configurations réellement consommées par
+  Roslyn, ESLint et Semgrep ; trois SARIF importés avec configuration `matched`,
+  localisations relatives prouvées et originaux retéléchargés identiques.
+  Semgrep vérifie aussi défaut, correction, puis gate `fail` → `pass` sans
+  modification du premier verdict. Les chemins absolus utilisent `source_root`
+  explicite ; aucune lecture de source ni réécriture du rapport n'est effectuée.
+- Navigateur intégré local : connexion, sélection projet/analyse, explorateur,
+  ligne couverte/non couverte, absence de mesure et deux localisations de
+  duplication consultées sans erreur visible ni débordement horizontal global.
 
 L'acceptation organisationnelle des branch policies et la campagne de charge
 restent distinctes de ces checks fonctionnels. Aucun envoi Teams ou création
 de ticket Azure Boards n'est utilisé par les scénarios locaux.
+
+## Vérification Azure
+
+- [Application 276085](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276085) :
+  succès le 5 septembre 2026 à 21:17 UTC, source
+  `04787b52f713a8e43b2587663614237e5fddb08b`.
+- Image active confirmée dans App Service :
+  `upgroup.azurecr.io/sast-platform:276085`.
+- Sondes HTTPS `/api/v1/health`, `/healthz` et page React validées par le pipeline.
+- Connexion administrateur, puis lectures authentifiées `/api/v1/auth/me`,
+  `/api/v1/projects`, `/api/v1/profiles` et `/api/v1/ingestions/queue` réussies.
+  Ces lectures vérifient aussi PostgreSQL, sans exécuter la suite de tests
+  créatrice de données contre la production.
+
+Le navigateur intégré retrouve la session utilisateur existante : l'API est
+connectée, la liste des projets charge et le nouvel onglet **Code** affiche
+l'explorateur et les périmètres. Aucun projet de test n'a été créé en production.
+
+Les exécutions applicatives 276083 et 276084 ont déployé la même source mais
+se sont chevauchées. Leurs contrôles authentifiés ont expiré pendant les
+redémarrages ; les journaux App Service indiquent une annulation du démarrage,
+puis un démarrage réussi. La sonde publique est revenue en HTTP 200.
+Une seule exécution doit être suivie jusqu'à son contrôle final ; ne pas lancer
+une relance manuelle tant que le déploiement automatique est actif.

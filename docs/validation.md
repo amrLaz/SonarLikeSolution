@@ -5,6 +5,22 @@ description: Commandes .NET 10, tests isolés et résultats de la campagne local
 
 # Validation de CodeInsights
 
+## Livraison complète P3 du 5 septembre 2026
+
+La source `04787b52f713a8e43b2587663614237e5fddb08b` complète P3.1 à P3.8.
+La suite intégrale sur PostgreSQL et Azurite isolés passe, y compris 130 refus
+anonymes, les profils natifs, les périmètres versionnés, la couverture détaillée,
+la duplication et la conservation des décisions de sécurité seulement lorsque
+leur preuve reste valable. Le build Release ne produit ni erreur ni
+avertissement ; aucune différence de modèle EF ne reste sans migration.
+TypeScript, neuf checks Node et les 14 tests du client partagé passent.
+
+Le [pilote natif](p3-native-pilot.md) utilise réellement Roslyn, ESLint et
+Semgrep avec les exports du profil. La [livraison Azure](p3-deployment.md)
+documente les pipelines, la conservation de la base et les vérifications live.
+Les campagnes ci-dessous sont des résultats historiques, avec leurs propres
+périmètres et limitations.
+
 ## Premier incrément P3 du 5 septembre 2026
 
 Le [gate nouveau code](p3-new-code.md) et les [preuves SARIF](p3-evidence.md)
