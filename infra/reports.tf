@@ -1,4 +1,11 @@
+resource "azurerm_role_assignment" "deployment_reports" {
+  scope                = azurerm_resource_group.sast.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 resource "azurerm_storage_account" "reports" {
+  depends_on                      = [azurerm_role_assignment.deployment_reports]
   name                            = "ci${substr(sha256(azurerm_resource_group.sast.id), 0, 18)}"
   resource_group_name             = azurerm_resource_group.sast.name
   location                        = azurerm_resource_group.sast.location
