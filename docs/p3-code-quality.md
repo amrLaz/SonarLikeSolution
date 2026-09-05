@@ -12,12 +12,12 @@ n'exécute aucun nouveau scanner. Les métadonnées normalisées sont limitées 
 
 ## Formats producteurs
 
-| Format / version de l'adaptateur | Production et données conservées |
-| --- | --- |
-| `lcov` / `1` ou `1.0` | `DA` pour les lignes ; `BRDA` pour les branches identifiées par fichier, ligne, bloc et branche. `BRF` doit correspondre aux détails présents. |
-| `cobertura` / `1` ou `1.0` | Lignes de classe ; `condition-coverage="50% (1/2)"` conserve les deux entiers, jamais le pourcentage arrondi. `branches-valid`, lorsqu'il existe, doit correspondre aux détails. `class@complexity` fournit une complexité de classe, attribuée au producteur. |
-| `jscpd` / `1` | JSON natif `jscpd --reporters json ./src` : `duplicates[]`, `firstFile` et `secondFile` avec `name/start/end`, langage, lignes et tokens. Les fragments source sont ignorés. `tool_version` du manifeste est obligatoire. |
-| `cloc` / `1` | JSON natif `cloc --by-file --json --out=cloc.json src` : entrée par chemin avec `language` et `code`. `header.cloc_version` doit correspondre exactement au `tool_version` du manifeste. Les sorties agrégées par langage ne sont pas acceptées. |
+| Format / version de l'adaptateur | Production et données conservées                                                                                                                                                                                                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lcov` / `1` ou `1.0`            | `DA` pour les lignes ; `BRDA` pour les branches identifiées par fichier, ligne, bloc et branche. `BRF` doit correspondre aux détails présents.                                                                                                                 |
+| `cobertura` / `1` ou `1.0`       | Lignes de classe ; `condition-coverage="50% (1/2)"` conserve les deux entiers, jamais le pourcentage arrondi. `branches-valid`, lorsqu'il existe, doit correspondre aux détails. `class@complexity` fournit une complexité de classe, attribuée au producteur. |
+| `jscpd` / `1`                    | JSON natif `jscpd --reporters json ./src` : `duplicates[]`, `firstFile` et `secondFile` avec `name/start/end`, langage, lignes et tokens. Les fragments source sont ignorés. `tool_version` du manifeste est obligatoire.                                      |
+| `cloc` / `1`                     | JSON natif `cloc --by-file --json --out=cloc.json src` : entrée par chemin avec `language` et `code`. `header.cloc_version` doit correspondre exactement au `tool_version` du manifeste. Les sorties agrégées par langage ne sont pas acceptées.               |
 
 Les versions `1` de jscpd/cloc identifient l'adaptateur, pas la version du moteur.
 Chaque rapport conserve outil, version de l'outil et identifiant du rapport.

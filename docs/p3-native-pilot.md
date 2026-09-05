@@ -16,11 +16,11 @@ utilisent `--network none` ; Semgrep désactive métriques et vérification de v
 Empreinte globale des trois configurations exportées :
 `40be280479482e8870aff42ecdf9dc4e4fd9cd64c5f7277dad367b9de734daf7`.
 
-| Producteur réel | Configuration consommée | Résultat observé |
-| --- | --- | --- |
-| SDK .NET `10.0.104`, Roslyn `5.0.0-2.26119.110` | `.editorconfig` contenant `dotnet_diagnostic.CS0168.severity = error` | La compilation du corpus échoue avec CS0168 en **erreur**, prouvant l’application du niveau exporté ; SARIF 2.1.0 natif produit. |
-| ESLint `9.39.1` sous Node `20.20.2` | Export `eslint-flat-json` devenu `.cjs`, règle native `no-eval: error` | Une fonction JavaScript contenant `eval` produit un finding `no-eval` et un code de sortie `1` ; SARIF 2.1.0 généré par `@microsoft/eslint-formatter-sarif 3.1.0`. |
-| Semgrep OSS `1.175.1` | Export JSON avec une règle de **test du pilote** recherchant `privileged: true` dans un manifeste Kubernetes YAML | Une règle et un fichier effectivement analysés, un finding ; après correction du manifeste à `false`, aucun finding. |
+| Producteur réel                                 | Configuration consommée                                                                                           | Résultat observé                                                                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SDK .NET `10.0.104`, Roslyn `5.0.0-2.26119.110` | `.editorconfig` contenant `dotnet_diagnostic.CS0168.severity = error`                                             | La compilation du corpus échoue avec CS0168 en **erreur**, prouvant l’application du niveau exporté ; SARIF 2.1.0 natif produit.                                   |
+| ESLint `9.39.1` sous Node `20.20.2`             | Export `eslint-flat-json` devenu `.cjs`, règle native `no-eval: error`                                            | Une fonction JavaScript contenant `eval` produit un finding `no-eval` et un code de sortie `1` ; SARIF 2.1.0 généré par `@microsoft/eslint-formatter-sarif 3.1.0`. |
+| Semgrep OSS `1.175.1`                           | Export JSON avec une règle de **test du pilote** recherchant `privileged: true` dans un manifeste Kubernetes YAML | Une règle et un fichier effectivement analysés, un finding ; après correction du manifeste à `false`, aucun finding.                                               |
 
 L’image Semgrep tirée pour le pilote est identifiée par
 `sha256:51c9f53a4fce0d55e9abd08d7b96968654248a4b1122e77f20e0a49c0072446c`.
@@ -52,11 +52,11 @@ diffèrent : racine absolue Windows du corpus pour Roslyn, `/pilot` pour ESLint 
 Les trois reçus finaux sont `completed`, technique `complete`, gate `fail`
 attendu pour le défaut détecté ; leur configuration est `matched`.
 
-| Producteur | Analyse finale | Localisation normalisée | Empreinte de configuration attendue = effective |
-| --- | --- | --- | --- |
-| Roslyn | `958797d0-7afb-4bdd-85d0-53e4f2028ee7` | `dotnet/Program.cs:1`, CS0168 | `a5f937c0c1ed0e6fabe019bebb8edd3f092da639a18853163caefcb9020fde1c` |
-| ESLint | `22e5e4b3-66c6-4e67-9deb-29f553a67db0` | `eslint/app.js:1`, no-eval | `486f29a702428a2425c0cb80fdee56405218ec3ceb42705a4ed32e4a3263bb58` |
-| Semgrep | `33fb7021-c3f4-43fd-afdb-b1bc7cd97edb` | `pod.yaml:10`, native-privileged-container | `a0184598dc4f95d08c688f70e6ef04487c01fe2eeffdd6546573a8c8ce79078b` |
+| Producteur | Analyse finale                         | Localisation normalisée                    | Empreinte de configuration attendue = effective                    |
+| ---------- | -------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| Roslyn     | `958797d0-7afb-4bdd-85d0-53e4f2028ee7` | `dotnet/Program.cs:1`, CS0168              | `a5f937c0c1ed0e6fabe019bebb8edd3f092da639a18853163caefcb9020fde1c` |
+| ESLint     | `22e5e4b3-66c6-4e67-9deb-29f553a67db0` | `eslint/app.js:1`, no-eval                 | `486f29a702428a2425c0cb80fdee56405218ec3ceb42705a4ed32e4a3263bb58` |
+| Semgrep    | `33fb7021-c3f4-43fd-afdb-b1bc7cd97edb` | `pod.yaml:10`, native-privileged-container | `a0184598dc4f95d08c688f70e6ef04487c01fe2eeffdd6546573a8c8ce79078b` |
 
 Les originaux ont été retéléchargés depuis les trois reçus
 `1bd10e17-726f-4254-952d-02f1de11ad46`,

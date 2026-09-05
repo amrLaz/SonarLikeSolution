@@ -6,10 +6,10 @@ PostgreSQL de développement isolée. Le jeton administrateur est transmis par
 `CODEINSIGHTS_LOAD_TOKEN` ; aucun jeton n'apparaît dans le journal.
 
 | Palier | Projets | Historiques/projet | Rapports | Publications | Lecteurs |
-|---|---:|---:|---:|---:|---:|
-| A | 100 | 100 | 3 | 5 | 10 |
-| B | 300 | 300 | 3 | 20 | 30 |
-| C | 500 | 500 | 5 | 50 | 50 |
+| ------ | ------: | -----------------: | -------: | -----------: | -------: |
+| A      |     100 |                100 |        3 |            5 |       10 |
+| B      |     300 |                300 |        3 |           20 |       30 |
+| C      |     500 |                500 |        5 |           50 |       50 |
 
 Créer une nouvelle base/container et une API migrée par palier. Le peuplement
 `--seed-fixtures` requiert `--db-container` explicite et refuse toute base qui
@@ -75,7 +75,6 @@ Le client canonique AzurePipelines a aussi publié deux fois le même lot contre
 l'API : mêmes identifiants d'ingestion et d'analyse, état `completed`, complétude
 technique `complete`. Ce contrôle est conservé dans le reçu local
 `.artifacts/p1/publisher-receipt.json`.
-
 
 Le profil synthétique comporte désormais une condition explicite
 `code_smells <= 1000000`. Sur le même environnement, le client canonique a ensuite

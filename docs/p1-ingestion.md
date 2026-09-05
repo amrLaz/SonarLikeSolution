@@ -18,14 +18,14 @@ URL/token, chemins, formats/versions et producteurs/versions. Déclarer le proje
 ou associer son dépôt pour permettre la résolution serveur ; le jeton doit être
 autorisé sur ce projet. Affecter un profil publié avant le premier import.
 
-| Appel | Résultat |
-|---|---|
-| `POST /api/v1/ingestions` | Valide le manifeste version 1 et retourne identifiants ingestion/analyse, révision et rapports attendus |
-| `PUT /api/v1/ingestions/{id}/reports/{report_id}` | Transfère l'original brut et vérifie longueur et SHA-256 |
-| `POST /api/v1/ingestions/{id}/finalize` | Refuse les uploads encore attendus ; met le traitement complet en queue |
-| `GET /api/v1/ingestions/{id}` | Reçu, état technique, gate, erreurs, rapports, snapshot et lien d'analyse |
-| `GET /api/v1/ingestions/{id}/reports/{report_id}` | Original autorisé ; HTTP 410 après purge |
-| `GET /api/v1/ingestions/queue` | Vue administrateur des jobs par type/état, nombre, plus ancienne création et maximum de tentatives |
+| Appel                                             | Résultat                                                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/ingestions`                         | Valide le manifeste version 1 et retourne identifiants ingestion/analyse, révision et rapports attendus |
+| `PUT /api/v1/ingestions/{id}/reports/{report_id}` | Transfère l'original brut et vérifie longueur et SHA-256                                                |
+| `POST /api/v1/ingestions/{id}/finalize`           | Refuse les uploads encore attendus ; met le traitement complet en queue                                 |
+| `GET /api/v1/ingestions/{id}`                     | Reçu, état technique, gate, erreurs, rapports, snapshot et lien d'analyse                               |
+| `GET /api/v1/ingestions/{id}/reports/{report_id}` | Original autorisé ; HTTP 410 après purge                                                                |
+| `GET /api/v1/ingestions/queue`                    | Vue administrateur des jobs par type/état, nombre, plus ancienne création et maximum de tentatives      |
 
 Le manifeste porte `schema_version`, `project_key` optionnel, `repository_url`,
 `ci_provider`, `build_id`, `commit_sha`, `branch`, `source_sha`, `target_sha`, le
@@ -51,12 +51,12 @@ références externes à télécharger ne font pas partie du contrat.
 
 ## Formats, mesures et gouvernance
 
-| Format/version | Informations utilisées |
-|---|---|
-| SARIF 2.1.0 | Outil, règle, message, niveau original/normalisé, localisation et fingerprint disponible |
-| Cobertura XML, LCOV texte (`1`, `1.0`) | Lignes exécutables et couvertes, fusion fichier/ligne sans moyenne de pourcentages |
-| CycloneDX JSON 1.4 à 1.7 | Composants, purl, versions, licences, dépendances et vulnérabilités incluses avec source/date disponible |
-| SPDX JSON 2.3 | Packages, purl, licences déclarées, relations et racines décrites |
+| Format/version                         | Informations utilisées                                                                                   |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| SARIF 2.1.0                            | Outil, règle, message, niveau original/normalisé, localisation et fingerprint disponible                 |
+| Cobertura XML, LCOV texte (`1`, `1.0`) | Lignes exécutables et couvertes, fusion fichier/ligne sans moyenne de pourcentages                       |
+| CycloneDX JSON 1.4 à 1.7               | Composants, purl, versions, licences, dépendances et vulnérabilités incluses avec source/date disponible |
+| SPDX JSON 2.3                          | Packages, purl, licences déclarées, relations et racines décrites                                        |
 
 Le graphe fourni détermine `root`, `direct`, `transitive` ou `unknown`. Les liens
 CVE proviennent exclusivement du rapport CycloneDX : aucun accès à un catalogue

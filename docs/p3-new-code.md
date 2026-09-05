@@ -16,8 +16,8 @@ une nouvelle version JSON, puis de l'affecter au projet.
   "version": "2",
   "required_tools": ["scanner"],
   "required_metrics": ["bugs"],
-  "rules": [{"tool": "scanner", "rule_id": "R1", "category": "bug"}],
-  "conditions": [{"metric": "bugs", "operator": "max", "threshold": 0, "scope": "new_code"}]
+  "rules": [{ "tool": "scanner", "rule_id": "R1", "category": "bug" }],
+  "conditions": [{ "metric": "bugs", "operator": "max", "threshold": 0, "scope": "new_code" }]
 }
 ```
 

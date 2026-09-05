@@ -11,7 +11,6 @@ Les templates partagés sont versionnés dans **Up.France.ODI.AzurePipelines**. 
 
 Trois parcours coexistent dans le dépôt partagé : `platform-sast-stage.yml` orchestre une analyse vers le hub ; `az-devsecops-scan-tpl.yml` produit des JSON et un artefact avec gate local ; les builds .NET/React produisent notamment couverture, SARIF et SBOM selon les étapes activées. Ces derniers ne publient pas automatiquement leurs rapports vers le hub.
 
-
 Le stage partagé exécute le mode métier `full` du runner canonique. Les findings sont transmis dans la création d'analyse ; aucune publication individuelle vers une route inexistante n'est effectuée.
 
 ## Contrat legacy maintenu
@@ -23,7 +22,7 @@ La source exacte est [AnalysisRequest](../apps/api/Contracts/AnalysisContracts.c
 | Identité          | `project_key` (au moins 2 caractères), `commit_sha` (au moins 6), `branch` non vide                                                                                             |
 | Origine           | `ci_provider` : `azure-devops`, `github-actions` ou `local`                                                                                                                     |
 | Détails           | `affected_files` est un dictionnaire de fichiers/findings, pas un document SARIF                                                                                                |
-| Contexte PR       | `pr_id`, `pr_repo_id`, `pr_ado_project`, `pr_target_branch`, `pr_ado_org_url`, `platform_url`                                                                          |
+| Contexte PR       | `pr_id`, `pr_repo_id`, `pr_ado_project`, `pr_target_branch`, `pr_ado_org_url`, `platform_url`                                                                                   |
 | Complétude        | `measurements` distingue `measured`, `absent`, `failed` et `not_measured`; `tool_executions` conserve le résultat et la version de chaque outil. Zéro est une valeur mesurée.   |
 | Profil            | `profile_id`, `profile_version` et `formula_version` doivent correspondre au profil affecté au projet. Les profils P0 version 1 couvrent .NET, React, IaC et le runner partagé. |
 | Authentification  | Le Bearer est un token CI actif, non expiré, autorisé pour le projet et doté de `analysis:write`. `analysis:read` et `integration:write` sont séparés.                          |
