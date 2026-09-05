@@ -9,13 +9,13 @@ description: Risques vérifiés, priorités d'optimisation et protocole de charg
 
 | Point                      | Preuve                                                                            | Risque et première action                                                                                                 |
 | -------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Historique complet         | `list_analyses` / `.all()` dans [analysis.py](../apps/api/app/routes/analysis.py) | Taille croissante sans borne ; pagination et projection de synthèse                                                       |
+| Historique complet         | Lecture de la collection dans [AnalysisEndpoints.cs](../apps/api/Endpoints/AnalysisEndpoints.cs) | Taille croissante sans borne ; pagination et projection de synthèse |
 | Agrégation navigateur      | `loadDashboard` dans [App.tsx](../apps/web/src/App.tsx)                           | Transfert, parsing et tri de toutes les analyses ; agrégats serveur                                                       |
-| Findings JSON texte        | `AnalysisRecord` dans [models.py](../apps/api/app/models.py)                      | Lecture d'un bloc volumineux pour une liste ; détails séparés et indexables                                               |
-| Effets externes synchrones | `create_analysis` dans [analysis.py](../apps/api/app/routes/analysis.py)          | Latence de publication dépendante d'Azure DevOps ; traitement durable après ingestion                                     |
-| Notifications daemon       | [notify.py](../apps/api/app/notify.py)                                            | Perte au redémarrage et concurrence non bornée ; file, reprise et limite de débit                                         |
-| Pool par processus         | [db.py](../apps/api/app/db.py) : `pool_size=10`, `max_overflow=20`                | Jusqu'à 60 connexions pour deux workers par réplique ; budgéter avant scale-out                                           |
-| Purge au démarrage         | [main.py](../apps/api/app/main.py), [db.py](../apps/api/app/db.py)                | Temps de démarrage et concurrence ; tâche contrôlée hors démarrage web                                                    |
+| Findings JSON texte        | `AnalysisRecord` dans [Entities.cs](../apps/api/Data/Entities.cs) | Lecture d'un bloc volumineux pour une liste ; détails séparés et indexables |
+| Effets externes attendus   | [AnalysisExternal.cs](../apps/api/Services/AnalysisExternal.cs) | Latence de publication dépendante d'Azure DevOps ; traitement durable après ingestion |
+| Notifications en mémoire  | [NotificationService.cs](../apps/api/Services/NotificationService.cs) | Perte au redémarrage et concurrence non bornée ; file, reprise et limite de débit |
+| Pool par processus         | [Program.cs](../apps/api/Program.cs) : pool Npgsql configuré par la chaîne de connexion | Pool distinct par chaîne de connexion et processus ; budgéter chaque réplique |
+| Purge au démarrage         | [Program.cs](../apps/api/Program.cs), [RetentionService.cs](../apps/api/Services/RetentionService.cs) | Temps de démarrage et concurrence ; tâche contrôlée hors démarrage web |
 | Coût CI                    | Stage et runner du dépôt partagé, décrits dans son `docs/report-integration.md`   | Installations/tests répétés, POST par finding, artefacts trop larges ; réutiliser les rapports et publier par lots bornés |
 
 La configuration Terraform B1/B1ms est un point de départ, **pas une capacité validée pour 20 analyses simultanées ni pour plusieurs centaines de projets**. Le nombre de projets seul ne détermine pas la charge : fréquence, historique, concurrence et densité de findings comptent davantage.
@@ -27,7 +27,9 @@ La configuration Terraform B1/B1ms est un point de départ, **pas une capacité 
 3. Conserver les originaux dans Blob Storage ; découpler ingestion et effets externes ; borner concurrence, taille décompressée, durée de parsing et tentatives.
 4. Mettre en place rétention différenciée et migrations contrôlées ; ajuster SKU/pools après mesure. Ajouter un cache seulement pour une lecture répétée dont le coût résiduel est démontré.
 
-Budget SQL : `répliques × workers × (pool_size + max_overflow) + workers de fond + migrations + réserve exploitation` doit rester inférieur au plafond exploitable PostgreSQL. Vérifier le plafond réel sur l'environnement de test ; ajouter une réplique web multiplie les pools, pas la capacité de la base.
+Budget SQL : `répliques × processus × plafond du pool + préparation du schéma + réserve exploitation` doit rester inférieur au plafond exploitable PostgreSQL. Le conteneur API démarre un processus .NET ; des chaînes de connexion distinctes peuvent créer des pools supplémentaires. Vérifier le plafond réel sur l'environnement de test ; ajouter une réplique web multiplie les pools, pas la capacité de la base.
+
+Les checks de [validation](validation.md) vérifient le fonctionnement. Le protocole de charge ci-dessous sert à mesurer la capacité.
 
 ## Protocole de charge hors production
 

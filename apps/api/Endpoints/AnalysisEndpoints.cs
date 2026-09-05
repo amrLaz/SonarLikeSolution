@@ -1,0 +1,430 @@
+using System.Text.Json;
+using CodeInsights.Api.Auth;
+using CodeInsights.Api.Contracts;
+using CodeInsights.Api.Data;
+using CodeInsights.Api.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace CodeInsights.Api.Endpoints;
+
+public static class AnalysisEndpoints
+{
+    public static IEndpointRouteBuilder MapAnalysisEndpoints(this IEndpointRouteBuilder app)
+    {
+        var routes = app.MapGroup("/api/v1/analyses").RequireAuthorization();
+        routes
+            .MapGet(
+                "",
+                async (
+                    HttpContext context,
+                    AppDbContext db,
+                    AuthService auth,
+                    CancellationToken ct
+                ) =>
+                {
+                    var user = await auth.RequireAsync(context, ct: ct);
+                    var key = context.Request.Query["project_key"].ToString();
+                    var visible = await auth.AllowedProjectKeysAsync(user, ct: ct);
+                    if (key.Length > 0)
+                        await auth.AssertProjectAccessAsync(user, key, ct: ct);
+                    var query = db.Set<AnalysisRecord>()
+                        .AsNoTracking()
+                        .Where(x =>
+                            key.Length > 0 ? x.ProjectKey == key : visible.Contains(x.ProjectKey)
+                        )
+                        .OrderByDescending(x => x.CreatedAt);
+                    // ponytail: project lists retain findings; global projection excludes large finding JSON at the database boundary.
+                    var records =
+                        key.Length > 0
+                            ? await query.ToListAsync(ct)
+                            : await query
+                                .Select(x => new AnalysisRecord
+                                {
+                                    AnalysisId = x.AnalysisId,
+                                    ProjectKey = x.ProjectKey,
+                                    CommitSha = x.CommitSha,
+                                    Branch = x.Branch,
+                                    CiProvider = x.CiProvider,
+                                    Status = x.Status,
+                                    QualityGate = x.QualityGate,
+                                    MaintainabilityScore = x.MaintainabilityScore,
+                                    SecurityScore = x.SecurityScore,
+                                    ReliabilityScore = x.ReliabilityScore,
+                                    CodeSmells = x.CodeSmells,
+                                    Vulnerabilities = x.Vulnerabilities,
+                                    SecurityHotspots = x.SecurityHotspots,
+                                    Bugs = x.Bugs,
+                                    Coverage = x.Coverage,
+                                    Duplication = x.Duplication,
+                                    DependencyVulnerabilities = x.DependencyVulnerabilities,
+                                    GateFailures = x.GateFailures,
+                                    CreatedAt = x.CreatedAt,
+                                    PrId = x.PrId,
+                                    PrDecorationStatus = x.PrDecorationStatus,
+                                    Measurements = x.Measurements,
+                                    ToolExecutions = x.ToolExecutions,
+                                    Completeness = x.Completeness,
+                                    ProfileId = x.ProfileId,
+                                    ProfileVersion = x.ProfileVersion,
+                                    FormulaVersion = x.FormulaVersion,
+                                    GateSnapshot = x.GateSnapshot,
+                                })
+                                .ToListAsync(ct);
+                    return Results.Ok(
+                        records.Select(x => GateEvaluation.ToResponse(x, key.Length > 0))
+                    );
+                }
+            )
+            .Produces<List<AnalysisResponse>>();
+        routes.MapPost("", CreateAsync).Produces<AnalysisResponse>();
+        routes.MapGet(
+            "/export/csv",
+            async (HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct) =>
+            {
+                var user = await auth.RequireAsync(context, ct: ct);
+                var key = context.Request.Query["project_key"].ToString();
+                if (key.Length == 0)
+                    throw new ApiException(
+                        422,
+                        new[]
+                        {
+                            new
+                            {
+                                type = "missing",
+                                loc = new[] { "query", "project_key" },
+                                msg = "Field required",
+                            },
+                        }
+                    );
+                await auth.AssertProjectAccessAsync(user, key, ct: ct);
+                var rows = await db.Set<AnalysisRecord>()
+                    .Where(x => x.ProjectKey == key)
+                    .OrderByDescending(x => x.CreatedAt)
+                    .ToListAsync(ct);
+                return Results.File(
+                    ExportService.Csv(rows),
+                    "text/csv",
+                    $"sast-{new string(key.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_').ToArray())}-history.csv"
+                );
+            }
+        );
+        routes
+            .MapGet(
+                "/{analysis_id}",
+                async (
+                    string analysis_id,
+                    HttpContext context,
+                    AppDbContext db,
+                    AuthService auth,
+                    CancellationToken ct
+                ) =>
+                    Results.Ok(
+                        GateEvaluation.ToResponse(
+                            await FindAsync(analysis_id, context, db, auth, ct)
+                        )
+                    )
+            )
+            .Produces<AnalysisResponse>();
+        routes.MapGet(
+            "/{analysis_id}/view",
+            async (
+                string analysis_id,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+            {
+                await FindAsync(analysis_id, context, db, auth, ct);
+                return Results.Redirect($"http://localhost:5174/analyses/{analysis_id}");
+            }
+        );
+        routes.MapGet(
+            "/{analysis_id}/export/csv",
+            async (
+                string analysis_id,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+                Results.File(
+                    ExportService.Csv([await FindAsync(analysis_id, context, db, auth, ct)]),
+                    "text/csv",
+                    $"sast-{analysis_id[..Math.Min(8, analysis_id.Length)]}.csv"
+                )
+        );
+        routes.MapGet(
+            "/{analysis_id}/export/pdf",
+            async (
+                string analysis_id,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+                Results.File(
+                    ExportService.Pdf(await FindAsync(analysis_id, context, db, auth, ct)),
+                    "application/pdf",
+                    $"sast-report-{analysis_id[..Math.Min(8, analysis_id.Length)]}.pdf"
+                )
+        );
+        routes.MapGet(
+            "/{analysis_id}/vulnerabilities",
+            async (
+                string analysis_id,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                KevService kev,
+                CancellationToken ct
+            ) =>
+            {
+                var record = await FindAsync(analysis_id, context, db, auth, ct);
+                var integration = await db.Set<ProjectIntegration>()
+                    .FirstOrDefaultAsync(x => x.ProjectKey == record.ProjectKey, ct);
+                return Results.Ok(
+                    AnalysisFindings.Build(record, integration, await kev.GetIdsAsync(ct))
+                );
+            }
+        );
+        routes.MapPost(
+            "/{analysis_id}/ai-fix",
+            async (
+                string analysis_id,
+                AiFixRequest request,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                IHttpClientFactory clients,
+                IOptions<AnalysisOptions> options,
+                CancellationToken ct
+            ) =>
+            {
+                await auth.RequireAsync(context, "admin", ct);
+                request.Validate();
+                if (
+                    string.IsNullOrEmpty(options.Value.AzureOpenAiEndpoint)
+                    && string.IsNullOrEmpty(options.Value.AnthropicApiKey)
+                )
+                    throw new ApiException(
+                        503,
+                        "AI fix suggestions not configured — set Analysis:AzureOpenAiEndpoint and Analysis:AzureOpenAiApiKey, or Analysis:AnthropicApiKey"
+                    );
+                await FindAsync(analysis_id, context, db, auth, ct);
+                return Results.Ok(
+                    await AnalysisExternal.AiFixAsync(request, clients, options.Value, ct)
+                );
+            }
+        );
+        routes.MapDelete(
+            "/projects/{project_key}",
+            async (
+                string project_key,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+            {
+                await auth.RequireAsync(context, "admin", ct);
+                return Results.Ok(await DeleteAsync(db, project_key, null, ct));
+            }
+        );
+        routes.MapDelete(
+            "/projects/{project_key}/branches/{branch}",
+            async (
+                string project_key,
+                string branch,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+            {
+                await auth.RequireAsync(context, "admin", ct);
+                return Results.Ok(await DeleteAsync(db, project_key, branch, ct));
+            }
+        );
+        return app;
+    }
+
+    public static async Task<AnalysisRecord> FindAsync(
+        string id,
+        HttpContext context,
+        AppDbContext db,
+        AuthService auth,
+        CancellationToken ct
+    )
+    {
+        var user = await auth.RequireAsync(context, ct: ct);
+        var record =
+            await db.Set<AnalysisRecord>().FindAsync([id], ct)
+            ?? throw new ApiException(404, "Analysis not found");
+        await auth.AssertProjectAccessAsync(user, record.ProjectKey, ct: ct);
+        return record;
+    }
+
+    private static async Task<IResult> CreateAsync(
+        AnalysisRequest request,
+        HttpContext context,
+        AppDbContext db,
+        AuthService auth,
+        IHttpClientFactory clients,
+        NotificationService notifications,
+        IOptions<AnalysisOptions> options,
+        CancellationToken ct
+    )
+    {
+        var user = await auth.RequireAsync(context, "ci", ct);
+        GateEvaluation.Validate(request);
+        var project =
+            await db.Set<Project>().FirstOrDefaultAsync(x => x.Key == request.ProjectKey, ct)
+            ?? throw new ApiException(
+                404,
+                "Project must be registered before publishing an analysis"
+            );
+        await auth.AssertProjectAccessAsync(user, request.ProjectKey, "analysis:write", ct);
+        var assignment = await db.Set<ProjectGateAssignment>().FindAsync([request.ProjectKey], ct);
+        var gate =
+            assignment == null
+                ? null
+                : await db.Set<QualityGateConfig>().FindAsync([assignment.GateId], ct);
+        gate ??=
+            await db.Set<QualityGateConfig>().FirstOrDefaultAsync(x => x.IsDefault, ct)
+            ?? await db.Set<QualityGateConfig>().FindAsync(["default"], ct);
+        if (gate == null)
+        {
+            gate = new QualityGateConfig
+            {
+                Id = "default",
+                Name = "Default Gate",
+                IsDefault = true,
+            };
+            db.Add(gate);
+        }
+        var metrics = GateEvaluation.BuildMetrics(request);
+        var measurements = request.Measurements;
+        var profileId = request.ProfileId;
+        var profileVersion = request.ProfileVersion;
+        var completeness = GateEvaluation.Completeness(request, project);
+        var (verdict, failures, snapshot) = GateEvaluation.Evaluate(
+            metrics,
+            gate,
+            measurements,
+            profileId,
+            profileVersion,
+            request.FormulaVersion
+        );
+        var technical = GateEvaluation.TechnicalState(
+            completeness,
+            request.ToolExecutions,
+            measurements
+        );
+        if (completeness != "complete" && verdict != "fail")
+            verdict = "unknown";
+        snapshot["completeness"] = completeness;
+        snapshot["technical_state"] = technical;
+        var record = new AnalysisRecord
+        {
+            AnalysisId = Guid.NewGuid().ToString(),
+            ProjectKey = request.ProjectKey,
+            CommitSha = request.CommitSha,
+            Branch = request.Branch,
+            CiProvider = request.CiProvider,
+            Status = "completed",
+            QualityGate = verdict,
+            MaintainabilityScore = metrics.MaintainabilityScore,
+            SecurityScore = metrics.SecurityScore,
+            ReliabilityScore = metrics.ReliabilityScore,
+            CodeSmells = metrics.CodeSmells,
+            Vulnerabilities = metrics.Vulnerabilities,
+            SecurityHotspots = metrics.SecurityHotspots,
+            Bugs = metrics.Bugs,
+            Coverage = metrics.Coverage,
+            Duplication = metrics.Duplication,
+            DependencyVulnerabilities = metrics.DependencyVulnerabilities,
+            Measurements = JsonSerializer.Serialize(measurements, ApiJson.Options),
+            ToolExecutions = JsonSerializer.Serialize(request.ToolExecutions, ApiJson.Options),
+            Completeness = completeness,
+            ProfileId = profileId,
+            ProfileVersion = profileVersion,
+            FormulaVersion = request.FormulaVersion,
+            GateSnapshot = JsonSerializer.Serialize(snapshot, ApiJson.Options),
+            AffectedFiles = JsonSerializer.Serialize(metrics.AffectedFiles ?? [], ApiJson.Options),
+            GateFailures = JsonSerializer.Serialize(failures),
+            CreatedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.ffffffzzz"),
+            PrId = request.PrId ?? "",
+            PrRepoId = request.PrRepoId ?? "",
+            PrAdoProject = request.PrAdoProject ?? "",
+            PrTargetBranch = request.PrTargetBranch ?? "",
+            PrDecorationStatus = "",
+            PrDecorationError = "",
+        };
+        db.Add(record);
+        await db.SaveChangesAsync(ct);
+        if (
+            !string.IsNullOrEmpty(request.PrId)
+            && !string.IsNullOrEmpty(request.PrRepoId)
+            && !string.IsNullOrEmpty(request.PrAdoProject)
+        )
+        {
+            await AnalysisExternal.DecorateAsync(
+                record,
+                request,
+                metrics,
+                failures,
+                db,
+                clients,
+                options.Value,
+                ct
+            );
+            await db.SaveChangesAsync(ct);
+        }
+        notifications.Dispatch(
+            verdict,
+            new()
+            {
+                ["project_key"] = record.ProjectKey,
+                ["branch"] = record.Branch,
+                ["commit_sha"] = record.CommitSha,
+                ["analysis_id"] = record.AnalysisId,
+                ["vulnerabilities"] = record.Vulnerabilities,
+                ["bugs"] = record.Bugs,
+                ["code_smells"] = record.CodeSmells,
+                ["security_hotspots"] = record.SecurityHotspots,
+                ["gate_failures"] = failures,
+            }
+        );
+        return Results.Ok(GateEvaluation.ToResponse(record));
+    }
+
+    private static async Task<object> DeleteAsync(
+        AppDbContext db,
+        string key,
+        string? branch,
+        CancellationToken ct
+    )
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var query = db.Set<AnalysisRecord>()
+            .Where(x => x.ProjectKey == key && (branch == null || x.Branch == branch));
+        var deletedCount = await query.ExecuteDeleteAsync(ct);
+        await transaction.CommitAsync(ct);
+        var label = branch == null ? $"project {key}" : $"{key}/{branch}";
+        var message =
+            deletedCount == 0
+                ? $"No analyses found for {label}"
+                : $"Deleted {deletedCount} analyses for {label}";
+        var result = new Dictionary<string, object?>
+        {
+            ["project_key"] = key,
+            ["deleted_analyses"] = deletedCount,
+            ["message"] = message,
+        };
+        if (branch != null)
+            result["branch"] = branch;
+        return result;
+    }
+}

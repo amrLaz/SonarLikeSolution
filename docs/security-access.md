@@ -7,6 +7,8 @@ description: Matrice des accès utilisateur et CI de Up.France.CodeInsights.
 
 Le hub distingue les sessions utilisateur et les tokens CI. Un utilisateur non administrateur ne voit que les projets attribués directement ou par organisation. Un token CI ne peut agir que sur ses `project_keys` et ses scopes. Les contrôles sont toujours refaits côté API ; le rôle conservé dans le navigateur n'autorise aucune action.
 
+L’implémentation ASP.NET Core 10 utilise [PlatformAuthenticationHandler](../apps/api/Auth/PlatformAuthenticationHandler.cs) et [AuthService](../apps/api/Auth/AuthService.cs), enregistrés par injection de dépendances. Les droits sont vérifiés sur les données de l’utilisateur à chaque requête. Un compte désactivé est refusé. Les mots de passe utilisent `PasswordHasher<PlatformUser>` d’ASP.NET Core. Les sessions sont des JWT HS256 validés par le handler JwtBearer (signature, émetteur, audience, expiration), configurés avec [SessionOptions](../apps/api/Auth/SessionOptions.cs). Les tokens CI sont opaques et seule leur empreinte SHA-256 est stockée.
+
 ## Matrice des routes
 
 | Famille                                                                                           | Anonyme | Utilisateur avec attribution | Token CI du projet  | Administrateur            |
@@ -20,12 +22,14 @@ Le hub distingue les sessions utilisateur et les tokens CI. Un utilisateur non a
 
 Les accès directs par identifiant d'analyse retrouvent d'abord le `project_key`, puis appliquent la même vérification que les listes. Une collection globale est filtrée aux projets autorisés.
 
-## Administration et migration
+## Administration
 
 Créer les organisations, rattacher chaque projet à une organisation et affecter le profil d'analyse `platform-sast`, `p0-dotnet`, `p0-react` ou `p0-iac` en version `1`. Remplacer les grants d'un compte avec `PUT /api/v1/auth/users/{user_id}/grants`.
 
-Les tokens existants sont conservés mais n'obtiennent aucun accès implicite. Leur affectation se fait avec `PUT /api/v1/platform/token/{token_id}/access`. Les nouveaux tokens exigent au moins un projet et reçoivent explicitement les scopes `analysis:read`, `analysis:write` et `integration:write`. Plusieurs tokens actifs peuvent coexister ; la révocation est individuelle.
+Les tokens n’obtiennent aucun accès implicite. Leur affectation se fait avec `PUT /api/v1/platform/token/{token_id}/access`. Les nouveaux tokens exigent au moins un projet et reçoivent explicitement les scopes `analysis:read`, `analysis:write` et `integration:write`. Plusieurs tokens actifs peuvent coexister ; la révocation est individuelle.
 
 ## Entra ID
 
 Le flux Authorization Code vérifie `state`, le cookie HTTP-only lié au navigateur, le nonce, la signature RS256 issue des JWK Microsoft, l'émetteur, le tenant, l'audience et les dates. La transaction est consommée atomiquement et ne peut pas être rejouée. L'identité est liée au couple tenant/object ID ; un email identique ne relie jamais automatiquement un compte local. Un nouveau compte Entra reçoit le rôle `default` et aucun grant. L'URL de retour utilise HTTPS ; HTTP est accepté uniquement sur `localhost`, `127.0.0.1` ou `::1` pour le développement local.
+
+[EntraService](../apps/api/Auth/EntraService.cs) porte ce flux et utilise Microsoft IdentityModel pour la validation cryptographique. Les checks remplacent les services externes ; ils ne constituent pas une preuve de connexion réelle au tenant. Les secrets Entra, SMTP et PAT sont masqués dans les réponses d'administration ; une mise à jour vide conserve le secret déjà enregistré. Les événements de gestion sont ajoutés via [AuditService](../apps/api/Services/AuditService.cs).

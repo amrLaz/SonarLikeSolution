@@ -38,3 +38,10 @@ coverage/
 htmlcov/
 coverage.xml
 coverage-final.json
+
+# .NET and local validation artifacts
+**/bin/
+**/obj/
+.migration/
+.artifacts/
+TestResults/

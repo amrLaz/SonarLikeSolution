@@ -7,36 +7,42 @@
 
 ## Vue d'ensemble
 
-FastAPI + SQLAlchemy + PostgreSQL en backend, React (Vite/TS) en frontend, packagés dans **une seule image** ([Dockerfile](Dockerfile)) qui build le SPA puis sert les statiques depuis FastAPI. `src/` contient des échantillons de code analysés par le SAST — ce n'est **pas** le runtime de la plateforme. Doc faisant autorité : [README.md](README.md) · [architecture](docs/architecture.md) · [exploitation](docs/exploitation.md) · [intégration](docs/integration.md) · [performances](docs/performances.md) · [roadmap](docs/roadmap.md).
+ASP.NET Core 10 + EF Core/Npgsql + PostgreSQL en backend, React (Vite/TS) en frontend, packagés dans **une seule image** ([Dockerfile](Dockerfile)) qui build le SPA puis sert les statiques depuis ASP.NET Core. `src/` contient des échantillons de code analysés par le SAST — ce n'est **pas** le runtime de la plateforme. Doc faisant autorité : [README.md](README.md) · [architecture](docs/architecture.md) · [exploitation](docs/exploitation.md) · [intégration](docs/integration.md) · [performances](docs/performances.md) · [roadmap](docs/roadmap.md).
 
 ## Commands (verified)
 
 | Task                      | Command                               | Notes                                                                                                                      |
 | ------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Build image (canonique)   | `docker build -t quality-hub:local .` | depuis la racine ; seul build qui embarque web + API ensemble                                                                 |
-| Valider la config compose | `docker compose config --quiet`       | depuis la racine                                                                                                              |
-| Tests                     | `pytest`                              | depuis la racine, config `pytest.ini` ; tests API P0 sous `tests/test_p0_*.py`                                                 |
-| Démarrage dev (partiel)   | `docker compose up -d`                | api:8000, web:5173, db:5432, redis:6379 — non validé comme démarrage complet, voir [exploitation.md](docs/exploitation.md) |
+| Build image (canonique)   | `docker build -t codeinsights:local .` | depuis la racine ; embarque web + API ensemble |
+| Valider la config compose | `docker compose config --quiet`       | depuis la racine                                                                                                           |
+| Checks API | `dotnet run --project tests/CodeInsights.Checks -c Release` | Ajouter `CODEINSIGHTS_TEST_DB` (PostgreSQL jetable) et `CODEINSIGHTS_TEST_URL` (API locale) pour checks complets ; jamais une base de production. |
+| Démarrage local | `docker compose up -d` | React et API sur 8000, PostgreSQL privé ; variables requises dans [exploitation.md](docs/exploitation.md) |
+
+## Conventions .NET
+
+- Solution : `CodeInsights.slnx`, excluant les échantillons `src/`.
+- Un seul `Directory.Build.props` centralise framework, nullable et versions de packages.
+- Utiliser le skill `copilot-orchestrator:up-csharp-developer`, DI native, `IOptions<T>`, I/O asynchrones et `CancellationToken`.
+- Utiliser des DTO explicites, PasswordHasher et JWT ; ne pas exposer les entités EF.
+- Build : `dotnet build CodeInsights.slnx -c Release`. Les checks sont un exécutable sans framework ; `dotnet test` ne les exécute pas.
+- Migrations : `dotnet run --project apps/api -- --migrate`, migrations EF Core et verrou natif, avant toute ouverture HTTP.
+- Healthcheck image : `/api/v1/health`.
 
 ## File Map
 
-```
-apps/api/app/            -> backend FastAPI (routes/, models.py, db.py, auth.py, main.py)
+```text
+apps/api/                -> API .NET 10 (Endpoints/, Data/, Auth/, Services/, Program.cs)
 apps/web/src/             -> frontend React (App.tsx, components/) — package.json non suivi en git
 src/                       -> échantillons de code analysés par le SAST, PAS le runtime
-scripts/ci_platform_scan.py -> ancien scanner CI local ; le runner canonique est dans Up.France.ODI.AzurePipelines
-sonarlikesolution/, templates/ -> parcours CI alternatifs, non retenus comme référence (docs/integration.md)
-deploy/bicep/              -> infra alternative ; référence = sast-platform/PLATFORM_SAST.md (Terraform)
-sast-platform/          -> infrastructure Terraform (PLATFORM_SAST.md)
+infra/          -> infrastructure Terraform (PLATFORM_SAST.md)
 docs/                      -> documentation faisant autorité — la lire avant de changer un comportement
 ```
 
-> Pipeline de référence : `.azuredevops/deploy-sast-platform.yml` (racine du dépôt).
+> Pipeline de référence : `.azuredevops/deploy-apps.yml` (racine du dépôt).
 
-## Known Issues (vérifiés dans le code — ne pas les "corriger" sans confirmer avec l'utilisateur)
+## Configuration
 
-- `DATABASE_URL` n'est **pas** lu par l'API ; seules les variables `DB_*`/`POSTGRES_*` comptent ([db.py](apps/api/app/db.py)).
-- Le `HEALTHCHECK` du [Dockerfile](Dockerfile) cible `/health`, qui ne correspond à aucune route explicite (`/api/v1/health` et `/healthz` existent séparément).
+- La connexion utilise `ConnectionStrings__CodeInsights` ; les options sont regroupées dans `Authentication`, `Bootstrap`, `Analysis` et `Cors`.
 - `apps/web` n'a pas de `package.json` suivi en git ; il est généré inline par le [Dockerfile](Dockerfile) — un `npm install` seul dans ce dossier ne fonctionne pas.
 - La rétention s'exécute au démarrage de l'API ; les migrations versionnées sont exécutées avant le serveur web par le point d'entrée de l'image.
 
@@ -51,7 +57,6 @@ docs/                      -> documentation faisant autorité — la lire avant 
 
 ### Ask First
 
-- Corriger un des "Known Issues" ci-dessus : impact sécurité/compat, à confirmer avant implémentation.
 - Ajouter un `package.json` suivi dans `apps/web` ou changer le mécanisme de build du `Dockerfile`.
 - Changer le contrat de `POST /api/v1/analyses` (consommé par le runner partagé `Up.France.ODI.AzurePipelines`).
 
@@ -59,7 +64,7 @@ docs/                      -> documentation faisant autorité — la lire avant 
 
 - Copier un token, mot de passe ou log contenant des secrets dans `docs/` ou ce fichier.
 - Utiliser une connexion PostgreSQL de production pour un test local.
-- Présenter `docker-compose.yml`, `sonarlikesolution/`, GitHub Actions ou Bicep comme la référence de déploiement retenue (c'est `.azuredevops/deploy-sast-platform.yml`, voir [architecture.md](docs/architecture.md)).
+- Présenter `docker-compose.yml` comme la référence de déploiement (c'est `.azuredevops/deploy-apps.yml`, voir [architecture.md](docs/architecture.md)).
 
 ## Code UI/Frontend
 

@@ -1,40 +1,40 @@
 ---
 title: Architecture du hub
-description: Architecture réellement embarquée et trajectoire Azure du hub de rapports.
+description: Composants ASP.NET Core 10, React et PostgreSQL de CodeInsights.
 ---
 
 # Architecture du hub
 
-## Architecture actuelle
+## Application
 
-Le [Dockerfile applicatif](../Dockerfile) construit React puis copie les fichiers statiques avec FastAPI dans une image Linux. [main.py](../apps/api/app/main.py) expose les routes et sert le frontend. SQLAlchemy utilise PostgreSQL via [db.py](../apps/api/app/db.py). Les analyses et leurs findings sont persistés dans les [modèles](../apps/api/app/models.py), notamment un champ texte JSON pour `affected_files`.
+Le [Dockerfile](../Dockerfile) construit React puis publie ASP.NET Core 10 dans une image Linux unique. [Program.cs](../apps/api/Program.cs) configure les Minimal APIs, l’authentification, l’injection de dépendances et les statiques React. Les services reçoivent leurs paramètres avec `IOptions<T>`. EF Core 10 et Npgsql accèdent à PostgreSQL avec les [mappings explicites](../apps/api/Data/AppDbContext.cs) des [entités](../apps/api/Data/Entities.cs).
 
-Le flux est : runner Azure DevOps → API d'analyses → PostgreSQL → interface React. Le runner canonique transmet les findings dans `affected_files`, les états d'outils et les mesures avec leur provenance. La création persiste l'instantané des sept conditions du gate avant les retours Azure DevOps et notifications.
+[CodeInsights.slnx](../CodeInsights.slnx) réunit l’API et ses checks ; [Directory.Build.props](../Directory.Build.props) centralise framework, nullable et versions des packages. Les routes sont regroupées par domaine dans `apps/api/Endpoints`. Les appels HTTP externes passent par `IHttpClientFactory`. Les exports utilisent PDFsharp/MigraDoc et une police embarquée pour Linux.
 
-Le [Terraform](../sast-platform/PLATFORM_SAST.md) déclare App Service Linux, PostgreSQL Flexible Server, Key Vault et un accès à l'ACR partagé. La [pipeline Azure DevOps](../.azuredevops/deploy-sast-platform.yml) construit et déploie l'image. Cette déclaration ne prouve ni la configuration live ni sa capacité sous charge.
+Le flux est : runner Azure DevOps → API d’analyses → PostgreSQL → interface React. Le producteur transmet les findings, les mesures et leur provenance, les exécutions d’outils et le profil d’analyse. L’API persiste l’instantané des sept conditions du gate avant les retours Azure DevOps et notifications.
 
-Le [Compose local](../docker-compose.yml) mentionne Redis et un worker, mais le runtime embarqué n'apporte pas la preuve d'une file de traitement durable opérationnelle. Ne pas représenter ces services locaux comme des composants Azure déployés. Les assets [GitHub Actions](../deploy/legacy/github/deploy-platform.yml), [Bicep](../deploy/bicep/main.bicep) et [SonarLikeSolution](../sonarlikesolution/README.md) restent des parcours distincts ; la référence de déploiement P0 est Azure DevOps avec Terraform.
+## Organisation du frontend
 
-## Cible recommandée, non implémentée
+Le SPA conserve React, TypeScript, Vite, les contrôles HTML natifs et le CSS partagé. Le [Dockerfile](../Dockerfile) déclare React/React DOM 19.2.8 et TanStack Query 5.102.8 ; cette évolution ne change pas les contrats publics de l'API ni l'identité visuelle. La navigation reste un état React, sans ajout de routeur ou de design system.
 
-Conserver React/FastAPI et PostgreSQL. Sortir les rapports volumineux dans Azure Blob Storage ; accepter une publication bornée, puis traiter validation, normalisation et calculs dans un worker alimenté par une file durable. Le choix précis du service de file et de l'hébergement worker appartient au lot d'industrialisation, sur la base des mesures ; aucun Kubernetes ni cache supplémentaire n'est requis par défaut.
+[App.tsx](../apps/web/src/App.tsx) porte la session, la navigation et les sélections communes de projet, branche et analyse. [useWorkspaceData.ts](../apps/web/src/useWorkspaceData.ts) regroupe les lectures communes ; les écrans chargent leurs ressources propres. Les types métier sont dans `apps/web/src/types.ts`, indépendamment du composant App.
 
-Ce découplage suit le modèle Microsoft [Web–Queue–Worker](https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/web-queue-worker). L'API expose le suivi du traitement ; PostgreSQL porte des findings interrogeables, des synthèses de projet et les versions de verdict. Notifications et retours PR se font après finalisation, avec reprise et limitation de concurrence.
+Les [composants métier](../apps/web/src/components/) séparent Projects, Issues, Evolution, Rules, Vulnerabilities, QualityGates et les écrans d'administration (AuditLog, Notifications, CiTokens, UsersAccess, AuthProviderSettings, DevOpsIntegrations et PlatformSettings). Projects et Evolution reçoivent leur contexte de sélection ; AnalysisEvidence partage la présentation des preuves et des mesures. Les formulaires et interactions appartiennent à l'écran concerné ; ils ne sont pas transférés dans un store global.
 
-Préserver l'identité de l'analyse et son contexte lors d'une republication. Les erreurs de parsing vont dans un état explicite ; un échec d'outil ou un rapport incomplet ne produit pas un gate vert. Les documents originaux permettent le diagnostic et un retraitement maîtrisé sans relancer le build.
+[query-client.ts](../apps/web/src/query-client.ts) crée un cache par arbre de session : fraîcheur de 30 secondes, aucun retry automatique et aucun refetch au focus ou à la reconnexion réseau. Un changement de session crée un nouvel arbre et annule les anciennes lectures. Les clés portent le contexte métier et les filtres appliqués, jamais le Bearer. Les mutations mettent à jour ou invalident les ressources concernées ; leurs erreurs restent distinctes d'un succès. [api.ts](../apps/web/src/api.ts) centralise l'ajout du Bearer et le rejet des réponses HTTP en échec autour de `fetch`.
 
-## Trois identités à distinguer
+Les données serveur restent dans Query ; les sélections, filtres saisis et brouillons restent locaux. Les paramètres utilisent un brouillon partiel, les gates un brouillon lié au gate sélectionné, et les fournisseurs une référence d'initialisation par sélection. Un rafraîchissement du cache ne remplace donc pas une saisie en cours. Les détails des parcours, les bornes de formulaire et les commandes de validation sont dans [Interface](interface.md).
 
-| Usage               | Existant / cible                                                                                                                                                                                                            |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Utilisateur         | Connexion locale et Entra dans le code ; cible : groupes/App Roles et droits par organisation/projet, vérifiés côté serveur.                                                                                                |
-| Pipeline producteur | Token `PLATFORM_API_TOKEN` dans le runner ; cible : connexion Azure DevOps et jeton destiné au hub, limité aux projets autorisés. Une fédération Azure ne suffit pas sans validation de l'audience et des droits par l'API. |
-| Ressources Azure    | Identité managée App Service pour les accès déclarés ACR/Key Vault ; PostgreSQL utilise actuellement les paramètres de connexion configurés. Ne pas assimiler cette identité à la connexion utilisateur.                    |
+## Identités et données
 
-## Données et évolution
+Les utilisateurs se connectent avec un compte local ou Entra. Les producteurs utilisent des tokens CI limités par projets et scopes. L’identité d’accès aux ressources Azure est distincte de ces deux usages. Voir la [matrice des autorisations](security-access.md).
 
-Les migrations SQL versionnées sont exécutées par `python -m app.migrate` avant le démarrage des workers dans l'image. Un verrou transactionnel PostgreSQL et la table `schema_migrations` assurent une application unique. Les analyses historiques restent marquées `legacy_unverified`; leurs valeurs et verdicts ne sont pas recalculés.
+Le schéma contient organisations, projets, grants utilisateur, périmètres de tokens, transactions OIDC et résultats d’analyse. Les mesures, findings et instantanés sont stockés en JSON texte. Les migrations EF Core préparent la base avant l’ouverture HTTP. Le bootstrap crée le premier administrateur et les fournisseurs. La connexion est configurée par `ConnectionStrings:CodeInsights` ; les sections `Bootstrap`, `Authentication` et `Analysis` sont liées aux options des services. Les contrats de réponse utilisent `snake_case`.
 
-Le schéma P0 ajoute organisations, grants utilisateur, projets autorisés par token, transactions OIDC et instantanés de mesures/gates. Voir la [matrice d'accès](security-access.md) avant toute activation : les anciennes identités ne reçoivent aucun périmètre implicite.
+La rétention et l’actualisation KEV sont déclenchées au démarrage selon leur dernière exécution. Les notifications sont best-effort en mémoire : elles ne constituent pas une file durable. Les [checks](validation.md) couvrent les contrats, la persistance et les autorisations sur des données isolées.
 
-La rétention doit séparer rapports bruts, détails et agrégats historiques ; les suppressions doivent préserver les décisions collaboratives et les liens d'audit. Voir les [contrats d'intégration](integration.md) et les [exigences de performance](performances.md).
+## Hébergement et évolutions
+
+Le [Terraform](../infra/PLATFORM_SAST.md) définit les ressources Azure. La [pipeline](../.azuredevops/deploy-apps.yml) construit et déploie l’image. Le [Compose](../docker-compose.yml) est destiné au développement local ; son existence ne prouve pas un déploiement Azure.
+
+La cible d’industrialisation est un traitement borné avec rapports volumineux dans Blob Storage et une file durable. Cette capacité, l’ingestion SARIF/SBOM et les agrégats serveur restent à développer. Aucun benchmark ne certifie encore la capacité pour plusieurs centaines de projets. Voir [intégration](integration.md), [performances](performances.md) et [roadmap](roadmap.md).

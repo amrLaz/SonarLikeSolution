@@ -1,0 +1,492 @@
+[
+  {
+    "path": "/openapi.json",
+    "methods": [
+      "GET",
+      "HEAD"
+    ]
+  },
+  {
+    "path": "/docs",
+    "methods": [
+      "GET",
+      "HEAD"
+    ]
+  },
+  {
+    "path": "/docs/oauth2-redirect",
+    "methods": [
+      "GET",
+      "HEAD"
+    ]
+  },
+  {
+    "path": "/redoc",
+    "methods": [
+      "GET",
+      "HEAD"
+    ]
+  },
+  {
+    "path": "/api/v1/health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/audit-logs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/audit-logs/actions",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/notifications/channels",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/notifications/channels",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/notifications/channels/{channel_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/notifications/channels/{channel_id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/notifications/channels/{channel_id}/test",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/entra/login",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/entra/callback",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/login",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/me",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/me/password",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users/{user_id}/grants",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users/{user_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users/{user_id}/password",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/auth/users/{user_id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/vulnerabilities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/ai-fix",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/export/csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/view",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/export/csv",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/export/pdf",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/projects/{project_key}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/projects/{project_key}/branches/{branch}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/gates",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/default",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/assignments",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/{gate_id}",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/gates",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/{gate_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/{gate_id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/assignments/{project_key}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/gates/assignments/{project_key}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/providers",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/providers/{provider_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/providers/{provider_id}/test",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/providers/{provider_id}/disable",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/projects",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/azure-devops/configs",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/azure-devops/configs",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/azure-devops/configs/{config_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/azure-devops/configs/{config_id}/test",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/azure-devops/configs/{config_id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/integrations/projects/{project_key}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/token/generate",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/token/{token_id}/revoke",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/token/{token_id}/access",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/token/status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/token/history",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/settings",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/settings",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/cleanup",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/platform/cleanup/status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/analysis-profiles/catalog",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/organizations/catalog",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/organizations/catalog",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/projects",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}",
+    "methods": [
+      "PATCH"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}/branches",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}/retention-policy",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/projects/{project_id}/retention-policy",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/rules",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/rules/{rule_key:path}/suppress",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/rules/{rule_key:path}/suppress",
+    "methods": [
+      "DELETE"
+    ]
+  },
+  {
+    "path": "/api/v1/vulnerabilities",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/kev/status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/kev/refresh",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/healthz",
+    "methods": [
+      "GET"
+    ]
+  }
+]

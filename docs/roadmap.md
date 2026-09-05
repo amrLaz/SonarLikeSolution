@@ -9,22 +9,22 @@ description: Fonctionnalités priorisées, dépendances et critères d'acceptati
 
 Offrir aux développeurs un résultat actionnable dans leur PR, aux équipes qualité/sécurité un traitement partagé des problèmes et aux responsables une progression fiable de leurs projets. La cible porte sur quelques centaines de projets et agrège les moteurs existants. Elle ne consiste pas à réécrire les analyseurs SonarQube.
 
-Les fonctions ci-dessous sont **à réaliser ou à compléter**, selon la [matrice de l'existant](fonctionnement.md). Les efforts sont relatifs : S = changement ciblé, M = plusieurs parcours/composants, L = lot transversal avec migration. Ils ne constituent pas un engagement calendaire.
+Les fonctions ci-dessous sont **à réaliser ou à compléter**, selon la [matrice de l'existant](fonctionnement.md). Les efforts sont relatifs : S = changement ciblé, M = plusieurs parcours/composants, L = lot transversal. Ils ne constituent pas un engagement calendaire.
 
 Ordre : P0 confiance → P1 ingestion et performances → P1 intégration/PR → P2 collaboration et pilotage. L'instrumentation commence dès P0. Les profils de règles et la complétude doivent être définis avant d'utiliser un score pour bloquer un build.
 
 ## P0 — Rétablir la confiance dans les accès et les résultats
 
-**État du checkout : implémenté et validé localement.** L'activation reste conditionnée à la migration des organisations, projets, utilisateurs et tokens, puis au pilote Azure DevOps .NET/React/IaC. Le gate demeure informatif pendant ce pilote.
+**État du checkout : implémenté et validé localement.** L'activation nécessite des organisations, projets, utilisateurs et tokens configurés, puis un pilote Azure DevOps .NET/React/IaC. Le gate demeure informatif pendant ce pilote.
 
 | Fonctionnalité / valeur                                       | Dépendances et effort                        | Risque à traiter                                                    | Acceptation                                                                                                                                                           |
 | ------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0.1 Authentification effective et droits organisation/projet | Inventaire des routes et consommateurs ; L   | Régression des tokens existants, fuite entre projets                | Sans identité ou avec token d'un autre projet : accès refusé ; comptes locaux/Entra et CI validés séparément ; aucun secret d'initialisation dans les logs.           |
+| P0.1 Authentification effective et droits organisation/projet | Inventaire des routes et consommateurs ; L   | Droits incorrects, fuite entre projets                | Sans identité ou avec token d'un autre projet : accès refusé ; comptes locaux/Entra et CI validés séparément ; aucun secret d'initialisation dans les logs.           |
 | P0.2 Mesures réelles et complétude                            | Catalogue des outils attendus par profil ; M | Faux vert quand un scanner échoue ou manque                         | Aucun IOC fictif ni score simulé dans un run métier ; états absent/échoué/non mesuré/zéro distincts dans API, UI et gate.                                             |
 | P0.3 Verdict traçable                                         | P0.2 ; M                                     | Valeurs affichées différentes des conditions effectivement évaluées | Chaque échec donne condition, mesure, seuil et provenance ; même analyse produit le même verdict ; règles/formules versionnées.                                       |
 | P0.4 Cohérence des écrans                                     | P0.2 ; M                                     | Parcours Issues vide malgré des findings et catégories trompeuses   | Pour une analyse et des filtres identiques, listes/compteurs expliquent leur périmètre ; secrets séparés des CVE ; options non autorisées clairement non modifiables. |
 
-Le mode `full-test` du runner partagé doit rester réservé à un environnement et un projet de validation isolés. Les tokens existants ne doivent pas être supprimés sans migration explicite des producteurs.
+Le mode `full-test` du runner partagé doit rester réservé à un environnement et un projet de validation isolés. Les tokens des producteurs exigent des scopes et projets explicites.
 
 ## P1 — Intégrer les rapports sans alourdir les builds
 
@@ -36,7 +36,7 @@ Le mode `full-test` du runner partagé doit rester réservé à un environnement
 | P1.4 Ingestion durable et consultations bornées | P0, instrumentation ; L                              | Doublons, mémoire non bornée, perte au redémarrage               | Rapports bruts conservés, retries idempotents, queue observable ; pagination et synthèses serveur ; campagne [performance](performances.md) reproductible.          |
 | P1.5 Profils et gouvernance des règles          | P0.3, formats normalisés ; M                         | Comparaison trompeuse entre stacks                               | Profils versionnés par stack et projet, exceptions explicites ; audit de changement ; afficher quand un outil ne mesure pas une dimension.                          |
 
-Le lot P1.4 est un prérequis de généralisation, pas une optimisation après livraison. Le client partagé devient la source canonique ; les anciennes copies ne reçoivent pas de nouvelles variantes indépendantes.
+Le lot P1.4 est un prérequis de généralisation, pas une optimisation après livraison. Le client partagé est la source canonique.
 
 ## P1 — Faire de la PR le point d'action
 
@@ -65,6 +65,6 @@ Après validation des lots précédents, évaluer l'intégration IDE, les règle
 
 ## Livraison et critères transversaux
 
-Pour chaque lot : contrat documenté, tests ciblés, migration compatible, pilote sur projets représentatifs (.NET, React et IaC), puis déploiement progressif via Azure DevOps et Terraform. Conserver l'ancienne ingestion le temps de migrer les producteurs ; mesurer son usage avant retrait. Aucun déploiement, migration ou correction de code n'est inclus dans cette livraison documentaire.
+Pour chaque lot : contrat documenté, tests ciblés, pilote sur projets représentatifs (.NET, React et IaC), puis déploiement progressif via Azure DevOps et Terraform. Chaque capacité est activée après validation du pilote.
 
 La validation couvre notamment : import répété, rapports complémentaires d'un build, scanner absent, format invalide, accès interprojets refusé, redémarrage worker, 429/timeout ADO, conservation des rapports après gate échoué, progression réelle et rétention. Les budgets et paliers sont définis dans [performances](performances.md). Les objectifs de disponibilité, de restauration et le budget Azure seront chiffrés avec l'exploitation à partir des mesures du pilote.

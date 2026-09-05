@@ -56,6 +56,8 @@ Le bleu est l'accent de navigation et d'action ; vert, ambre et rouge sont rése
 
 ## Composants et interactions
 
+Les écrans métier de `apps/web/src/components/` possèdent leur présentation, leurs formulaires et leurs états d'interaction. App conserve la session, la navigation et les sélections communes ; les données serveur appartiennent à TanStack Query. Réutiliser notamment `AnalysisEvidence` et `MetricGrid` pour les preuves et mesures. Cette séparation ne change pas le système visuel : boutons, formulaires, tableaux et dialogues restent HTML natifs avec les tokens CSS partagés.
+
 | Besoin | Règle |
 | --- | --- |
 | Navigation | Réutiliser `.main-tabs` / `.main-tab`, état actif explicite et `aria-current`. Sur petit écran, défilement local de la navigation. |

@@ -1,0 +1,66 @@
+# ─── App Service Plan ─────────────────────────────────────────────────────────
+
+resource "azurerm_service_plan" "sast" {
+  name                = "${local.prefix}-asp"
+  resource_group_name = azurerm_resource_group.sast.name
+  location            = azurerm_resource_group.sast.location
+  os_type             = "Linux"
+  sku_name            = var.webapp_sku
+  tags                = local.common_tags
+}
+
+# ─── Linux Web App (Docker container) ────────────────────────────────────────
+# Sert ASP.NET Core 10 et React dans une image construite par Azure DevOps.
+
+resource "azurerm_linux_web_app" "sast" {
+  name                = "${local.prefix}-app"
+  resource_group_name = azurerm_resource_group.sast.name
+  location            = azurerm_resource_group.sast.location
+  service_plan_id     = azurerm_service_plan.sast.id
+  https_only          = true
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  site_config {
+    container_registry_use_managed_identity = true
+
+    application_stack {
+      docker_image_name   = "sast-platform:latest"
+      docker_registry_url = "https://${data.azurerm_container_registry.main.login_server}"
+    }
+  }
+
+  app_settings = merge(
+    {
+      ConnectionStrings__CodeInsights    = format("Host=%s;Database=\"%s\";Username=\"%s\";Password=\"%s\";SSL Mode=Require", azurerm_postgresql_flexible_server.sast.fqdn, replace(var.postgres_db_name, "\"", "\"\""), replace(var.postgres_admin_login, "\"", "\"\""), replace(var.postgres_admin_password, "\"", "\"\""))
+      Bootstrap__AdminEmail              = var.platform_admin_email
+      Bootstrap__AdminPassword           = var.platform_admin_password
+      Bootstrap__RequireCompleteMappings = tostring(var.p0_require_complete_mappings)
+      Authentication__SigningKey         = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=authentication-signing-key)"
+      WEBSITES_PORT                      = "8000"
+    },
+    local.ai_app_settings
+  )
+
+  tags       = local.common_tags
+  depends_on = [azurerm_postgresql_flexible_server.sast]
+
+  # Azure DevOps sélectionne le tag d'image à déployer.
+  lifecycle {
+    ignore_changes = [site_config[0].application_stack]
+  }
+}
+
+# ─── AcrPull permission pour l'identité managée du Web App ────────────────────
+
+data "azurerm_role_definition" "acr_pull" {
+  name = "AcrPull"
+}
+
+resource "azurerm_role_assignment" "app_acr_pull" {
+  scope              = data.azurerm_container_registry.main.id
+  role_definition_id = data.azurerm_role_definition.acr_pull.id
+  principal_id       = azurerm_linux_web_app.sast.identity[0].principal_id
+}

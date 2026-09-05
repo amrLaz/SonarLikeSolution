@@ -8,11 +8,11 @@ export function gateLabel(value: string | null | undefined): string {
 
 export function analysisGateLabel(value: string | null | undefined, completeness: string | null | undefined): string {
   const label = gateLabel(value);
-  return completeness === 'legacy_unverified' || completeness == null ? `${label} · historique non vérifié` : label;
+  return completeness == null ? 'Unknown' : label;
 }
 
 export function analysisGateClass(value: string | null | undefined, completeness: string | null | undefined): string {
-  return completeness === 'legacy_unverified' || completeness == null ? 'unknown' : value === 'pass' || value === 'fail' ? value : 'unknown';
+  return completeness == null ? 'unknown' : value === 'pass' || value === 'fail' ? value : 'unknown';
 }
 
 export function measurementStateLabel(value: string | null | undefined): string {
@@ -25,7 +25,7 @@ export function measurementStateLabel(value: string | null | undefined): string 
 export function completenessLabel(value: string | null | undefined): string {
   if (value === 'complete') return 'Complète';
   if (value === 'incomplete') return 'Incomplète';
-  return 'Historique non vérifié';
+  return 'Non disponible';
 }
 
 export type FindingCategory = 'secret' | 'dependency' | 'code' | 'ioc' | 'unknown';

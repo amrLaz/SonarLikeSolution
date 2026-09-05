@@ -1,4 +1,5 @@
 /* Light technical workspace: shared tokens and native controls. */
+.notification-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 :root {
   --primary: #005eb8;
   color-scheme: light;
@@ -1607,7 +1608,7 @@ pre { max-width: 100%; overflow-x: auto; }
 .analysis-evidence .table-wrap + .table-wrap { margin-top: 1rem; }
 .status-pill.completeness-complete, .status-pill.measurement-measured, .status-pill.technical-success { color: var(--success); background: var(--success-light); }
 .status-pill.completeness-incomplete, .status-pill.measurement-failed, .status-pill.measurement-absent, .status-pill.technical-failed { color: var(--danger); background: var(--danger-light); }
-.status-pill.completeness-legacy_unverified, .status-pill.measurement-not_measured, .status-pill.technical-incomplete, .status-pill.technical-legacy_unverified { color: var(--warning); background: var(--warning-light); }
+.status-pill.measurement-not_measured, .status-pill.technical-incomplete { color: var(--warning); background: var(--warning-light); }
 .branch-card { background: var(--bg-lighter); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
 .status-pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 4px 8px; border-radius: 4px; background: var(--bg-light); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
 .status-pill.pass { color: var(--success); background: var(--success-light); }

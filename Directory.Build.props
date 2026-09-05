@@ -1,0 +1,14 @@
+<Project>
+  <!-- This solution owns apps/api and its checks; src contains unrelated scan samples. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'CodeInsights.Api' Or '$(MSBuildProjectName)' == 'CodeInsights.Checks'">
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NpgsqlVersion>10.0.3</NpgsqlVersion>
+    <IdentityModelVersion>8.22.0</IdentityModelVersion>
+    <PdfSharpVersion>6.2.4</PdfSharpVersion>
+    <AspNetCoreVersion>10.0.11</AspNetCoreVersion>
+    <EntityFrameworkVersion>10.0.11</EntityFrameworkVersion>
+  </PropertyGroup>
+</Project>
+

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AnalysisRecord, ProjectSummary } from "../App";
+import type { AnalysisRecord, ProjectSummary } from "../types";
 import { analysisGateClass, analysisGateLabel } from "../metric-display";
 import "./ProjectHeader.css";
 

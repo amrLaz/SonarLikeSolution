@@ -2,7 +2,9 @@
  * Vulnerabilities & IOCs Tab Component
  * Displays CVEs, IOCs, and vulnerability statistics for an analysis
  */
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { useMutation, useMutationState, useQuery } from '@tanstack/react-query';
+import { apiJson } from '../api';
 import './Vulnerabilities.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
@@ -46,17 +48,21 @@ interface IOC {
 }
 
 // Transform API IOC response to component interface
-function transformIOC(apiIOC: any): IOC {
-  const iocData = apiIOC.ioc || apiIOC;
+function transformIOC(value: unknown): IOC {
+  if (!value || typeof value !== 'object') throw new Error('Invalid IOC response');
+  const apiIOC = value as Record<string, unknown>;
+  const iocData = apiIOC.ioc && typeof apiIOC.ioc === 'object'
+    ? apiIOC.ioc as Record<string, unknown> : apiIOC;
+  const id = apiIOC.id ?? iocData.id;
+  if (typeof id !== 'string') throw new Error('Invalid IOC identifier');
   return {
-    id: apiIOC.id || iocData.id,
-    ioc_type: iocData.ioc_type || '',
-    risk_level: iocData.risk_level || 'unknown',
-    value: iocData.ioc_value || iocData.value,
-    file_path: iocData.file_path,
-    line_number: iocData.line_number,
-    detected_at: iocData.detected_at || apiIOC.created_at,
-    details: iocData.details,
+    id,
+    ioc_type: typeof iocData.ioc_type === 'string' ? iocData.ioc_type : '',
+    risk_level: typeof iocData.risk_level === 'string' ? iocData.risk_level : 'unknown',
+    value: typeof iocData.ioc_value === 'string' ? iocData.ioc_value : typeof iocData.value === 'string' ? iocData.value : undefined,
+    file_path: typeof iocData.file_path === 'string' ? iocData.file_path : undefined,
+    line_number: typeof iocData.line_number === 'number' ? iocData.line_number : undefined,
+    detected_at: typeof iocData.detected_at === 'string' ? iocData.detected_at : typeof apiIOC.created_at === 'string' ? apiIOC.created_at : '',
   };
 }
 
@@ -87,39 +93,15 @@ type VulnerabilitiesTabProps = {
   canManage?: boolean;
 };
 
-export default function VulnerabilitiesTab({
-  analysisId,
-  projectKey,
-  branch,
-  commitSha,
-  authToken,
-  canManage = false
-}: VulnerabilitiesTabProps) {
-  const [vulnData, setVulnData] = useState<VulnerabilityData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('vulnerabilities');
-  const [vulnSeverityFilter, setVulnSeverityFilter] = useState<VulnSeverityFilter>('all');
-  const [iocRiskFilter, setIocRiskFilter] = useState<IOCRiskFilter>('all');
-  const [iocTypeFilter, setIocTypeFilter] = useState<IOCTypeFilter>('all');
-  const [aiFixLoading, setAiFixLoading] = useState<Set<string>>(new Set());
-  const [aiFixResults, setAiFixResults] = useState<Map<string, string>>(new Map());
-  const [aiFixOpen, setAiFixOpen] = useState<Set<string>>(new Set());
-
-  const currentAnalysis = useRef(analysisId);
-  currentAnalysis.current = analysisId;
-
-  const requestAiFix = async (vuln: CVE) => {
-    const key = vuln.id;
-    if (aiFixLoading.has(key)) return;
-    setAiFixLoading(prev => new Set(prev).add(key));
-    try {
-      const resp = await fetch(`${API_BASE}/v1/analyses/${analysisId}/ai-fix`, {
+function AiFix({ analysisId, vuln, authToken }: { analysisId: string; vuln: CVE; authToken?: string }) {
+  const [open, setOpen] = useState(true);
+  const mutationKey = ['ai-fix', analysisId, vuln.id];
+  const suggestion = useMutation({
+    mutationKey,
+    mutationFn: async () => {
+      const data = await apiJson<{ suggestion: unknown }>(`${API_BASE}/v1/analyses/${analysisId}/ai-fix`, authToken, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cve_id: vuln.vulnerability?.cve_id ?? '',
           pkg_name: vuln.package_name ?? '',
@@ -133,73 +115,56 @@ export default function VulnerabilitiesTab({
           file_path: vuln.file_path ?? '',
         }),
       });
-      if (currentAnalysis.current !== analysisId) return;
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        if (currentAnalysis.current !== analysisId) return;
-        setAiFixResults(prev => new Map(prev).set(key, `Erreur : ${err.detail ?? resp.status}`));
-      } else {
-        const data = await resp.json();
-        if (currentAnalysis.current !== analysisId) return;
-        setAiFixResults(prev => new Map(prev).set(key, data.suggestion));
-      }
-      setAiFixOpen(prev => new Set(prev).add(key));
-    } catch (e) {
-      if (currentAnalysis.current !== analysisId) return;
-      setAiFixResults(prev => new Map(prev).set(key, 'Impossible de contacter le service IA.'));
-      setAiFixOpen(prev => new Set(prev).add(key));
-    } finally {
-      if (currentAnalysis.current !== analysisId) return;
-      setAiFixLoading(prev => { const s = new Set(prev); s.delete(key); return s; });
-    }
-  };
+      if (typeof data.suggestion !== 'string') throw new Error('Invalid AI suggestion response');
+      return data.suggestion;
+    },
+  });
+  const results = useMutationState({
+    filters: { mutationKey, exact: true },
+    select: ({ state }) => ({ status: state.status, data: typeof state.data === 'string' ? state.data : '', error: state.error }),
+  });
+  const latest = results[results.length - 1];
+  const pending = latest?.status === 'pending';
+  const success = latest?.status === 'success';
 
-  const toggleAiFix = (key: string) => {
-    setAiFixOpen(prev => {
-      const s = new Set(prev);
-      if (s.has(key)) s.delete(key); else s.add(key);
-      return s;
-    });
-  };
+  return <div className="ai-fix-section">
+    {success ? <button type="button" className="ai-fix-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+      ✦ Suggestion IA {open ? '▲' : '▼'}
+    </button> : <button type="button" className={`ai-fix-btn${pending ? ' loading' : ''}`}
+      onClick={() => { if (!pending) suggestion.mutate(); }} disabled={pending}>
+      {pending ? '…' : '✦ Suggestion IA'}
+    </button>}
+    {latest?.error && <div className="vuln-error" role="alert">Erreur : {latest.error.message}</div>}
+    {open && success && <div className="ai-fix-result"><pre>{latest.data}</pre></div>}
+  </div>;
+}
+
+export default function VulnerabilitiesTab({
+  analysisId,
+  projectKey,
+  branch,
+  commitSha,
+  authToken,
+  canManage = false
+}: VulnerabilitiesTabProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('vulnerabilities');
+  const [vulnSeverityFilter, setVulnSeverityFilter] = useState<VulnSeverityFilter>('all');
+  const [iocRiskFilter, setIocRiskFilter] = useState<IOCRiskFilter>('all');
+  const [iocTypeFilter, setIocTypeFilter] = useState<IOCTypeFilter>('all');
+  const { data: vulnData, isPending: loading, error } = useQuery({
+    queryKey: ['vulnerabilities', analysisId],
+    queryFn: async ({ signal }) => {
+      const data = await apiJson<Omit<VulnerabilityData, 'iocs'> & { iocs?: unknown[] }>(
+        `${API_BASE}/v1/analyses/${analysisId}/vulnerabilities`, authToken, { signal });
+      return { ...data, vulnerabilities: data.vulnerabilities ?? [], iocs: (data.iocs ?? []).map(transformIOC) };
+    },
+  });
 
   useEffect(() => {
-    const controller = new AbortController();
-    setError(null);
-    setVulnData(null);
     setVulnSeverityFilter('all');
     setIocRiskFilter('all');
     setIocTypeFilter('all');
-    setAiFixLoading(new Set());
-    setAiFixResults(new Map());
-    setAiFixOpen(new Set());
-    const fetchVulnerabilities = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE}/v1/analyses/${analysisId}/vulnerabilities`, {
-          signal: controller.signal,
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
-        });
-        if (!response.ok) throw new Error('Failed to fetch vulnerabilities');
-        const data = await response.json();
-        if (controller.signal.aborted) return;
-        // Transform IOCs from API format to component format
-        const transformedIOCs = (data.iocs || []).map(transformIOC);
-        setVulnData({
-          ...data,
-          vulnerabilities: data.vulnerabilities ?? [],
-          iocs: transformedIOCs,
-        });
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    };
-    fetchVulnerabilities();
-    return () => controller.abort();
-  }, [analysisId, authToken]);
-
+  }, [analysisId]);
   // Filter CVEs by severity
   const primaryFindings = useMemo(
     () => (vulnData?.vulnerabilities ?? []).filter((finding) => finding.category !== 'secret' && finding.category !== 'ioc'),
@@ -243,7 +208,7 @@ export default function VulnerabilitiesTab({
   }, [primaryFindings]);
 
   if (loading) return <div className="vuln-loading" role="status">Loading vulnerabilities...</div>;
-  if (error) return <div className="vuln-error" role="alert">Error: {error}</div>;
+  if (error) return <div className="vuln-error" role="alert">Error: {error.message}</div>;
   if (!vulnData) return <div className="vuln-empty">No vulnerability data</div>;
 
   const totalCount = primaryFindings.length;
@@ -432,33 +397,7 @@ export default function VulnerabilitiesTab({
                             </div>
                           )}
 
-                          {/* AI Fix */}
-                          {canManage && <div className="ai-fix-section">
-                            {aiFixResults.has(vuln.id) ? (
-                              <button
-                                type="button"
-                                className="ai-fix-toggle"
-                                aria-expanded={aiFixOpen.has(vuln.id)}
-                                onClick={() => toggleAiFix(vuln.id)}
-                              >
-                                ✦ Suggestion IA {aiFixOpen.has(vuln.id) ? '▲' : '▼'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className={`ai-fix-btn${aiFixLoading.has(vuln.id) ? ' loading' : ''}`}
-                                onClick={() => requestAiFix(vuln)}
-                                disabled={aiFixLoading.has(vuln.id)}
-                              >
-                                {aiFixLoading.has(vuln.id) ? '…' : '✦ Suggestion IA'}
-                              </button>
-                            )}
-                            {aiFixOpen.has(vuln.id) && aiFixResults.has(vuln.id) && (
-                              <div className="ai-fix-result">
-                                <pre>{aiFixResults.get(vuln.id)}</pre>
-                              </div>
-                            )}
-                          </div>}
+                          {canManage && <AiFix key={`${analysisId}:${vuln.id}`} analysisId={analysisId} vuln={vuln} authToken={authToken} />}
                         </div>
                       </div>
                     );

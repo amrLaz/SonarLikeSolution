@@ -2,74 +2,30 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: sast_user
-      POSTGRES_PASSWORD: sast_password
-      POSTGRES_DB: sast_platform
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: codeinsights
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: codeinsights
     volumes:
       - db_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeinsights"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    image: newsastproject-api
-    command: sh -c "python -m app.migrate && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    build: .
+    image: codeinsights:local
     environment:
-      DATABASE_URL: postgresql+psycopg://sast_user:sast_password@db:5432/sast_platform
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: sast_user
-      POSTGRES_PASSWORD: sast_password
-      POSTGRES_DB: sast_platform
-      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-admin@platform.local}
-      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
-      P0_REQUIRE_COMPLETE_MAPPINGS: ${P0_REQUIRE_COMPLETE_MAPPINGS:-false}
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      API_HOST: 0.0.0.0
-      API_PORT: "8000"
-      WORKER_POLL_SECONDS: "5"
+      ConnectionStrings__CodeInsights: ${ConnectionStrings__CodeInsights:?Set the Npgsql connection string using host db}
+      Bootstrap__AdminEmail: ${Bootstrap__AdminEmail:-admin@codeinsights.local}
+      Bootstrap__AdminPassword: ${Bootstrap__AdminPassword:?Set the administrator bootstrap password}
+      Authentication__SigningKey: ${Authentication__SigningKey:?Set a signing key of at least 32 bytes}
     ports:
-      - "8000:8000"
-    volumes:
-      - ./apps/api:/app
+      - "127.0.0.1:8000:8000"
     depends_on:
-      - db
-      - redis
-
-  worker:
-    image: newsastproject-worker
-    command: python -m app.main
-    environment:
-      DATABASE_URL: postgresql+psycopg://sast_user:sast_password@db:5432/sast_platform
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: sast_user
-      POSTGRES_PASSWORD: sast_password
-      POSTGRES_DB: sast_platform
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      WORKER_POLL_SECONDS: "5"
-    depends_on:
-      - db
-      - redis
-
-  web:
-    image: newsastproject-web
-    command: npm run dev
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./apps/web/src:/app/src
-    depends_on:
-      - api
+      db:
+        condition: service_healthy
 
 volumes:
   db_data:
