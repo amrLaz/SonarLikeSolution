@@ -5,6 +5,9 @@ description: Application de consolidation des analyses de code et trajectoire ve
 
 # Up.France.CodeInsights
 
+[![Application](https://dev.azure.com/up-group/c1dd9043-ad8d-467e-9cf6-646b6381ef0f/_apis/build/status/969?branchName=master&label=Application)](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=969)
+[![Infrastructure](https://dev.azure.com/up-group/c1dd9043-ad8d-467e-9cf6-646b6381ef0f/_apis/build/status/963?branchName=master&label=Infrastructure)](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=963)
+
 L'application **CodeInsights** consolide les analyses de code de plusieurs projets et expose leurs métriques, quality gates, vulnérabilités et historiques. Sa cible est un hub organisationnel de rapports SARIF, SBOM et couverture, avec une expérience de suivi comparable à SonarQube. **L'import générique de ces formats reste à développer** : l'API actuelle reçoit des métriques et findings dans un contrat propriétaire.
 
 Le runtime est ASP.NET Core 10 / Entity Framework Core 10 / Npgsql / PostgreSQL avec une interface React. Le [Dockerfile](Dockerfile) embarque l'API et le frontend dans une image Linux ; `src/` contient des sources d'analyse et ne constitue pas le runtime de la plateforme.

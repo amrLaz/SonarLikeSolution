@@ -71,3 +71,7 @@ Ces résultats concernent la version testée lors de la campagne. Relancer les c
 - Le mot de passe de bootstrap est conservé dans le coffre `up-fr-odi-sast-prod-kv`, secret `bootstrap-admin-password` ; son contenu n'est pas documenté.
 
 Les pipelines 963 et 969 ciblent le dépôt CodeInsights. Le déclenchement automatique de la Release classique 400 est désactivé pour éviter une seconde application Terraform concurrente. Les détails de configuration sont dans le [guide d'infrastructure](../infra/PLATFORM_SAST.md).
+
+### Configuration Entra après initialisation de la base
+
+La recréation de la base efface aussi les paramètres des fournisseurs. Le bootstrap crée Entra désactivé ; React affiche son bouton uniquement si le fournisseur est activé. Le tenant, le client de l'inscription `UP-France-ODI-SAST-Platform` et son URL de callback ont été reconfigurés. Le secret client reste manquant : l'identité de l'opérateur a reçu `Insufficient privileges` lors de l'ajout autorisé d'un secret. Aucun secret existant n'a été supprimé. Un propriétaire de l'inscription doit fournir le nouveau secret dans la configuration du fournisseur avant activation et vérification du login réel.
