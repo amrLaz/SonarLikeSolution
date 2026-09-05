@@ -59,3 +59,15 @@ Pour le navigateur, vérifier login local, analyses, détails, administration et
 | Azure | Aucun déploiement ni action cloud. |
 
 Ces résultats concernent la version testée lors de la campagne. Relancer les checks après toute modification du schéma, des contrats ou de l'authentification ; ne pas reporter automatiquement un résultat antérieur sur un nouveau build.
+
+## Déploiement Azure du 5 septembre 2026
+
+- [Infrastructure 276066](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276066) : succès. Terraform a ajouté 3 ressources, modifié 3 ressources et remplacé uniquement la base applicative `sast_platform`, avec effacement explicitement autorisé. Le serveur PostgreSQL est conservé.
+- [Application 276067](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276067) : succès. Tests .NET/HTTP sur PostgreSQL isolé, construction et publication ACR, puis déploiement App Service et probes HTTPS.
+- Image active vérifiée : `upgroup.azurecr.io/sast-platform:276067`, téléchargement par identité managée. La source applicative déployée correspond au commit `34c4bc7`.
+- [CodeInsights](https://up-france-odi-sast-prod-app.azurewebsites.net/) : `/api/v1/health`, `/healthz`, page React et ses deux assets répondent en HTTP 200.
+- Le démarrage a appliqué les migrations EF Core et le bootstrap sur la base recréée. Login de `admin@codeinsights.local` réussi avec JWT, rôle administrateur confirmé par `/api/v1/auth/me`, lecture `/api/v1/projects` réussie avec zéro projet. Aucun jeu de tests destructif n'a été exécuté contre Azure.
+- L'écran de connexion est visible dans le navigateur intégré et reste ouvert. Les parcours Entra réels ne font pas partie de cette preuve.
+- Le mot de passe de bootstrap est conservé dans le coffre `up-fr-odi-sast-prod-kv`, secret `bootstrap-admin-password` ; son contenu n'est pas documenté.
+
+Les pipelines 963 et 969 ciblent le dépôt CodeInsights. Le déclenchement automatique de la Release classique 400 est désactivé pour éviter une seconde application Terraform concurrente. Les détails de configuration sont dans le [guide d'infrastructure](../infra/PLATFORM_SAST.md).
