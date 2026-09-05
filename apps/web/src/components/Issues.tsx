@@ -5,30 +5,18 @@ import { findingCategory, findingCategoryLabel } from '../metric-display';
 import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
 import { FindingReview, FINDING_STATES, type Team } from './Collaboration';
+import { evidenceLink } from '../evidence-links';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
   authToken?: string; isAdmin: boolean; selectedProject: string; selectedBranch: string; selectedAnalysisId: string;
   selectedSummary: ProjectSummary | null; summaries: ProjectSummary[]; projectMeta: Record<string, ProjectMeta>;
   setSelectedProject: (value: string) => void; setSelectedBranch: (value: string) => void; setSelectedAnalysisId: (value: string) => void;
 };
-const buildFileUrl = (
-  repoUrl: string,
-  provider: string,
-  commitSha: string,
-  filePath: string
-): string => {
-  if (!repoUrl) return "#";
-  const base = repoUrl.replace(/\/$/, "");
-  if (provider === "github") {
-    return `${base}/blob/${commitSha || "HEAD"}/${filePath}`;
-  }
-  if (provider === "azure-devops") {
-    return `${base}?path=/${filePath}&version=GC${commitSha || "main"}`;
-  }
-  return base;
-};
+type EvidenceLocation = { kind: string; flow?: number; thread?: number; step: number; path?: string; line?: number; end_line?: number; source_url?: string | null };
+type FindingEvidence = { driver_version?: string; documentation_url?: string; documentation_source?: string; documentation_version?: string; documentation_status?: string; locations?: EvidenceLocation[]; locations_truncated?: boolean };
+type IssueOccurrence = { id: number; finding_id: string | null; tool: string; original_tool?: string; tool_version?: string; rule_id: string; severity: string; category: string; message: string; path: string | null; line: number | null; source_url?: string | null; evidence?: FindingEvidence | null };
 
-export default function Issues({ authToken, isAdmin, selectedProject, selectedBranch, selectedAnalysisId, selectedSummary, summaries, projectMeta, setSelectedProject, setSelectedBranch, setSelectedAnalysisId }: Props) {
+export default function Issues({ authToken, isAdmin, selectedProject, selectedBranch, selectedAnalysisId, selectedSummary, summaries, setSelectedProject, setSelectedBranch, setSelectedAnalysisId }: Props) {
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>("all");
   const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>("all");
@@ -46,18 +34,19 @@ export default function Issues({ authToken, isAdmin, selectedProject, selectedBr
   const cursor = page.key === filterKey ? page.cursor : '';
   const issuesQuery = useQuery({
     queryKey: ['findings', filterKey, cursor], enabled: !!selectedAnalysisId,
-    queryFn: ({ signal }) => apiPage<{ id: number; finding_id: string | null; tool: string; rule_id: string; severity: string; category: string; message: string; path: string | null; line: number | null }>(
+    queryFn: ({ signal }) => apiPage<IssueOccurrence>(
       `${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings?${new URLSearchParams({ severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, path: issueFileFilter, mine: mine ? 'true' : '', state, team_id: teamId, cursor })}`, authToken, { signal }),
   });
   const issuesLoading = issuesQuery.isLoading;
   const issuesError = issuesQuery.error?.message ?? null;
   const selectedAnalysis = selectedSummary?.history.find(item => item.analysis_id === selectedAnalysisId);
   const filteredIssueDetails = useMemo(() => (issuesQuery.data?.items ?? []).map(issue => ({
-    id: String(issue.id), finding_id: issue.finding_id, file_path: issue.path ?? '', line: issue.line, end_line: undefined as number | undefined,
+    id: String(issue.id), finding_id: issue.finding_id, file_path: issue.path ?? '', line: issue.line, end_line: issue.evidence?.locations?.find(location => location.kind === 'primary')?.end_line,
     rule: issue.rule_id, message: issue.message, severity: issue.severity.toUpperCase(), category: findingCategory(issue.category),
     tool: issue.tool, commit_sha: selectedAnalysis?.commit_sha ?? '', branch: selectedAnalysis?.branch ?? '',
-    repo_url: projectMeta[selectedProject]?.repoUrl ?? '', repo_provider: projectMeta[selectedProject]?.repoProvider ?? 'other',
-  })), [issuesQuery.data, selectedAnalysis, projectMeta, selectedProject]);
+    source_url: evidenceLink(issue.source_url), evidence: issue.evidence, documentation_url: evidenceLink(issue.evidence?.documentation_url),
+    producer: issue.original_tool ?? issue.tool, tool_version: issue.evidence?.driver_version ?? issue.tool_version,
+  })), [issuesQuery.data, selectedAnalysis]);
   const allIssueDetails = filteredIssueDetails;
 
   return (
@@ -196,7 +185,7 @@ export default function Issues({ authToken, isAdmin, selectedProject, selectedBr
                   const lineLabel =
                     issue.end_line && issue.end_line !== issue.line
                       ? `L${issue.line}–${issue.end_line}`
-                      : `L${issue.line}`;
+                      : issue.line == null ? 'Ligne indisponible' : `L${issue.line}`;
                   const isExpanded = expandedIssueId === issue.id;
 
                   return (
@@ -212,9 +201,9 @@ export default function Issues({ authToken, isAdmin, selectedProject, selectedBr
                             <span className="issue-sep">·</span>
                             <code>{issue.branch} @ {issue.commit_sha.slice(0, 7) || "Non disponible"}</code>
                             <span className="issue-sep">·</span>
-                            {issue.repo_url ? (
+                            {issue.source_url ? (
                               <a
-                                href={buildFileUrl(issue.repo_url, issue.repo_provider, issue.commit_sha, issue.file_path)}
+                                href={issue.source_url}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="issue-file-link"
@@ -251,34 +240,44 @@ export default function Issues({ authToken, isAdmin, selectedProject, selectedBr
                           <div className="issue-file-header">
                             <strong>File Details:</strong>
                             <code className="file-path">{issue.file_path}</code>
-                            <span className="line-info">Lines {issue.line}{issue.end_line ? `-${issue.end_line}` : ""}</span>
+                            <span className="line-info">{lineLabel}</span>
                           </div>
-                          <div className="issue-code-preview">
-                            <pre>
-                              <code>
-                                {`// File: ${issue.file_path}
-// Issue at line ${issue.line}${issue.end_line ? `-${issue.end_line}` : ""}
-//
-// ${issue.rule}: ${issue.message}
-//
-// This issue suggests:
-${issue.message.split(".").map((s) => `// - ${s.trim()}`).join("\n")}
-`}
-                              </code>
-                            </pre>
-                          </div>
-                          {issue.repo_url && (
+                          <p>Message du rapport : {issue.message}</p>
+                          <p className="hint">Aucun extrait de source n’est conservé dans cette vue.</p>
+                          {issue.source_url ? (
                             <div className="issue-actions">
                               <a
-                                href={buildFileUrl(issue.repo_url, issue.repo_provider, issue.commit_sha, issue.file_path)}
+                                href={issue.source_url}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="btn-open-repo"
                               >
-                                🔗 View in Repository
+                                Ouvrir au commit analysé
                               </a>
                             </div>
-                          )}
+                          ) : <p>Lien vers le code au commit analysé indisponible.</p>}
+                          <section aria-label="Documentation de la règle">
+                            <h4>Pourquoi cette issue ? Comment la résoudre ?</h4>
+                            <p>Producteur : {issue.producer} · règle <code>{issue.rule}</code> · analyseur {issue.tool_version ?? 'version inconnue'}.</p>
+                            {issue.documentation_url ? <>
+                              <a href={issue.documentation_url} target="_blank" rel="noreferrer">Documentation de la règle</a>
+                              <p className="hint">Lien fourni par le producteur dans le rapport ({issue.evidence?.documentation_source ?? 'provenance non précisée'}). Disponibilité et contenu non vérifiés en ligne. Version documentaire : {issue.evidence?.documentation_version ?? 'inconnue'} ; correspondance avec la version de l’analyseur non vérifiée. Les explications et éventuels conseils de résolution sont ceux de cette source.</p>
+                            </> : <p>Documentation de la règle indisponible.</p>}
+                          </section>
+                          <section aria-label="Localisations et flux du rapport">
+                            <h4>Preuves contextualisées</h4>
+                            {['related', 'flow'].map(kind => {
+                              const locations = issue.evidence?.locations?.filter(location => location.kind === kind) ?? [];
+                              return <div key={kind}><p>{kind === 'related' ? 'Localisations secondaires' : 'Chemins de flux'} : {locations.length ? `${locations.length} localisations reçues` : 'non fournis'}.</p>
+                                {locations.length > 0 && <ol>{locations.map((location, index) => {
+                                  const link = evidenceLink(location.source_url);
+                                  const label = `${location.path ?? 'Fichier indisponible'} · ${location.line == null ? 'ligne indisponible' : `L${location.line}${location.end_line ? `–${location.end_line}` : ''}`}`;
+                                  return <li key={index}>{kind === 'flow' && <span>Flux {location.flow} · fil {location.thread} · étape {location.step} : </span>}{link ? <a href={link} target="_blank" rel="noreferrer">{label}</a> : <span>{label}</span>}</li>;
+                                })}</ol>}
+                              </div>;
+                            })}
+                            {issue.evidence?.locations_truncated && <p role="status">Liste de preuves tronquée à la limite d’import.</p>}
+                          </section>
                           <FindingReview key={`${selectedAnalysisId}:${issue.id}`} findingId={issue.finding_id} occurrenceId={Number(issue.id)} projectKey={selectedProject} authToken={authToken} isAdmin={isAdmin} />
                         </div>
                       )}

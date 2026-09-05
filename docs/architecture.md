@@ -35,6 +35,22 @@ KEV conserve son contrôle de fraîcheur au démarrage. La rétention s'exécute
 
 ## Hébergement et évolutions
 
+P3 évalue la comparaison Git avant les conditions de gate
+des profils d'ingestion. Les scopes et preuves sont figés dans l'instantané,
+sans changement du contrat legacy. La migration `FindingEvidence` ajoute aux
+occurrences les métadonnées SARIF de provenance et de localisation ; les liens
+source ciblent le SHA analysé et aucune copie de code n'est ajoutée. Voir
+[gate nouveau code](p3-new-code.md) et [preuves SARIF](p3-evidence.md).
+
+La migration `CodeQualityScopesAndReviews` ajoute les instantanés de mesures
+natives, les définitions immuables de périmètres et les correspondances Git.
+Le worker applique ces périmètres avant les agrégats, contrôle l'empreinte des
+configurations exécutables, puis évalue la revue selon les décisions figées à
+la publication. L'onglet Code consulte les chemins et annotations au SHA sans
+stocker de sources. Voir [qualité détaillée](p3-code-quality.md),
+[profils](p3-profiles.md), [périmètres](p3-code-scopes.md) et
+[revue sécurité](p3-security-review.md).
+
 P2 ajoute une identité de finding indépendante des occurrences, l'assignation
 projet/équipe, les décisions de revue conservées, une boîte personnelle ciblée
 et des effets Boards dans la queue durable existante. Les synthèses legacy sont

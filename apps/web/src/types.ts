@@ -73,14 +73,22 @@ export type ToolExecution = {
 };
 
 export type GateConditionSnapshot = {
+  scope?: "global" | "new_code";
+  provenance?: string | null;
   metric: string;
   operator: string;
   threshold: number;
   value: number | null;
-  state: MeasurementState;
+  state: MeasurementState | "not_applicable";
   tool?: string | null;
   tool_version?: string | null;
-  result: "pass" | "fail" | "unknown";
+  result: "pass" | "fail" | "unknown" | "not_applicable";
+  baseline_id?: string | null;
+  base_sha?: string | null;
+  head_sha?: string | null;
+  numerator?: number | null;
+  denominator?: number | null;
+  reason?: string | null;
 };
 
 export type GateSnapshot = {
@@ -92,6 +100,16 @@ export type GateSnapshot = {
   formula_version: string;
   technical_state?: TechnicalState;
   conditions: GateConditionSnapshot[];
+  security_review?: SecurityReviewSnapshot;
+  configuration?: { state: string; expected_hash: string; effective_hash: string; reason?: string | null };
+  remediation?: { state: string; estimated_seconds: number | null; modeled_findings: number; unmodeled_findings: number; model: string; profile_id: string; profile_version: string; documentation_sources: string[]; scope: string };
+};
+
+export type SecurityReviewSnapshot = {
+  scope: 'global' | 'new_code'; state: string; result: 'pass' | 'fail' | 'unknown' | 'not_applicable'; value: number | null;
+  numerator: number; denominator: number; threshold: number | null; reason: string | null; captured_at: string;
+  applied_exception_decision_ids: string[]; reviewed_decision_ids: string[];
+  decisions?: { finding_id: string; decision_id: string; version: number; state: string; hotspot_review: string; reason: string | null; expires_at: string | null; branch: string }[];
 };
 
 export type AnalysisRecord = {

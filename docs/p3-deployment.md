@@ -25,5 +25,22 @@ sans clés partagées ; son marqueur Terraform `tainted` a été retiré sous ve
 dans le backend existant afin de le conserver. Le correctif d'authentification
 permet de reprendre le même plan, sans recréer PostgreSQL ni le compte Blob.
 
-Les résultats du déploiement applicatif et des contrôles HTTP seront ajoutés
-après validation de l'image livrée.
+## Validation et infrastructure
+
+- Build Release : zéro erreur, zéro avertissement ; aucune différence de modèle
+  EF après les migrations versionnées.
+- Image Linux complète : API et SPA démarrées sur PostgreSQL et Azurite isolés.
+- Suite HTTP : imports répétés et complémentaires, LCOV branches, blocs jscpd,
+  taille cloc, remédiation documentée, profils effectifs et dérive, périmètres,
+  décisions de sécurité, archives, rétention et refus interprojets.
+- 130 routes protégées refusent les requêtes anonymes.
+- TypeScript `--noUnusedLocals` et neuf checks Node réussis.
+- [Infrastructure 276081](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276081) :
+  succès, rôle de déploiement initialisé puis plan complet appliqué
+  (2 ajouts, 2 modifications, aucune suppression).
+- Client canonique publié dans `Up.France.ODI.AzurePipelines`, commit
+  `7352cb223ad3731139dc06e65472351a5416051e` ; 11 tests Python réussis.
+
+L'acceptation organisationnelle des branch policies et la campagne de charge
+restent distinctes de ces checks fonctionnels. Aucun envoi Teams ou création
+de ticket Azure Boards n'est utilisé par les scénarios locaux.

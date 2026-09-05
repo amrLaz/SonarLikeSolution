@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeInsights.Api.Auth;
+using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,13 +18,18 @@ public static class FindingCollaboration
         db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({"collaboration:" + JsonSerializer.Serialize(new[] { project, branch })}, 0))", ct);
 
     /// <summary>Caller owns the analysis transaction. Missing findings never imply resolution.</summary>
-    public static async Task ObserveAsync(AppDbContext db, AnalysisRecord analysis, IReadOnlyCollection<FindingOccurrence> occurrences, CancellationToken ct)
+    public static async Task ObserveAsync(AppDbContext db, AnalysisRecord analysis, IReadOnlyCollection<FindingOccurrence> occurrences, CancellationToken ct, GitDiff? diff = null)
     {
         if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("Observation requires a transaction");
         await LockAsync(db, analysis.ProjectKey, analysis.Branch, ct);
         var fingerprints = occurrences.Where(x => !string.IsNullOrEmpty(x.Fingerprint)).GroupBy(x => (x.Tool, x.RuleId, x.Fingerprint)).ToDictionary(g => g.Key, g => g.Count());
-        var identified = occurrences.Select(x => (Occurrence: x, Id: Identity(analysis.ProjectKey, analysis.Branch, x,
-            string.IsNullOrEmpty(x.Fingerprint) || fingerprints[(x.Tool, x.RuleId, x.Fingerprint)] == 1))).ToArray();
+        var continuity = await FindingIdentityContinuity.ResolveAsync(db, analysis, occurrences, diff, ct);
+        var mappedIds = continuity.Values.ToHashSet();
+        var identified = occurrences.Select(x =>
+        {
+            var identity = Identity(analysis.ProjectKey, analysis.Branch, x, string.IsNullOrEmpty(x.Fingerprint) || fingerprints[(x.Tool, x.RuleId, x.Fingerprint)] == 1);
+            return (Occurrence: x, Id: continuity.GetValueOrDefault(identity, identity));
+        }).ToArray();
         var ownership = await db.Set<ProjectOwnership>().FindAsync([analysis.ProjectKey], ct);
         var seenAt = DateTimeOffset.TryParse(analysis.CreatedAt, out var time) ? time.UtcDateTime : DateTime.UtcNow;
         // ponytail: chunks bound SQL parameters and loaded tracking records; bulk upsert is the upgrade path for measured ingestion bottlenecks.
@@ -31,6 +37,8 @@ public static class FindingCollaboration
         {
             var ids = chunk.Select(x => x.Key).ToArray();
             var existing = await db.Set<DurableFinding>().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+            var previousProof = await db.Set<FindingOccurrence>().AsNoTracking().Where(x => x.FindingId != null && ids.Contains(x.FindingId))
+                .GroupBy(x => x.FindingId).Select(g => g.OrderByDescending(x => x.Id).First()).ToListAsync(ct);
             foreach (var group in chunk)
             {
                 var occurrence = group.First().Occurrence;
@@ -44,14 +52,19 @@ public static class FindingCollaboration
                 }
                 if (seenAt >= finding.LastSeenAt)
                 {
+                    if (finding.IdentityKind == "exact_location" && mappedIds.Contains(finding.Id)) finding.IdentityKind = "git_line_map";
                     var reopen = finding.State == "resolved" && finding.LastAnalysisId != analysis.AnalysisId && seenAt > finding.LastSeenAt;
                     finding.LastAnalysisId = analysis.AnalysisId; finding.LastSeenAt = seenAt; finding.Path = occurrence.Path; finding.Line = occurrence.Line;
                     if (reopen)
                     {
-                        finding.State = "open"; finding.Version++;
+                        finding.State = "open"; finding.HotspotReview = "not_reviewed"; finding.Version++;
                         await DecisionAsync(db, finding, new Principal("system"), "reopened_by_scan", "Finding observed in a later analysis", ct);
                     }
-                    if (finding.Category != occurrence.Category || finding.Message != occurrence.Message)
+                    var prior = previousProof.SingleOrDefault(p => p.FindingId == finding.Id);
+                    if (finding.Category != occurrence.Category || finding.Message != occurrence.Message
+                        || prior is not null && SecurityReviewEvaluation.EvidenceHash(prior) != SecurityReviewEvaluation.EvidenceHash(occurrence)
+                        || string.IsNullOrEmpty(occurrence.Fingerprint) && diff?.State == "available" && occurrence.Line is { } currentLine
+                            && diff.Files.Any(f => f.Path == occurrence.Path && f.AddedLines.Contains(currentLine)))
                     {
                         finding.Category = occurrence.Category; finding.Message = occurrence.Message;
                         finding.HotspotReview = "not_reviewed"; finding.Version++;
@@ -83,7 +96,7 @@ public static class FindingCollaboration
             var row = await db.Set<DurableFinding>().SingleAsync(x => x.Id == item.Id, ct);
             if (row.State is "false_positive" or "accepted_risk" && row.ExceptionExpiresAt <= now)
             {
-                row.State = "open"; row.Version++;
+                row.State = "open"; row.HotspotReview = "not_reviewed"; row.ExceptionReason = null; row.ExceptionExpiresAt = null; row.Version++;
                 await DecisionAsync(db, row, new Principal("system"), "exception_expired", "Review expiry reached; finding reopened", ct);
                 await db.SaveChangesAsync(ct);
             }
@@ -94,8 +107,17 @@ public static class FindingCollaboration
 
     public static async Task DecisionAsync(AppDbContext db, DurableFinding finding, Principal actor, string action, string reason, CancellationToken ct)
     {
+        var snapshot = JsonSerializer.SerializeToNode(View(finding), ApiJson.Options)!;
+        if (action == "review")
+        {
+            var proof = await db.Set<FindingOccurrence>().AsNoTracking().Where(o => o.FindingId == finding.Id && o.AnalysisId == finding.LastAnalysisId)
+                .OrderByDescending(o => o.Id).FirstOrDefaultAsync(ct);
+            var commit = await db.Set<AnalysisRecord>().Where(a => a.AnalysisId == finding.LastAnalysisId).Select(a => a.CommitSha).FirstOrDefaultAsync(ct);
+            if (proof is not null && commit is not null)
+                snapshot["review_evidence"] = JsonSerializer.SerializeToNode(new SecurityReviewProof(SecurityReviewEvaluation.EvidenceHash(proof), commit, proof.Path, proof.Line, proof.Fingerprint), ApiJson.Options);
+        }
         var decision = new FindingDecision { FindingId = finding.Id, ProjectKey = finding.ProjectKey, ActorUserId = actor.Sub,
-            ActorEmail = actor.Email, Action = action, Reason = reason, Snapshot = JsonSerializer.Serialize(View(finding), ApiJson.Options) };
+            ActorEmail = actor.Email, Action = action, Reason = reason, Snapshot = snapshot.ToJsonString(ApiJson.Options) };
         db.Add(decision);
         await BoardsDelivery.EnqueueAsync(db, finding, decision, ct);
     }

@@ -156,9 +156,18 @@ public sealed class IngestionMaintenance(AppDbContext db, ReportStorage storage,
             await db.Set<FindingOccurrence>().Where(x => x.IngestionId == row.Id).ExecuteDeleteAsync(ct);
             await db.Set<CoverageLine>().Where(x => x.IngestionId == row.Id).ExecuteDeleteAsync(ct);
             await db.Set<SbomComponent>().Where(x => x.IngestionId == row.Id).ExecuteDeleteAsync(ct);
+            PurgeCodeDetails(row);
             row.DetailsPurged = true; await db.SaveChangesAsync(ct);
         }
         await foreach (var name in storage.AbandonedAsync(abandoned, ct))
             if (!await db.Set<IngestionReport>().AnyAsync(x => x.BlobName == name, ct)) await storage.DeleteAsync(name, ct);
+    }
+
+    public static void PurgeCodeDetails(IngestionRecord row)
+    {
+        row.CodeData = "{}";
+        var manifest = JsonNode.Parse(row.Manifest)!.AsObject();
+        manifest["repository_files"] = new JsonArray();
+        row.Manifest = manifest.ToJsonString(ApiJson.Options);
     }
 }

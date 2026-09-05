@@ -143,10 +143,94 @@ public static class IngestionChecks
         await Terminal(changedId);
         var comparison = await Call("GET", "/api/v1/insights/analyses/" + changedReceipt.GetProperty("analysis_id").GetString() + "/comparison", token: ci);
         Check(comparison.GetProperty("state").GetString() == "available" && comparison.GetProperty("new_count").GetInt32() == 1 && comparison.GetProperty("persistent_count").GetInt32() == 1 && comparison.GetProperty("resolved_count").GetInt32() == 0, "persisted baseline and real diff produce reproducible New Code");
+        var newCodeProfile = profile with { Version = "2", Conditions = [new("bugs", "max", 0, "new_code")] };
+        await Call("POST", "/api/v1/profiles", newCodeProfile, admin, 201);
+        await Call("PUT", $"/api/v1/profiles/projects/{key}", new ProfileAssignment(key, "2"), admin);
+        var evidenceSarif = correctedSarif.Replace("\"name\":\"fixture\"", "\"name\":\"fixture\",\"version\":\"1\",\"rules\":[{\"id\":\"R1\",\"helpUri\":\"https://docs.example.invalid/rules/R1\"}]");
+        var scopedBaseline = baselineManifest with { ProfileVersion = "2", BuildId = key + "-p3-baseline", CommitSha = new string('b', 40),
+            RepositoryUrl = "https://dev.azure.com/checks/project/_git/fixture", Reports = Manifest("main", "sarif", "2.1.0", evidenceSarif).Reports };
+        var p3Baseline = await Publish(scopedBaseline, evidenceSarif);
+        var evidenceAnalysis = p3Baseline.GetProperty("analysis_id").GetString();
+        var evidenceRows = await Call("GET", $"/api/v1/insights/analyses/{evidenceAnalysis}/findings", token: ci);
+        Check(evidenceRows[0].GetProperty("evidence").GetProperty("documentation_url").GetString() == "https://docs.example.invalid/rules/R1"
+            && evidenceRows[0].GetProperty("source_url").GetString()!.Contains("version=GC" + new string('b', 40)), "persisted SARIF documentation and source link use the exact analysis commit");
+        await Call("GET", $"/api/v1/insights/analyses/{evidenceAnalysis}/findings", token: other, expected: 403);
+        Check(p3Baseline.GetProperty("quality_gate").GetString() == "unknown", "new-code baseline without its own comparison never passes");
+        var scopedChange = changedManifest with { ProfileVersion = "2", RepositoryUrl = scopedBaseline.RepositoryUrl, BuildId = key + "-p3-change", CommitSha = new string('c', 40), TargetSha = new string('b', 40),
+            GitDiff = changedManifest.GitDiff with { BaseSha = new string('b', 40), HeadSha = new string('c', 40) } };
+        var p3Failed = await Publish(scopedChange, changedSarif);
+        Check(p3Failed.GetProperty("quality_gate").GetString() == "fail", "new defect fails the scoped gate");
+        var scopedCondition = p3Failed.GetProperty("gate_snapshot").GetProperty("conditions")[0];
+        Check(scopedCondition.GetProperty("scope").GetString() == "new_code" && scopedCondition.GetProperty("value").GetInt32() == 1
+            && scopedCondition.GetProperty("base_sha").GetString() == new string('b', 40), "persisted gate carries scoped value and frozen baseline");
+        var fixedSarif = correctedSarif.Replace("\"startLine\":1", "\"startLine\":2");
+        var p3Fixed = await Publish(scopedChange with { BuildId = key + "-p3-fixed", CommitSha = new string('d', 40),
+            Reports = Manifest("main", "sarif", "2.1.0", fixedSarif).Reports,
+            GitDiff = scopedChange.GitDiff with { HeadSha = new string('d', 40) } }, fixedSarif);
+        Check(p3Fixed.GetProperty("quality_gate").GetString() == "pass" && p3Fixed.GetProperty("gate_snapshot").GetProperty("metrics").GetProperty("bugs").GetInt32() == 1,
+            "fixed PR passes despite one persistent historical bug");
+        var p3Missing = await Publish(scopedChange with { BuildId = key + "-p3-missing", TargetSha = new string('e', 40),
+            GitDiff = scopedChange.GitDiff with { BaseSha = new string('e', 40) } }, changedSarif);
+        Check(p3Missing.GetProperty("quality_gate").GetString() == "unknown", "absent baseline cannot pass scoped gate");
+        var p3Historical = await Call("GET", "/api/v1/ingestions/" + p3Failed.GetProperty("ingestion_id").GetString(), token: ci);
+        Check(p3Historical.GetProperty("quality_gate").GetString() == "fail", "fix never rewrites failing historical gate");
+        await Call("GET", "/api/v1/insights/analyses/" + p3Fixed.GetProperty("analysis_id").GetString() + "/comparison", token: other, expected: 403);
+        Console.WriteLine("P3 scoped gate HTTP checks passed: new defect, correction with historical debt, missing baseline, immutable verdict, project isolation.");
+        var measuredProfile = profile with { Version = "4", RequiredMetrics = ["bugs", "branch_coverage", "duplicate_blocks", "code_lines"],
+            Conditions = [new("bugs", "max", 10), new("branch_coverage", "min", 50), new("duplicate_blocks", "max", 1), new("code_lines", "min", 12)],
+            RuleCatalog = [new("fixture", "1", "R1", "csharp", "bug", JsonSerializer.SerializeToElement(new { }), "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/overview", Remediation: new("constant", 60, "https://learn.microsoft.com/dotnet/fundamentals/code-analysis/overview"))],
+            AnalyzerConfigurations = [new("fixture", "1", "editorconfig", ".editorconfig", "root = true\n[*.cs]\ndotnet_diagnostic.R1.severity = warning\n")] };
+        await Call("POST", "/api/v1/profiles", measuredProfile, admin, 201);
+        await Call("PUT", $"/api/v1/profiles/projects/{key}", new ProfileAssignment(key, "4"), admin);
+        var exported = ExecutableProfiles.Export(measuredProfile);
+        var codeReports = new Dictionary<string, (string Format, string Version, string Content)>
+        {
+            ["main"] = ("sarif", "2.1.0", correctedSarif),
+            ["coverage"] = ("lcov", "1", "SF:src/a.cs\nDA:1,1\nDA:2,0\nBRDA:1,0,0,1\nBRDA:1,0,1,0\nend_of_record\n"),
+            ["duplicates"] = ("jscpd", "1", """{"duplicates":[{"format":"csharp","lines":3,"tokens":20,"firstFile":{"name":"src/a.cs","start":1,"end":3},"secondFile":{"name":"src/b.cs","start":1,"end":3}}]}"""),
+            ["size"] = ("cloc", "1", """{"header":{"cloc_version":"1"},"src/a.cs":{"language":"C#","code":12,"comment":2,"blank":1},"src/b.cs":{"language":"C#","code":12,"comment":0,"blank":0},"SUM":{"code":24}}""")
+        };
+        var codeManifest = initial with { ProfileVersion = "4", BuildId = key + "-native-metrics", CommitSha = new string('f', 40), RepositoryFiles = ["src/a.cs", "src/b.cs"],
+            EffectiveConfigurations = exported.Files.Select(f => new EffectiveConfiguration(f.Tool, f.ToolVersion, f.Path, f.Sha256)).ToArray(),
+            Reports = codeReports.Select(r => Manifest(r.Key, r.Value.Format, r.Value.Version, r.Value.Content).Reports[0]).ToList() };
+        var codeResult = await PublishCode(codeManifest);
+        Check(codeResult.GetProperty("quality_gate").GetString() == "pass", "global gate consumes real branch, duplicate and size measurements");
+        var codeSnapshot = codeResult.GetProperty("gate_snapshot");
+        Check(codeSnapshot.GetProperty("metrics").GetProperty("branch_coverage").GetDouble() == 50 && codeSnapshot.GetProperty("metrics").GetProperty("duplicate_blocks").GetInt32() == 1
+            && codeSnapshot.GetProperty("metrics").GetProperty("code_lines").GetInt32() == 24 && codeSnapshot.GetProperty("configuration").GetProperty("state").GetString() == "matched",
+            "native metrics and effective configuration are persisted exactly");
+        Check(codeSnapshot.GetProperty("remediation").GetProperty("estimated_seconds").GetInt32() == 60, "documented remediation model stays an explicit estimate");
+        var codeAnalysis = codeResult.GetProperty("analysis_id").GetString()!;
+        var native = await Call("GET", $"/api/v1/analyses/{codeAnalysis}/code-quality?view=branches", token: ci);
+        Check(native.GetProperty("totals").GetProperty("branches").GetProperty("numerator").GetInt32() == 1
+            && native.GetProperty("totals").GetProperty("branches").GetProperty("denominator").GetInt32() == 2, "code quality endpoint serves count-based branch evidence");
+        var tree = await Call("GET", $"/api/v1/code/analyses/{codeAnalysis}/files", token: ci);
+        Check(tree.GetProperty("inventory_state").GetString() == "git_tree" && tree.GetProperty("files").GetArrayLength() == 2, "imported Git inventory drives file explorer");
+        await Call("GET", $"/api/v1/analyses/{codeAnalysis}/code-quality", token: other, expected: 403);
+        var drift = await PublishCode(codeManifest with { BuildId = key + "-configuration-drift", EffectiveConfigurations = [codeManifest.EffectiveConfigurations[0] with { Sha256 = new string('0', 64) }] });
+        Check(drift.GetProperty("quality_gate").GetString() == "unknown" && drift.GetProperty("gate_snapshot").GetProperty("configuration").GetProperty("state").GetString() == "drift",
+            "configuration drift cannot satisfy a passing measured gate");
+        Console.WriteLine("P3 native metrics/configuration HTTP checks passed: LCOV branches, jscpd blocks, cloc files, remediation estimate, source inventory and drift.");
         await LeaseChecks(connection, key, ct);
         Console.WriteLine($"P1 real HTTP/Blob/PostgreSQL checks passed: {key} (idempotence, revisions, hash, corruption, sizes, cross-project access, leases).");
 
         AppDbContext Db() => new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
+        async Task<JsonElement> PublishCode(IngestionManifest manifest)
+        {
+            var receipt = await Call("POST", "/api/v1/ingestions", manifest, ci, 201);
+            var ingestionId = receipt.GetProperty("ingestion_id").GetString()!;
+            foreach (var report in codeReports) await Upload(ingestionId, report.Key, report.Value.Content, ci);
+            await Call("POST", $"/api/v1/ingestions/{ingestionId}/finalize", token: ci, expected: 202);
+            return await Terminal(ingestionId);
+        }
+        async Task<JsonElement> Publish(IngestionManifest manifest, string content)
+        {
+            var receipt = await Call("POST", "/api/v1/ingestions", manifest, ci, 201);
+            var ingestionId = receipt.GetProperty("ingestion_id").GetString()!;
+            await Upload(ingestionId, "main", content, ci);
+            await Call("POST", $"/api/v1/ingestions/{ingestionId}/finalize", token: ci, expected: 202);
+            return await Terminal(ingestionId);
+        }
         IngestionManifest Manifest(string reportId, string format, string version, string content) => new()
         {
             ProjectKey = key, RepositoryUrl = "https://example.invalid/" + key, CiProvider = "local", BuildId = key, CommitSha = "abcdef123456", Branch = "refs/heads/checks", ProfileId = key, ProfileVersion = "1",

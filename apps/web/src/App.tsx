@@ -1,4 +1,6 @@
 import AnalysisProfiles from './components/AnalysisProfiles';
+import CodeExplorer from './components/CodeExplorer';
+import CodeScopes from './components/CodeScopes';
 import IngestionDetails, { NewCode } from './components/IngestionDetails';
 import AuthProviderSettings from './components/AuthProviderSettings';
 import { useWorkspaceData } from './useWorkspaceData';
@@ -29,11 +31,13 @@ const LOCAL_STORAGE_GATE_LIBRARY_KEY = "sast-quality-gates-v1";
 const LOCAL_STORAGE_SESSION_KEY = "sast-platform-session-v1";
 const LOCAL_STORAGE_NAV_KEY = "sast-nav-v1";
 
-import type { ApiConnectionState, ScopeMode, AppTab, AdminPrimaryTab, AdminSection,  ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary } from './types';
+import type { ApiConnectionState, ScopeMode, AppTab as ExistingAppTab, AdminPrimaryTab, AdminSection,  ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary } from './types';
+type AppTab = ExistingAppTab | 'code';
 
 const TABS: Array<{ id: AppTab; label: string }> = [
   { id: "projects", label: "Projects" },
   { id: "issues", label: "Issues" },
+  { id: "code", label: "Code" },
   { id: "vulnerabilities", label: "Vulnerabilities & IOCs" },
   { id: "rules", label: "Rules" },
   { id: "quality-gates", label: "Quality Gates" },
@@ -179,7 +183,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   const [projectCursor, setProjectCursor] = useState('');
   const [historyPage, setHistoryPage] = useState({ project: '', branch: '', cursor: '' });
   const historyCursor = historyPage.project === selectedProject && historyPage.branch === selectedBranch ? historyPage.cursor : '';
-  const { meQuery, analysesQuery, summaryQuery, selectedSummaryQuery, branchesQuery, selectedBranchQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery } = useWorkspaceData(sessionUser?.token, activeTab, activeAdminSection, selectedProject, selectedBranch, historyCursor, projectCursor, branchCursor);
+  const { meQuery, analysesQuery, summaryQuery, selectedSummaryQuery, branchesQuery, selectedBranchQuery, defaultGateQuery, integrationsQuery, providersQuery, gatesQuery, assignmentsQuery, devOpsQuery } = useWorkspaceData(sessionUser?.token, activeTab === 'code' ? 'projects' : activeTab, activeAdminSection, selectedProject, selectedBranch, historyCursor, projectCursor, branchCursor);
   const canAccessAdministration = !meQuery.isError && meQuery.data?.permissions?.is_admin === true;
   const apiFetch = (url: string, init?: RequestInit) => request(url, sessionUser?.token, init);
 
@@ -653,7 +657,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       </header>
 
       {!independentScope && <section className="global-tools">
-        <div className="scope-toggle">
+        {activeTab !== 'code' && <div className="scope-toggle">
           <button
             type="button"
             aria-pressed={scopeMode === "overall"}
@@ -670,14 +674,14 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           >
             New Code
           </button>
-        </div>
+        </div>}
         <button type="button" onClick={() => void loadDashboard()} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </section>}
 
 
-      {!independentScope && scopeMode === "new-code" && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
+      {!independentScope && activeTab !== 'code' && scopeMode === "new-code" && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
       {!independentScope && loading && <p className="feedback" role="status">Loading analysis data…</p>}
       {!independentScope && error && <p className="feedback error" role="alert">Failed to load data: {error}. Previously loaded results may be out of date.</p>}
       {adminMessage && <p className="feedback" role="status">{adminMessage}</p>}
@@ -693,7 +697,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         {branchesQuery.data?.next && <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>Branches suivantes</button>}
         {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
       </div>}
-      {selectedProject && ['projects', 'issues', 'vulnerabilities', 'evolution'].includes(activeTab) && <div className="action-row" aria-label="Analysis history pages">
+      {selectedProject && ['projects', 'issues', 'vulnerabilities', 'evolution', 'code'].includes(activeTab) && <div className="action-row" aria-label="Analysis history pages">
         <span>Historique : {analyses.length} analyses sur cette page (50 par page ; un lien direct peut ajouter son analyse).</span>
         {historyCursor && <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>Première page</button>}
         {analysesQuery.data?.next && <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>Analyses précédentes</button>}
@@ -704,6 +708,11 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           setSelectedBranch={setSelectedBranch} setProjectSearch={setProjectSearch} loading={loading} error={error} downloadExport={downloadExport} />
       )}
       {activeTab === "projects" && selectedProject && <IngestionDetails project={selectedProject} analysisId={selectedAnalysisId} token={sessionUser?.token} />}
+      {activeTab === 'code' && <>
+        <ProjectHeader selectedSummary={selectedSummary} allSummaries={summaries} onProjectChange={project => { setSelectedProject(project); setSelectedBranch(''); }} onBranchChange={setSelectedBranch} selectedBranch={selectedBranch} selectedAnalysisId={selectedAnalysisId} onAnalysisChange={setSelectedAnalysisId} />
+        <CodeExplorer key={selectedAnalysisId} api={API_BASE} token={sessionUser?.token} analysisId={selectedAnalysisId} />
+        <CodeScopes key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />
+      </>}
       {activeTab === "issues" && scopeMode === "overall" && <Issues
         authToken={sessionUser?.token} isAdmin={canAccessAdministration} selectedProject={selectedProject} selectedBranch={selectedBranch}
         selectedAnalysisId={selectedAnalysisId} selectedSummary={selectedSummary} summaries={summaries}

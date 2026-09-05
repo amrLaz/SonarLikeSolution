@@ -100,6 +100,7 @@ public static class IngestionEndpoints
         auth.AssertCiPermission(user, "analysis:write");
         var manifest = await ApiJson.ReadAsync<IngestionManifest>(context, ct);
         IngestionValidation.Validate(manifest, options.Value);
+        ExecutableProfiles.Validate(manifest);
         if (string.IsNullOrEmpty(manifest.ProjectKey))
         {
             var keys = await auth.AllowedProjectKeysAsync(user, "analysis:write", ct);
@@ -135,6 +136,10 @@ public static class IngestionEndpoints
         var row = new IngestionRecord { AnalysisId = previous?.AnalysisId ?? Guid.NewGuid().ToString(), ProjectKey = manifest.ProjectKey,
             BuildKey = buildKey, ManifestHash = requestedHash, Manifest = JsonSerializer.Serialize(manifest, ApiJson.Options),
             ProfileSnapshot = JsonSerializer.Serialize(profile, ApiJson.Options), Revision = (previous?.Revision ?? 0) + 1 };
+        var codeScope = await CodeScopes.CaptureAsync(db, manifest.ProjectKey, ct);
+        CodeScopes.ValidatePublication(manifest, codeScope);
+        row.CodeScopeSnapshot = JsonSerializer.Serialize(codeScope, ApiJson.Options);
+        row.SecurityReviewSnapshot = await SecurityReviewEvaluation.CaptureAsync(db, row.ProjectKey, manifest.Branch, row.CreatedAt, ct);
         row.ExceptionSnapshot = JsonSerializer.Serialize(await db.Set<ProfileException>().AsNoTracking().Where(x => x.ProjectKey == row.ProjectKey && x.ExpiresAt > row.CreatedAt && x.CreatedAt <= row.CreatedAt).ToListAsync(ct), ApiJson.Options);
         db.Add(row);
         foreach (var descriptor in manifest.Reports)

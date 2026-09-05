@@ -4,7 +4,7 @@ using CodeInsights.Api.Services;
 namespace CodeInsights.Api.Contracts;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record IngestionManifest
+public sealed partial record IngestionManifest
 {
     public int SchemaVersion { get; init; } = 1;
     public string ProjectKey { get; set; } = "";
@@ -33,7 +33,7 @@ public sealed record GitDiff
     public List<GitFileDiff> Files { get; init; } = [];
 }
 public sealed record GitFileDiff(string Path, string? OldPath, int[] AddedLines, Dictionary<string, int> LineMap);
-public sealed record ProfileDefinition
+public sealed partial record ProfileDefinition
 {
     public string ProfileId { get; init; } = "";
     public string Version { get; init; } = "";
@@ -46,7 +46,7 @@ public sealed record ProfileDefinition
     public string[] DeniedLicenses { get; init; } = [];
 }
 public sealed record ProfileRule(string Tool, string RuleId, string Category);
-public sealed record ProfileCondition(string Metric, string Operator, double Threshold);
+public sealed record ProfileCondition(string Metric, string Operator, double Threshold, string Scope = "global");
 public sealed record ProfileAssignment(string ProfileId, string ProfileVersion, string Enforcement = "informative");
 public sealed record ExceptionRequest(string Tool, string RuleId, string? Path, string Reason, DateTime ExpiresAt);
 
@@ -71,7 +71,7 @@ public static class IngestionValidation
                 || r.State is not ("measured" or "absent" or "failed" or "not_measured")
                 || r.Sha256 is null || r.SizeBytes < 0 || r.SizeBytes > options.MaxReportBytes)
                 throw new ApiException(422, "Invalid report descriptor or size limit exceeded");
-            var supported = r.Format switch { "sarif" => r.FormatVersion == "2.1.0", "cyclonedx" => new[] { "1.4", "1.5", "1.6", "1.7" }.Contains(r.FormatVersion), "spdx" => r.FormatVersion == "2.3", "cobertura" or "lcov" => r.FormatVersion is "1" or "1.0", _ => false };
+            var supported = r.Format switch { "sarif" => r.FormatVersion == "2.1.0", "cyclonedx" => new[] { "1.4", "1.5", "1.6", "1.7" }.Contains(r.FormatVersion), "spdx" => r.FormatVersion == "2.3", "jscpd" or "cloc" => r.FormatVersion == "1" && !string.IsNullOrWhiteSpace(r.ToolVersion), "cobertura" or "lcov" => r.FormatVersion is "1" or "1.0", _ => false };
             if (!supported || (r.State == "measured" && (r.SizeBytes == 0 || r.Sha256 is not { Length: 64 } || !r.Sha256.All(Uri.IsHexDigit))))
                 throw new ApiException(422, "Unsupported format/version or invalid report digest");
             total += r.SizeBytes;

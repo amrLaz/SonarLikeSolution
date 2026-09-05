@@ -20,6 +20,41 @@ public static class ProfileEndpoints
     public static IEndpointRouteBuilder MapProfileEndpoints(this IEndpointRouteBuilder app)
     {
         var routes = app.MapGroup("/api/v1/profiles").RequireAuthorization();
+        routes.MapGet("/{id}/versions/{version}/catalogue", async (string id, string version, HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
+        {
+            var principal = await auth.RequireAsync(context, ct: ct); auth.AssertCiPermission(principal);
+            var profile = await ResolveAsync(db, id, version, ct);
+            var size = InsightEndpoints.PageSize(context.Request);
+            var cursor = InsightEndpoints.DecodeCursor(context.Request, 1);
+            var search = context.Request.Query["search"].ToString();
+            var language = context.Request.Query["language"].ToString();
+            var rules = profile.RuleCatalog.Where(rule => (language.Length == 0 || rule.Language == language) && (search.Length == 0 || rule.RuleId.Contains(search, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(ExecutableProfiles.RuleKey, StringComparer.Ordinal)
+                .Where(rule => cursor is null || string.CompareOrdinal(ExecutableProfiles.RuleKey(rule), cursor[0]) > 0).Take(size + 1).ToList();
+            if (rules.Count > size) { rules.RemoveAt(size); InsightEndpoints.Continuation(context, InsightEndpoints.EncodeCursor(ExecutableProfiles.RuleKey(rules[^1]))); }
+            return Results.Ok(rules);
+        });
+        routes.MapGet("/{id}/versions/{version}/diff/{previous}", async (string id, string version, string previous, HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
+        {
+            var principal = await auth.RequireAsync(context, ct: ct); auth.AssertCiPermission(principal);
+            return Results.Ok(ExecutableProfiles.Diff(await ResolveAsync(db, id, previous, ct), await ResolveAsync(db, id, version, ct)));
+        });
+        routes.MapGet("/projects/{key}/configuration", async (string key, HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
+        {
+            var principal = await auth.RequireAsync(context, ct: ct); await auth.AssertProjectAccessAsync(principal, key, ct: ct);
+            var policy = await db.Set<IngestionProjectPolicy>().FindAsync([key], ct) ?? throw new ApiException(404, "No profile assigned");
+            return Results.Ok(ExecutableProfiles.Export(await ResolveAsync(db, policy.ProfileId, policy.ProfileVersion, ct)));
+        });
+        routes.MapGet("/projects/{key}/impact", async (string key, string profileId, string version, HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
+        {
+            var principal = await auth.RequireAsync(context, "admin", ct); await auth.AssertProjectAccessAsync(principal, key, ct: ct);
+            var target = await ResolveAsync(db, profileId, version, ct);
+            var policy = await db.Set<IngestionProjectPolicy>().FindAsync([key], ct);
+            var current = policy is null ? new ProfileDefinition() : await ResolveAsync(db, policy.ProfileId, policy.ProfileVersion, ct);
+            return Results.Ok(new { project_key = key, current_profile = policy?.ProfileId, current_version = policy?.ProfileVersion,
+                target_profile = target.ProfileId, target_version = target.Version, changes = ExecutableProfiles.Diff(current, target),
+                historical_verdicts_changed = false, future_evaluation = "uses_new_profile_and_requires_matching_effective_configuration", reevaluated_analysis_count = 0 });
+        });
         routes.MapGet("", async (HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
         {
             var principal = await auth.RequireAsync(context, ct: ct); auth.AssertCiPermission(principal);
@@ -80,11 +115,14 @@ public static class ProfileEndpoints
     }
     public static void Validate(ProfileDefinition profile)
     {
-        string[] metrics = ["bugs", "code_smells", "vulnerabilities", "security_hotspots", "coverage", "dependency_vulnerabilities", "license_violations"];
+        ExecutableProfiles.Validate(profile);
+        if (profile.SecurityReview is null) throw new ApiException(422, "Security review policy must be an object");
+        profile.SecurityReview.Validate();
+        string[] metrics = ["bugs", "code_smells", "vulnerabilities", "security_hotspots", "coverage", "branch_coverage", "condition_coverage", "duplicate_blocks", "code_lines", "complexity", "dependency_vulnerabilities", "license_violations"];
         if (string.IsNullOrWhiteSpace(profile.ProfileId) || profile.ProfileId.Length > 100 || string.IsNullOrWhiteSpace(profile.Version) || profile.Version.Length > 50
             || profile.RequiredTools is null || profile.RequiredTools.Length is < 1 or > 100 || profile.RequiredTools.Any(string.IsNullOrWhiteSpace)
             || profile.RequiredMetrics is null || profile.RequiredMetrics.Except(metrics).Any() || profile.Rules is null || profile.Rules.Length > 10000
-            || profile.Conditions is null || profile.Conditions.Length > 100 || profile.Conditions.Any(c => !metrics.Contains(c.Metric) || c.Operator is not ("min" or "max") || !double.IsFinite(c.Threshold) || c.Threshold < 0)
+            || profile.Conditions is null || profile.Conditions.Length > 100 || profile.Conditions.Any(c => c is null || c.Scope is not ("global" or "new_code") || c.Scope == "new_code" && c.Metric is ("dependency_vulnerabilities" or "license_violations" or "code_lines" or "complexity") || !metrics.Contains(c.Metric) || c.Operator is not ("min" or "max") || !double.IsFinite(c.Threshold) || c.Threshold < 0)
             || profile.Rules.Any(r => string.IsNullOrWhiteSpace(r.Tool) || string.IsNullOrWhiteSpace(r.RuleId) || r.Category is not ("bug" or "code_smell" or "vulnerability" or "security_hotspot" or "secret" or "unknown"))
             || profile.Rules.Select(r => (r.Tool, r.RuleId)).Distinct().Count() != profile.Rules.Length
             || profile.AllowedLicenses is null || profile.DeniedLicenses is null || profile.AllowedLicenses.Intersect(profile.DeniedLicenses).Any())

@@ -697,5 +697,80 @@
     "methods": [
       "PUT"
     ]
+  },
+  {
+    "path": "/api/v1/code/projects/{key}/configuration",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/code/projects/{key}/versions",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/code/projects/{key}/branches",
+    "methods": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/code/analyses/{id}/files",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/code/analyses/{id}/file",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{id}/code-quality",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/profiles/{id}/versions/{version}/catalogue",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/profiles/{id}/versions/{version}/diff/{previous}",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/profiles/projects/{key}/configuration",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/profiles/projects/{key}/impact",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/hotspots",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "path": "/api/v1/collaboration/findings/{id}/matches",
+    "methods": [
+      "GET"
+    ]
   }
 ]

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiJson, apiPage } from '../api';
 
-type Comparison = { state: string; reason?: string; new_count?: number; persistent_count?: number; resolved_count?: number; indeterminate_count?: number; coverage?: number | null };
+type Comparison = { state: string; reason?: string; new_count?: number; persistent_count?: number; resolved_count?: number; indeterminate_count?: number; coverage?: number | null; baseline_id?: string; base_sha?: string; head_sha?: string; covered_lines?: number; executable_lines?: number };
 type Component = { id: number; name: string; version: string | null; purl: string | null; relationship: string; licenses: string[]; license_decision: string; source: string; observed_at: string; vulnerabilities: unknown[] };
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 
@@ -12,7 +12,9 @@ export function NewCode({ analysisId, token }: { analysisId: string; token?: str
   return <section className="panel comparison-panel"><h2>New Code</h2>
     {!analysisId ? <p role="status">Sélectionnez une analyse.</p> : query.isLoading ? <p role="status">Chargement de la comparaison…</p> : query.error ? <p role="alert">{query.error.message}</p> : query.data?.state !== 'available' ? <p role="status">Non disponible : {query.data?.reason ?? 'comparaison non mesurée'}.</p> : <>
       <p>Comparaison Git de l’analyse sélectionnée et de sa cible figée.</p>
+      <p className="scope-note">Baseline : <code>{query.data.baseline_id ?? 'Non disponible'}</code><br /><code>{query.data.base_sha ?? 'Non disponible'}</code> → <code>{query.data.head_sha ?? 'Non disponible'}</code></p>
       <dl className="metric-grid">{([['Nouveaux', query.data.new_count], ['Persistants', query.data.persistent_count], ['Résolus', query.data.resolved_count], ['Indéterminés', query.data.indeterminate_count], ['Couverture des lignes modifiées (%)', query.data.coverage]] as const).map(([label, value]) => <div className="metric-card" key={label}><dt>{label}</dt><dd>{value ?? 'Non disponible'}</dd></div>)}</dl>
+      <p>{query.data.covered_lines ?? 'Non disponible'} lignes couvertes / {query.data.executable_lines ?? 'Non disponible'} lignes exécutables modifiées dans les données reçues. {query.data.executable_lines === 0 && 'L’absence de lignes ne prouve pas la présence d’un rapport de couverture ; consultez l’état de la condition dans les preuves du gate.'}</p>
     </>}
   </section>;
 }

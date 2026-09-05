@@ -32,7 +32,7 @@ Le client HTTP partagé conserve `fetch`, ajoute le Bearer et rejette les répon
 ## Lecture des résultats
 
 - **Mesures** : un nombre fini explicitement reçu, y compris zéro, est conservé. Une valeur absente, `null` ou non finie s'affiche « Non disponible ». Le navigateur n’estime pas fiabilité, couverture, duplication ou compteurs manquants.
-- **New Code** : lit la comparaison de l’analyse sélectionnée, sans recalcul navigateur. Affiche nouveaux, persistants, résolus, indéterminés et couverture des lignes modifiées. Baseline absente, détails purgés ou profils incompatibles affichent le motif reçu ; aucun résultat global de substitution. La configuration des gates reste celle d’Overall Code.
+- **New Code** : lit la comparaison de l’analyse sélectionnée, sans recalcul navigateur. Affiche nouveaux, persistants, résolus, indéterminés et couverture des lignes modifiées. Baseline absente, détails purgés ou profils incompatibles affichent le motif reçu ; aucun résultat global de substitution. Les profils d'ingestion acceptent des conditions `new_code` ; l'éditeur historique Quality Gates conserve son périmètre global.
 - **Verdict** : `pass`, `fail` et `unknown` sont distincts. Le statut d'exécution `queued`, `running`, `completed` ou `failed` et l'état technique P0 `success`, `failed` ou `incomplete` sont présentés séparément. Le détail Projects montre la complétude, les états `measured`/`absent`/`failed`/`not_measured`, les exécutions d'outils et les conditions de l'instantané du gate. l'interface ne reconstruit ni seuil ni provenance.
 - **Evolution** : les valeurs manquantes interrompent les segments des courbes. Les compteurs ont une échelle adaptée aux valeurs reçues ; les pourcentages et scores restent sur 100. Un tableau défilable au clavier donne chaque valeur, commit, date, état technique et verdict.
 - **Issues** : projet, branche et analyse sont sélectionnés explicitement. La liste et ses compteurs portent uniquement sur les findings détaillés de cette analyse. Un total par fichier est un résumé et ne crée pas de finding détaillé. Les catégories `secret`, `dependency`, `code`, `ioc` et `unknown` ainsi que l'outil sont ceux transmis par le serveur, sans classement par le texte de la règle.
@@ -69,6 +69,28 @@ L’onglet **Portefeuille** filtre organisation, équipe propriétaire, projet, 
 
 ## Consultations P1
 
+P3 ajoute l'onglet [Code et périmètres](p3-code-scopes.md), avec sélecteurs
+projet/branche/analyse, fichiers au SHA, annotations de ligne et [mesures
+détaillées](p3-code-quality.md). Les tableaux paginés restent accessibles au
+clavier. Le catalogue producteur, l'export natif et l'aperçu avant affectation
+se trouvent dans [Rules/profils](p3-profiles.md). Collaboration présente la file
+hotspots, les correspondances Git et les [décisions de revue](p3-security-review.md).
+Preuves de calcul affiche dérive de configuration, estimation de remédiation
+et décisions utilisées par le gate, avec absence explicite des données.
+
+L'incrément [P3 nouveau code](p3-new-code.md) ajoute les scopes de condition
+`global`/`new_code` aux profils d'ingestion. Preuves de calcul affiche le scope,
+la baseline, les SHA, la fraction de couverture et le motif ; une condition
+non applicable est distincte d'une réussite et d'une mesure absente. La
+configuration historique Quality Gates reste globale pour le parcours legacy.
+
+Issues affiche les [preuves SARIF](p3-evidence.md) et les liens de fichier
+au commit analysé transmis par le serveur. L'aperçu fabriqué à partir du message
+est supprimé : seul le message du rapport est montré. La documentation de règle
+est un lien déclaré par le producteur, avec version/provenance et absence
+explicites ; les localisations secondaires et flux reçus restent consultables.
+Un SHA ou un chemin non prouvé ne produit aucun repli vers une branche mutable.
+
 Projects utilise `/api/v1/insights/summary` : agrégats par projet et branche calculés sur le serveur, avec uniquement leur dernière analyse. L’historique sélectionné utilise `/insights/analyses` avec projet, branche et curseur. Les pages contiennent 50 analyses ; les contrôles « Analyses précédentes » et « Première page » sont explicites. Evolution représente uniquement la page d’historique annoncée, sans télécharger toutes les pages. Les branches et compteurs globaux viennent des synthèses, jamais d’un sous-ensemble d’historique.
 
 Issues utilise les occurrences normalisées de l’analyse choisie ; les filtres catégorie, sévérité, règle et fichier s’appliquent au serveur avant pagination. Rules utilise les agrégats des occurrences de la dernière analyse de chaque projet, avec filtres serveur et pages explicites. Les suppressions globales historiques ne sont pas proposées sur ce catalogue : les exceptions P1 se configurent dans le panneau de profils.
@@ -95,6 +117,7 @@ docker run --rm quality-hub:web-design-check node src/forms.check.mjs
 docker run --rm quality-hub:web-design-check node src/server-state.check.mjs
 docker run --rm quality-hub:web-design-check node src/admin-data.check.mjs
 docker run --rm quality-hub:web-design-check node src/collaboration.check.mjs
+docker run --rm quality-hub:web-design-check node src/evidence-links.check.mjs
 ```
 
 Les checks utilisent TypeScript, TanStack Query et les assertions natives Node déjà disponibles dans ce stage, sans framework de test supplémentaire. `metric-display` vérifie absence versus zéro, verdict inconnu, absence de résultats New Code et coordonnées des courbes. `forms` exerce les handlers des formulaires et conserve la saisie après un échec. `server-state` vérifie erreurs HTTP, transmission du Bearer, annulation de session et isolation des pages. `admin-data` couvre pagination du journal, mutations de notifications refusées sans faux succès ni invalidation et contrat de rotation des tokens CI.

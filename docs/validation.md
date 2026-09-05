@@ -5,6 +5,32 @@ description: Commandes .NET 10, tests isolés et résultats de la campagne local
 
 # Validation de CodeInsights
 
+## Premier incrément P3 du 5 septembre 2026
+
+Le [gate nouveau code](p3-new-code.md) et les [preuves SARIF](p3-evidence.md)
+ont été exercés sur une base PostgreSQL et un Azurite propres à P3.
+
+- Build Release sans avertissement ni erreur et image `codeinsights:p3-local`.
+- Checks console complets avec DB et HTTP : défaut nouveau refusé, correction
+  acceptée malgré une dette historique, baseline absente, verdict historique
+  préservé, liens documentaires et ADO persistés, refus interprojets. Les suites
+  P0/P1/P2 et 115 refus de routes anonymes passent également.
+- L'image Linux sert le SPA et ses assets et présente un healthcheck sain.
+  Le test Azurite utilise son IP Docker et le chemin du compte ; une adresse
+  résolue depuis Windows n'était pas joignable depuis le conteneur.
+- TypeScript `--noUnusedLocals` et six checks Node passent. Le check des preuves
+  couvre les URLs et le rendu React du scope, de la baseline et de la fraction
+  non applicable, sans 100 % inventé.
+- Navigateur intégré connecté à cette API : lien direct d'analyse, source au
+  SHA complet, documentation avec provenance/version inconnue, absence de flux,
+  condition inconnue avec motif de baseline et état New Code indisponible.
+  Pas de débordement global à 390, 768 et 1440 px ; focus clavier visible.
+
+Les liens du scénario sont des fixtures, sans accès au dépôt Azure ou à une
+documentation externe. Ces contrôles ne valident pas le pilote ADO, la campagne
+de charge, un audit WCAG complet ou les autres capacités P3. Les comptes et
+conteneurs locaux de validation ne sont pas une configuration de déploiement.
+
 ## Validation P2 du 5 septembre 2026
 
 Le lot [collaboration](p2-collaboration.md), [Boards](p2-boards.md) et

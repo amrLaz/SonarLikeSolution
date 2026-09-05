@@ -5,7 +5,10 @@ using System.Xml;
 
 namespace CodeInsights.Api.Services;
 
-public sealed record ImportedFinding(string Tool, string RuleId, string Severity, string OriginalSeverity, string Category, string Message, string? Path, int? Line, string? Fingerprint);
+public sealed record ImportedFinding(string Tool, string RuleId, string Severity, string OriginalSeverity, string Category, string Message, string? Path, int? Line, string? Fingerprint)
+{
+    public FindingEvidence? Evidence { get; init; }
+}
 public sealed record ImportedCoverage(string Path, int Line, bool Covered);
 public sealed record ImportedComponent(string Reference, string Name, string? Version, string? Purl, string? Ecosystem, List<string> Licenses, string Relationship);
 public sealed record ImportedDependency(string From, string To, string Relationship);
@@ -13,6 +16,7 @@ public sealed record ImportedVulnerability(string ComponentReference, string Id,
 public sealed record ImportedReport(List<ImportedFinding> Findings, List<ImportedCoverage> Coverage, List<ImportedComponent> Components, List<ImportedDependency> Dependencies, List<ImportedVulnerability> Vulnerabilities)
 {
     public bool? VulnerabilityAssessmentMeasured { get; init; }
+    public CodeQualityReport CodeData { get; init; } = new();
 }
 
 /// <summary>Imports bounded, untrusted reports without resolving external resources.</summary>
@@ -50,6 +54,8 @@ public static class ReportImports
                 case "sarif" when version == "2.1.0":
                 case "cyclonedx" when version is "1.4" or "1.5" or "1.6" or "1.7":
                 case "spdx" when version == "2.3":
+                case "jscpd" when version == "1":
+                case "cloc" when version == "1":
                     using (var json = await JsonDocument.ParseAsync(buffer, new JsonDocumentOptions { MaxDepth = 64 }, ct))
                     {
                         Require(json.RootElement.ValueKind == JsonValueKind.Object, "Report must be an object.");
@@ -59,7 +65,8 @@ public static class ReportImports
                             report = report with { VulnerabilityAssessmentMeasured = Property(json.RootElement, "vulnerabilities").ValueKind == JsonValueKind.Array ? true : null };
                             CycloneDx(json.RootElement, report, version, ct);
                         }
-                        else Spdx(json.RootElement, report, ct);
+                        else if (format.Equals("spdx", StringComparison.OrdinalIgnoreCase)) Spdx(json.RootElement, report, ct);
+                        else CodeQualityData.ImportJson(json.RootElement, format, report.CodeData, ct);
                     }
                     break;
                 default: throw new InvalidDataException("Unsupported report format/version.");
@@ -68,7 +75,7 @@ public static class ReportImports
             Require(report.Components.Select(x => x.Reference).Distinct(StringComparer.Ordinal).Count() == report.Components.Count, "Duplicate component reference.");
             return report;
         }
-        catch (Exception ex) when (ex is JsonException or XmlException or FormatException or OverflowException or InvalidOperationException or ArgumentException)
+        catch (Exception ex) when (ex is JsonException or XmlException or FormatException or OverflowException or InvalidOperationException or ArgumentException or KeyNotFoundException)
         {
             throw new InvalidDataException("Invalid report structure.", ex);
         }
@@ -111,7 +118,8 @@ public static class ReportImports
                 string? fingerprint = fingerprints.ValueKind == JsonValueKind.Object && fingerprints.EnumerateObject().Any()
                     ? JsonSerializer.Serialize(fingerprints.EnumerateObject().OrderBy(x => x.Name, StringComparer.Ordinal).ToDictionary(x => x.Name, x => x.Value.GetString())) : null;
                 var locations = Array(result, "locations").ToArray();
-                if (locations.Length == 0) Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, null, null, fingerprint));
+                var evidence = FindingEvidenceLinks.FromSarif(driver, Text(rule, "id") == ruleId ? rule : default, result, artifacts);
+                if (locations.Length == 0) Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, null, null, fingerprint) { Evidence = evidence });
                 foreach (var location in locations)
                 {
                     var physical = Property(location, "physicalLocation");
@@ -124,7 +132,7 @@ public static class ReportImports
                     var path = Text(artifact, "uri");
                     var line = Number(Property(physical, "region"), "startLine");
                     Require(line is null or > 0, "Invalid SARIF line.");
-                    Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, path is null ? null : SafePath(path), line, fingerprint));
+                    Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, path is null ? null : SafePath(path), line, fingerprint) { Evidence = evidence });
                 }
             }
         }
@@ -138,6 +146,7 @@ public static class ReportImports
         var linesDepth = -1;
         var rootSeen = false;
         var packagesSeen = false;
+        long? declaredConditions = null;
         while (await reader.ReadAsync())
         {
             ct.ThrowIfCancellationRequested();
@@ -154,11 +163,24 @@ public static class ReportImports
             {
                 Require(reader.Name == "coverage", "Missing Cobertura coverage root.");
                 rootSeen = true;
+                report.CodeData.ConditionsMeasured = reader.GetAttribute("branches-valid") is not null;
+                if (reader.GetAttribute("branches-valid") is { } declared)
+                {
+                    declaredConditions = long.Parse(declared, CultureInfo.InvariantCulture);
+                    Require(declaredConditions >= 0, "Invalid Cobertura branch total.");
+                }
             }
             if (reader.Name == "packages" && reader.Depth == 1) packagesSeen = true;
             if (reader.Name == "class")
             {
                 path = SafePath(reader.GetAttribute("filename") ?? "");
+                Add(report.CodeData.SourceFiles, path);
+                if (reader.GetAttribute("complexity") is { } complexity)
+                {
+                    var value = double.Parse(complexity, CultureInfo.InvariantCulture);
+                    Require(double.IsFinite(value) && value >= 0, "Invalid Cobertura complexity.");
+                    Add(report.CodeData.Metrics, new CodeFileMetric(path, "class_complexity", value, reader.GetAttribute("name") ?? path));
+                }
                 classDepth = reader.IsEmptyElement ? -1 : reader.Depth;
             }
             else if (reader.Name == "lines" && classDepth >= 0 && reader.Depth == classDepth + 1)
@@ -169,9 +191,23 @@ public static class ReportImports
                 var hits = long.Parse(reader.GetAttribute("hits") ?? "", CultureInfo.InvariantCulture);
                 Require(number > 0 && hits >= 0, "Invalid coverage line.");
                 Add(report.Coverage, new ImportedCoverage(path!, number, hits > 0));
+                if (reader.GetAttribute("branch") == "true")
+                {
+                    report.CodeData.ConditionsMeasured = true;
+                    var condition = reader.GetAttribute("condition-coverage") ?? throw new InvalidDataException("Missing Cobertura condition counts.");
+                    var start = condition.IndexOf('('); var end = condition.IndexOf(')');
+                    Require(start >= 0 && end > start, "Missing Cobertura condition numerator/denominator.");
+                    var counts = condition[(start + 1)..end].Split('/');
+                    Require(counts.Length == 2, "Invalid Cobertura condition counts.");
+                    var covered = int.Parse(counts[0], CultureInfo.InvariantCulture); var total = int.Parse(counts[1], CultureInfo.InvariantCulture);
+                    Require(total > 0 && covered >= 0 && covered <= total, "Invalid Cobertura condition counts.");
+                    Add(report.CodeData.Branches, new CodeBranch(path!, number, "conditions", "line", covered, total));
+                }
             }
         }
         Require(rootSeen && packagesSeen, "Missing Cobertura packages.");
+        if (declaredConditions is { } expected)
+            Require(report.CodeData.Branches.GroupBy(x => (x.Path, x.Line)).Sum(g => (long)g.Max(x => x.Total)) == expected, "Cobertura condition details do not match declared total.");
     }
 
     private static async Task LcovAsync(Stream stream, ImportedReport report, CancellationToken ct)
@@ -179,6 +215,8 @@ public static class ReportImports
         using var reader = new StreamReader(stream, new UTF8Encoding(false, true), leaveOpen: true);
         string? path = null;
         var records = 0;
+        long? declaredBranches = null;
+        var branchIdentities = new HashSet<(int Line, string Block, string Branch)>();
         while (await reader.ReadLineAsync(ct) is { } line)
         {
             Require(line.Length <= 65536, "LCOV line too long.");
@@ -186,6 +224,9 @@ public static class ReportImports
             {
                 Require(path is null, "Unterminated LCOV record.");
                 path = SafePath(line[3..]);
+                Add(report.CodeData.SourceFiles, path);
+                declaredBranches = null;
+                branchIdentities.Clear();
             }
             else if (line.StartsWith("DA:", StringComparison.Ordinal))
             {
@@ -196,9 +237,29 @@ public static class ReportImports
                 Require(number > 0 && hits >= 0, "Invalid coverage line.");
                 Add(report.Coverage, new ImportedCoverage(path!, number, hits > 0));
             }
+            else if (line.StartsWith("BRDA:", StringComparison.Ordinal))
+            {
+                report.CodeData.BranchesMeasured = true;
+                var values = line[5..].Split(',');
+                Require(path is not null && values.Length == 4, "Invalid LCOV branch.");
+                var number = int.Parse(values[0], CultureInfo.InvariantCulture);
+                Require(number > 0 && values[1].Length is > 0 and <= 100 && values[2].Length is > 0 and <= 100, "Invalid LCOV branch identity.");
+                var hits = values[3] == "-" ? 0 : long.Parse(values[3], CultureInfo.InvariantCulture);
+                Require(hits >= 0, "Invalid LCOV branch hits.");
+                Add(report.CodeData.Branches, new CodeBranch(path!, number, "branches", values[1] + ":" + values[2], hits > 0 ? 1 : 0, 1));
+                branchIdentities.Add((number, values[1], values[2]));
+            }
+            else if (line.StartsWith("BRF:", StringComparison.Ordinal))
+            {
+                var total = long.Parse(line[4..], CultureInfo.InvariantCulture);
+                Require(path is not null && total >= 0, "Invalid LCOV branch total.");
+                report.CodeData.BranchesMeasured = true;
+                declaredBranches = total;
+            }
             else if (line == "end_of_record")
             {
                 Require(path is not null, "Missing LCOV source file.");
+                Require(declaredBranches is null || declaredBranches == branchIdentities.Count, "LCOV branch details do not match declared total.");
                 path = null;
                 records++;
             }

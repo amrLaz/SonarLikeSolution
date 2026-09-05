@@ -20,6 +20,9 @@ public sealed class IngestionRecord
     public string Error { get; set; } = "";
     public string GateSnapshot { get; set; } = "{}";
     public string Comparison { get; set; } = "{\"state\":\"unavailable\",\"reason\":\"baseline_absent\"}";
+    public string CodeData { get; set; } = "{}";
+    public string CodeScopeSnapshot { get; set; } = "{}";
+    public string SecurityReviewSnapshot { get; set; } = "[]";
     public bool DetailsPurged { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
@@ -52,6 +55,8 @@ public sealed class DurableJob
 
 public sealed class FindingOccurrence
 {
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? ComparisonState { get; set; }
     public long Id { get; set; }
     public string? FindingId { get; set; }
     public string IngestionId { get; set; } = "";
@@ -68,6 +73,7 @@ public sealed class FindingOccurrence
     public int? Line { get; set; }
     public string? Fingerprint { get; set; }
     public bool Excepted { get; set; }
+    public string Evidence { get; set; } = "{}";
 }
 
 public sealed class CoverageLine

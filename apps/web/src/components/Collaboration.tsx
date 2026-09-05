@@ -1,8 +1,8 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiJson, apiPage } from '../api';
+import { apiFetch, apiJson, apiPage } from '../api';
 import CollaborationDelivery from './CollaborationDelivery';
-import type { ProjectSummary } from '../types';
+import type { ProjectSummary, SecurityReviewSnapshot } from '../types';
 import './Collaboration.css';
 
 const API = `${import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api')}/v1/collaboration`;
@@ -10,6 +10,8 @@ export type Team = { id: string; project_key: string; name: string; owner_user_i
 type Person = { user_id: string; full_name: string; email: string };
 type Finding = { id: string; project_key: string; branch: string; tool: string; rule_id: string; category: string; message: string; path: string | null; line: number | null; identity_kind: string; state: string; effective_state: string; hotspot_review: string; assignee_user_id: string | null; team_id: string | null; exception_reason: string | null; exception_expires_at: string | null; last_analysis_id: string; last_seen_at: string; updated_at: string; version: number };
 type Decision = { id: string; actor_email: string; action: string; reason: string; snapshot: unknown; created_at: string };
+type IdentityMatch = { id: string; analysis_id: string; branch: string; method: string; base_sha: string; head_sha: string; old_path: string | null; old_line: number | null; path: string | null; line: number | null; created_at: string };
+type HotspotQueue = { analysis_id: string | null; commit_sha: string | null; review: SecurityReviewSnapshot | null; items: { id: string; tool: string; rule_id: string; message: string; path: string | null; line: number | null; priority: string | null }[] };
 type ReviewDraft = { version: number; assignee_user_id: string; team_id: string; state: string; hotspot_review: string; reason: string; expires_at: string };
 export const FINDING_STATES: Record<string, string> = { open: 'Ouvert', confirmed: 'Confirmé', resolved: 'Résolu', false_positive: 'Faux positif', accepted_risk: 'Risque accepté' };
 const stateLabel = (state: string) => FINDING_STATES[state] ?? state;
@@ -59,6 +61,9 @@ function FindingEditor({ finding, authToken, isAdmin, projectKey }: { finding: F
   const change = (field: keyof ReviewDraft, value: string) => setDraft({ ...form, [field]: value });
   const [comment, setComment] = useState('');
   const [cursor, setCursor] = useState('');
+  const [matchCursor, setMatchCursor] = useState('');
+  const matches = useQuery({ queryKey: ['collaboration', 'matches', finding.id, matchCursor],
+    queryFn: ({ signal }) => apiPage<IdentityMatch>(`${API}/findings/${finding.id}/matches?${new URLSearchParams({ cursor: matchCursor })}`, authToken, { signal }) });
   const decisions = useQuery({ queryKey: ['collaboration', 'decisions', finding.id, cursor],
     queryFn: ({ signal }) => apiPage<Decision>(`${API}/findings/${finding.id}/decisions?${new URLSearchParams({ cursor })}`, authToken, { signal }) });
   const save = useMutation({ mutationFn: ({ path, body }: { path: string; body: unknown }) => apiJson<Finding>(`${API}/findings/${finding.id}${path}`, authToken, json(path ? 'POST' : 'PUT', body)),
@@ -75,7 +80,7 @@ function FindingEditor({ finding, authToken, isAdmin, projectKey }: { finding: F
   };
   return <>
     <h3>Suivi et revue</h3><p><strong>{stateLabel(finding.effective_state)}</strong> · {finding.project_key} · {finding.branch} · vu le {new Date(finding.last_seen_at).toLocaleString()}</p>
-    <p className="hint">Identité : {finding.identity_kind === 'fingerprint' ? 'empreinte scanner' : 'localisation exacte ; un déplacement peut créer un nouveau finding'}. Les décisions restent consultables après purge des rapports. Les exceptions portent sur ce finding, ce projet et cette branche ; elles ne changent pas le verdict automatique du gate.</p>
+    <p className="hint">Identité : {finding.identity_kind === 'fingerprint' ? 'empreinte scanner' : finding.identity_kind === 'git_line_map' ? 'correspondance Git conservée' : 'localisation exacte'}. Les décisions restent consultables après purge des rapports. Les exceptions portent sur ce finding, ce projet et cette branche. Une politique de profil peut appliquer les exceptions approuvées et non expirées aux prochaines publications ; aucun verdict historique n’est réécrit.</p>
     {finding.state !== finding.effective_state && <p role="status">L’exception a expiré : le finding est de nouveau ouvert.</p>}
     <a href={`?finding_id=${encodeURIComponent(finding.id)}`}>Lien permanent vers ce suivi</a>
     {[teams.error, people.error, decisions.error, save.error].filter(Boolean).map((error, index) => <p className="feedback error" role="alert" key={index}>{error!.message}</p>)}
@@ -96,8 +101,40 @@ function FindingEditor({ finding, authToken, isAdmin, projectKey }: { finding: F
     <h4>Historique des décisions</h4>{decisions.isLoading && <p role="status">Chargement des décisions…</p>}{decisions.isSuccess && !decisions.data.items.length && <p>Aucune décision enregistrée.</p>}
     <ol>{decisions.data?.items.map(item => <li key={item.id}><p><time>{new Date(item.created_at).toLocaleString()}</time> · {item.actor_email} · {item.action}</p><p>{item.reason || 'Sans commentaire'}</p><details><summary>État conservé lors de la décision</summary><pre>{JSON.stringify(item.snapshot, null, 2)}</pre></details></li>)}</ol>
     <div className="action-row">{cursor && <button type="button" onClick={() => setCursor('')}>Première page de décisions</button>}{decisions.data?.next && <button type="button" onClick={() => setCursor(decisions.data!.next!)}>Décisions suivantes</button>}</div>
+    <details><summary>Historique des correspondances Git</summary>
+      <p>Les déplacements ne transfèrent le suivi que dans la même branche, avec une correspondance unique. Les ambiguïtés restent sans rapprochement automatique.</p>
+      {matches.isLoading && <p role="status">Chargement des correspondances…</p>}{matches.error && <p role="alert">{matches.error.message}</p>}
+      {matches.isSuccess && !matches.data.items.length && <p>Aucune correspondance Git conservée pour ce finding.</p>}
+      <ul>{matches.data?.items.map(match => <li key={match.id}><p>{match.method === 'git_line_map' ? 'Renommage ou lignes inchangées selon Git' : match.method === 'fingerprint' ? 'Empreinte du producteur' : match.method} · {match.branch}</p>
+        <p><code>{match.old_path ?? 'Localisation inconnue'}:{match.old_line ?? '?'}</code> → <code>{match.path ?? 'Localisation inconnue'}:{match.line ?? '?'}</code></p>
+        <p><code>{match.base_sha}</code> → <code>{match.head_sha}</code> · <a href={`?analysis_id=${encodeURIComponent(match.analysis_id)}`}>Analyse correspondante</a></p>
+      </li>)}</ul>
+      <div className="action-row">{matchCursor && <button type="button" onClick={() => setMatchCursor('')}>Premières correspondances</button>}{matches.data?.next && <button type="button" onClick={() => setMatchCursor(matches.data!.next!)}>Correspondances suivantes</button>}</div>
+    </details>
     <CollaborationDelivery authToken={authToken} projectKey={projectKey} findingId={finding.id} isAdmin={isAdmin} />
   </>;
+}
+
+function Hotspots({ project, branch, token, select }: { project: string; branch: string; token?: string; select: (id: string) => void }) {
+  const [cursor, setCursor] = useState('');
+  const queue = useQuery({ queryKey: ['collaboration', 'hotspots', project, branch, cursor], enabled: !!project && !!branch,
+    queryFn: async ({ signal }) => {
+      const response = await apiFetch(`${API}/hotspots?${new URLSearchParams({ project_key: project, branch, cursor })}`, token, { signal });
+      return { ...await response.json() as HotspotQueue, next: response.headers.get('X-Next-Cursor') };
+    } });
+  const review = queue.data?.review;
+  return <section aria-label="Hotspots à revoir"><h3>File de revue sécurité</h3>
+    <p>Projet et branche exacts requis. Cette file contient les hotspots de la dernière analyse achevée qui attendent une revue ; la priorité reste celle du scanner.</p>
+    {(!project || !branch) && <p>Renseignez le projet et la branche pour consulter la file.</p>}
+    {queue.isLoading && <p role="status">Chargement des hotspots…</p>}{queue.error && <p role="alert">{queue.error.message}</p>}
+    {review && <p>Dernier verdict figé : {review.state === 'not_applicable' ? 'Non applicable' : review.state !== 'measured' ? 'Non mesuré' : `${review.value?.toLocaleString()} %`} · {review.numerator} / {review.denominator} hotspots revus · {review.scope === 'new_code' ? 'nouveau code' : 'code global'}.
+      {' '}Les décisions enregistrées maintenant seront évaluées à la prochaine publication.</p>}
+    {queue.isSuccess && !queue.data.items.length && <p>Aucun hotspot à revoir dans la dernière analyse de ce périmètre.</p>}
+    {!!queue.data?.items.length && <div className="table-wrap" role="region" tabIndex={0} aria-label="Hotspots en attente de revue"><table><thead><tr><th>Règle et priorité</th><th>Contexte</th><th>Action</th></tr></thead><tbody>{queue.data.items.map(item => <tr key={item.id}>
+      <th scope="row">{item.tool} · {item.rule_id}<br />{item.priority ?? 'Priorité indisponible'}</th><td>{item.message}<br /><code>{item.path ?? 'Fichier indisponible'}:{item.line ?? '?'}</code></td><td><button type="button" onClick={() => select(item.id)}>Ouvrir la revue</button></td>
+    </tr>)}</tbody></table></div>}
+    <div className="action-row">{cursor && <button type="button" onClick={() => setCursor('')}>Premiers hotspots</button>}{queue.data?.next && <button type="button" onClick={() => setCursor(queue.data!.next!)}>Hotspots suivants</button>}{project && branch && <button type="button" onClick={() => void queue.refetch()}>Actualiser la file</button>}</div>
+  </section>;
 }
 
 function Ownership({ project, token }: { project: string; token?: string }) {
@@ -138,6 +175,7 @@ export default function Collaboration({ authToken, isAdmin, summaries, initialFi
       <label className="collaboration-checkbox"><input type="checkbox" checked={filters.mine} onChange={event => setFilters({ ...filters, mine: event.target.checked })} />Mes problèmes</label>
     </div>
     {filters.project_key && <DirectoryPages directory={directory} people={false} />}
+    <Hotspots key={`${filters.project_key}/${filters.branch}`} project={filters.project_key} branch={filters.branch} token={authToken} select={setSelected} />
     {[list.error, detail.error, teams.error].filter(Boolean).map((error, index) => <p className="feedback error" role="alert" key={index}>{error!.message}</p>)}
     {list.isLoading && <p role="status">Chargement des findings…</p>}{list.isSuccess && !list.data.items.length && <p role="status">Aucun finding dans ce périmètre et avec ces filtres.</p>}
     <p className="hint">{list.data?.items.length ?? 0} findings sur cette page, 50 maximum. Les filtres s’appliquent avant pagination.</p>

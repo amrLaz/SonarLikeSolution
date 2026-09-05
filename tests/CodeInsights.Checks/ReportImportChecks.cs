@@ -5,6 +5,8 @@ internal static class ReportImportChecks
 {
     public static async Task RunAsync()
     {
+        await FindingEvidenceChecks.RunAsync();
+        await CodeQualityChecks.RunAsync();
         var sarif = """
             {"version":"2.1.0","runs":[{"tool":{"driver":{"name":"example","rules":[{"id":"RULE1"}]}},"results":[{"ruleIndex":0,"level":"error","message":{"text":"Example"},"partialFingerprints":{"stable":"abc"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"src/a.cs"},"region":{"startLine":4}}}]}]}]}
             """;

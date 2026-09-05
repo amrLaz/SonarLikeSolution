@@ -23,6 +23,9 @@ export function MetricGrid({ metrics }: { metrics: AnalysisMetrics }) {
 export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecord }) {
   const measurements = Object.entries(analysis.measurements ?? {});
   const conditions = analysis.gate_snapshot?.conditions ?? [];
+  const review = analysis.gate_snapshot?.security_review;
+  const configuration = analysis.gate_snapshot?.configuration;
+  const remediation = analysis.gate_snapshot?.remediation;
   const completeness = analysis.completeness ?? "incomplete";
   const technicalState = analysis.technical_state ?? analysis.gate_snapshot?.technical_state ?? "incomplete";
   const technicalStateLabel: Record<TechnicalState, string> = {
@@ -83,6 +86,7 @@ export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecor
               <tr>
                 <th>Mesure</th>
                 <th>Condition</th>
+                <th>Périmètre</th>
                 <th>Valeur</th>
                 <th>Provenance</th>
                 <th>Résultat</th>
@@ -93,13 +97,20 @@ export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecor
                 <tr key={`${condition.metric}:${index}`}>
                   <th scope="row"><code>{condition.metric}</code></th>
                   <td><code>{condition.operator} {condition.threshold}</code></td>
-                  <td>{condition.state === "measured" ? formatMetric(condition.value) : measurementStateLabel(condition.state)}</td>
+                  <td>{condition.scope === 'new_code' ? 'Nouveau code' : 'Code global'}</td>
+                  <td>{condition.state === "measured" ? formatMetric(condition.value) : condition.state === 'not_applicable' ? 'Non applicable' : measurementStateLabel(condition.state)}
+                    {condition.denominator != null && <div>{formatMetric(condition.numerator)} / {formatMetric(condition.denominator)}</div>}
+                    {condition.reason && <div>{condition.reason}</div>}
+                  </td>
                   <td>
                     {condition.tool ? (
                       <><code>{condition.tool}</code>{condition.tool_version ? ` ${condition.tool_version}` : ""}</>
-                    ) : "Non disponible"}
+                    ) : condition.provenance ?? "Non disponible"}
+                    {condition.scope === 'new_code' && <div>Baseline : <code>{condition.baseline_id ?? 'Non disponible'}</code><br />
+                      <code>{condition.base_sha ?? 'Non disponible'}</code> → <code>{condition.head_sha ?? 'Non disponible'}</code>
+                    </div>}
                   </td>
-                  <td><span className={`status-pill ${condition.result}`}>{gateLabel(condition.result)}</span></td>
+                  <td><span className={`status-pill ${condition.result}`}>{condition.result === 'not_applicable' ? 'Non applicable' : gateLabel(condition.result)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -109,6 +120,27 @@ export default function AnalysisEvidence({ analysis }: { analysis: AnalysisRecor
         <p className="feedback">Aucun instantané structuré du Quality Gate n’est disponible pour cette analyse.</p>
       )}
 
+      {review && <section aria-label="Politique de revue sécurité appliquée">
+        <h4>Revue sécurité — instantané de publication</h4>
+        <p>{review.scope === 'new_code' ? 'Nouveau code' : 'Code global'} · {review.state === 'not_applicable' ? 'Non applicable' : review.state === 'measured' ? formatMetric(review.value, '%') : 'Non mesuré'}
+          {' '}({review.numerator} / {review.denominator} hotspots revus) · seuil : {review.threshold == null ? 'Informatif' : formatMetric(review.threshold, '%')}.
+          {' '}{review.result === 'not_applicable' ? 'Non applicable' : gateLabel(review.result)}</p>
+        {review.reason && <p className="scope-note">Motif : {review.reason}</p>}
+        <p className="scope-note">Décisions figées le {new Date(review.captured_at).toLocaleString()}. {review.applied_exception_decision_ids.length} exception(s) approuvée(s) appliquée(s). Une nouvelle revue s’applique aux publications suivantes.</p>
+        {!!review.decisions?.length && <details><summary>Décisions conservées dans ce verdict</summary><ul>{review.decisions.map(decision => <li key={decision.decision_id}>
+          <a href={`?finding_id=${encodeURIComponent(decision.finding_id)}`}>Dossier du finding</a> · décision <code>{decision.decision_id}</code> · version {decision.version} · {decision.state} / {decision.hotspot_review} · {decision.branch}
+          <p>{decision.reason ?? 'Revue sans exception'}{decision.expires_at ? ` · expiration ${new Date(decision.expires_at).toLocaleString()}` : ''}</p>
+        </li>)}</ul></details>}
+      </section>}
+      {configuration && <section aria-label="Configuration effective des analyseurs"><h4>Configuration des analyseurs</h4>
+        <p>{({ matched: 'Configuration conforme', missing: 'Preuve de configuration absente', drift: 'Dérive de configuration', not_configured: 'Aucune configuration exécutable publiée' } as Record<string, string>)[configuration.state] ?? configuration.state}</p>
+        <p className="scope-note">Empreinte attendue : <code>{configuration.expected_hash}</code><br />Empreinte effective : <code>{configuration.effective_hash}</code>{configuration.reason && <><br />{configuration.reason}</>}</p>
+      </section>}
+      {remediation && <section aria-label="Estimation documentée de remédiation"><h4>Effort de remédiation estimé</h4>
+        <p>{remediation.estimated_seconds == null ? 'Non mesuré' : `${formatMetric(remediation.estimated_seconds / 60)} minutes estimées`} · {remediation.modeled_findings} finding(s) avec modèle, {remediation.unmodeled_findings} sans modèle.</p>
+        <p className="scope-note">{remediation.state === 'partial' ? 'Estimation partielle. ' : ''}Périmètre : {remediation.scope === 'global' ? 'code global' : remediation.scope}. Modèle <code>{remediation.model}</code>, profil {remediation.profile_id}/{remediation.profile_version}. Cette durée est une estimation du producteur.</p>
+        {!!remediation.documentation_sources.length && <ul>{remediation.documentation_sources.map(source => <li key={source}><a href={source} target="_blank" rel="noopener noreferrer">Modèle de remédiation du producteur</a></li>)}</ul>}
+      </section>}
       {!!analysis.tool_executions?.length && (
         <p className="scope-note">
           Outils :{" "}

@@ -109,6 +109,10 @@ stages:
                   --username 00000000-0000-0000-0000-000000000000 \
                   --password-stdin
 
+                docker build --target web-builder -t codeinsights-web-checks -f Dockerfile .
+                docker run --rm codeinsights-web-checks npx tsc --noEmit --noUnusedLocals
+                docker run --rm codeinsights-web-checks sh -c 'for check in src/*.check.mjs; do node "$check" || exit 1; done'
+
                 docker build \
                   -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)" \
                   -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest" \

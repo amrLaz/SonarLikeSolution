@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiPage } from '../api';
 import type { RuleCard, ProjectSummary } from '../types';
+import { evidenceLink } from '../evidence-links';
 
 export default function Rules({ apiBase: API_BASE, authToken, selectedProject, onProjectChange, summaries, canSuppressRules }: {
   apiBase: string;
@@ -56,6 +57,7 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
 
   return (
         <>
+        <ProducerCatalogue api={API_BASE} token={authToken} />
         {suppressionMutation.error && <p className="feedback error" role="alert">{suppressionMutation.error.message}</p>}
         <p className="hint">Règles observées dans la dernière analyse de chaque projet. Les exceptions des profils se configurent ci-dessus ; les suppressions globales historiques ne s’appliquent pas à ce catalogue.</p>
         <div className="action-row">{cursor && <button type="button" onClick={() => setPage({ key, cursor: '' })}>Première page</button>}{rulesQuery.data?.next && <button type="button" onClick={() => setPage({ key, cursor: rulesQuery.data!.next! })}>Règles suivantes</button>}</div>
@@ -225,4 +227,41 @@ export default function Rules({ apiBase: API_BASE, authToken, selectedProject, o
         </section>
         </>
   );
+}
+
+type ProducerRule = { tool: string; tool_version: string; rule_id: string; language: string; category: string; parameters: Record<string, unknown>; documentation_url?: string; documentation_version?: string; remediation?: { model: string; duration_seconds: number; documentation_url: string } };
+
+function ProducerCatalogue({ api, token }: { api: string; token?: string }) {
+  const [profile, setProfile] = useState('');
+  const [version, setVersion] = useState('');
+  const [search, setSearch] = useState('');
+  const [language, setLanguage] = useState('');
+  const [selection, setSelection] = useState({ profile: '', version: '', search: '', language: '', cursor: '' });
+  const query = useQuery({ queryKey: ['producer-catalogue', selection], enabled: !!selection.profile && !!selection.version,
+    queryFn: ({ signal }) => apiPage<ProducerRule>(`${api}/v1/profiles/${encodeURIComponent(selection.profile)}/versions/${encodeURIComponent(selection.version)}/catalogue?${new URLSearchParams({ search: selection.search, language: selection.language, cursor: selection.cursor })}`, token, { signal }) });
+  return <section className="panel"><h2>Catalogue producteur versionné</h2>
+    <p className="hint">Règles publiées dans le profil, y compris sans occurrence. Leur présence au catalogue ne prouve pas leur exécution ; consulter l’empreinte de configuration du résultat.</p>
+    <form onSubmit={event => { event.preventDefault(); setSelection({ profile, version, search, language, cursor: '' }); }}>
+      <label htmlFor="catalogue-profile">Profil</label><input id="catalogue-profile" required value={profile} onChange={event => setProfile(event.target.value)} />
+      <label htmlFor="catalogue-version">Version publiée</label><input id="catalogue-version" required value={version} onChange={event => setVersion(event.target.value)} />
+      <label htmlFor="catalogue-search">Identifiant de règle</label><input id="catalogue-search" value={search} onChange={event => setSearch(event.target.value)} />
+      <label htmlFor="catalogue-language">Langage exact (facultatif)</label><input id="catalogue-language" value={language} onChange={event => setLanguage(event.target.value)} />
+      <button type="submit">Consulter le catalogue</button>
+    </form>
+    {query.isLoading && <p role="status">Chargement du catalogue…</p>}{query.error && <p role="alert">{query.error.message}</p>}
+    {query.isSuccess && <>
+      <p>{selection.profile} / {selection.version} · {query.data.items.length} règles sur cette page.</p>
+      {!query.data.items.length && <p>Aucune règle publiée ne correspond à ce périmètre.</p>}
+      {query.data.items.length > 0 && <div className="table-wrap" tabIndex={0} role="region" aria-label="Catalogue des règles producteur"><table><thead><tr><th>Règle</th><th>Producteur / version</th><th>Classification</th><th>Documentation et paramètres</th></tr></thead><tbody>{query.data.items.map(rule => {
+        const link = evidenceLink(rule.documentation_url); const remediationLink = evidenceLink(rule.remediation?.documentation_url);
+        return <tr key={`${rule.tool}/${rule.tool_version}/${rule.rule_id}`}><th scope="row"><code>{rule.rule_id}</code></th><td>{rule.tool} / {rule.tool_version}</td><td>{rule.language} · {rule.category}</td><td>
+          {link ? <a href={link} target="_blank" rel="noreferrer">Documentation de la règle</a> : 'Documentation de la règle indisponible'}
+          <p className="hint">Version documentaire : {rule.documentation_version ?? 'inconnue'}. Lien producteur publié ; disponibilité et correspondance avec l’analyseur non vérifiées en ligne.</p>
+          <details><summary>Paramètres publiés</summary><pre>{JSON.stringify(rule.parameters, null, 2)}</pre></details>
+          {rule.remediation && <p>Modèle producteur : {rule.remediation.duration_seconds} secondes estimées par occurrence ({rule.remediation.model}). {remediationLink && <a href={remediationLink} target="_blank" rel="noreferrer">Source du modèle</a>}</p>}
+        </td></tr>;
+      })}</tbody></table></div>}
+      <div className="action-row">{selection.cursor && <button type="button" onClick={() => setSelection({ ...selection, cursor: '' })}>Première page du catalogue</button>}{query.data.next && <button type="button" onClick={() => setSelection({ ...selection, cursor: query.data.next! })}>Règles du catalogue suivantes</button>}</div>
+    </>}
+  </section>;
 }

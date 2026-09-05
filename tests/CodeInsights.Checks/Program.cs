@@ -1,12 +1,16 @@
 await AuthChecks.RunAsync();
 
 AnalysisChecks.Run();
+ExecutableProfileChecks.Run();
+await SecurityReviewChecks.RunAsync();
+await CodeScopeChecks.RunAsync();
 await CollaborationChecks.RunAsync();
 await PortfolioChecks.RunAsync();
 await BoardsChecks.RunAsync();
-await ReportImportChecks.RunAsync();
+await ReportImportChecks.RunAsync(); // Includes CodeQualityChecks once.
 await IngestionAdoChecks.RunAsync();
 IngestionComparisonChecks.Run();
+NewCodeGateChecks.Run();
 await IngestionChecks.RunAsync();
 await AnalysisChecks.RunExternalAsync();
 await NotificationChecks.RunAsync();

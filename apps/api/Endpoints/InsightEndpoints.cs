@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.Json;
+using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Auth;
 using CodeInsights.Api.Data;
 using CodeInsights.Api.Services;
@@ -114,9 +115,27 @@ public static class InsightEndpoints
         }
         var cursor = NumericCursor(context.Request); var size = PageSize(context.Request);
         var rows = await query.Where(x => x.Id > cursor).OrderBy(x => x.Id).Take(size + 1).Select(x => new
-        { x.Id, x.FindingId, x.Tool, x.RuleId, x.Severity, x.OriginalSeverity, x.Category, x.Message, x.Path, x.Line, x.Fingerprint, x.Excepted }).ToListAsync(ct);
+        { x.Id, x.FindingId, x.ReportId, x.Tool, x.OriginalTool, x.RuleId, x.Severity, x.OriginalSeverity, x.Category, x.Message, x.Path, x.Line, x.Fingerprint, x.Excepted, x.Evidence }).ToListAsync(ct);
         if (rows.Count > size) { rows.RemoveAt(size); Continuation(context, rows[^1].Id.ToString()); }
-        return Results.Ok(rows);
+        var manifest = ingestion is null ? null : JsonSerializer.Deserialize<IngestionManifest>(ingestion.Manifest, ApiJson.Options);
+        return Results.Ok(rows.Select(x =>
+        {
+            var evidence = JsonSerializer.Deserialize<FindingEvidence>(x.Evidence, ApiJson.Options);
+            return new
+            {
+                x.Id, x.FindingId, x.Tool, x.OriginalTool, x.RuleId, x.Severity, x.OriginalSeverity, x.Category, x.Message, x.Path, x.Line, x.Fingerprint, x.Excepted,
+                tool_version = manifest?.Reports.FirstOrDefault(r => r.ReportId == x.ReportId)?.ToolVersion,
+                commit_sha = manifest?.CommitSha,
+                source_url = evidence?.Locations?.Any(l => l.Kind == "primary" && l.Path == x.Path && l.Line == x.Line && l.RepositoryRelative) == true
+                    ? FindingEvidenceLinks.AzureDevOpsSource(manifest?.RepositoryUrl, manifest?.CommitSha, x.Path, x.Line) : null,
+                evidence = evidence is null ? null : new
+                {
+                    evidence.DriverVersion, evidence.DocumentationUrl, evidence.DocumentationSource, evidence.DocumentationVersion, evidence.DocumentationStatus, evidence.LocationsTruncated,
+                    locations = (evidence.Locations ?? []).Select(l => new { l.Kind, l.Flow, l.Thread, l.Step, l.Path, l.Line, l.EndLine, l.Column, l.EndColumn, l.RepositoryRelative,
+                        source_url = l.RepositoryRelative ? FindingEvidenceLinks.AzureDevOpsSource(manifest?.RepositoryUrl, manifest?.CommitSha, l.Path, l.Line) : null })
+                }
+            };
+        }));
     }
 
     private static async Task<IResult> ComponentsAsync(string id, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
