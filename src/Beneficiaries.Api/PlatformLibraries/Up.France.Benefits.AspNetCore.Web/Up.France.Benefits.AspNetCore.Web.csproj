@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\..\SharedLibraries\Up.France.Benefits.Core\Up.France.Benefits.Core.csproj" />
+    <ProjectReference Include="..\Up.France.Benefits.AspNetCore\Up.France.Benefits.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\SharedLibraries\Up.France.Benefits.Hosting\Up.France.Benefits.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>
+

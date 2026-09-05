@@ -1,0 +1,30 @@
+from enum import Enum
+
+
+class DistributorRef(str, Enum):
+    FRACADHOC = "FRACADHOC"
+    CDJFRANCE = "CDJFRANCE"
+    CDJFRANCEMCO = "CDJFRANCEMCO"
+    UPFRANCE = "UPFRANCE"
+    UPCOHESIA = "UPCOHESIA"
+
+
+class OperationType(str, Enum):
+    AUTHORIZATION = "AUTHORIZATION"
+    BALANCE_NOTIFICATION = "BALANCE_NOTIFICATION"
+
+
+class OperationNature(str, Enum):
+    PURCHASE = "PURCHASE"
+    REFUND_PURCHASE = "REFUND_PURCHASE"
+    LOAD = "LOAD"
+    UNLOAD = "UNLOAD"
+    UNKNOWN = "UNKNOWN"
+
+
+class OperationStatus(str, Enum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    DECLINED = "DECLINED"
+    UNKNOWN = "UNKNOWN"

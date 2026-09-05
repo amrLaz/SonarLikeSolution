@@ -1,0 +1,803 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2013 rel. 2 (http://www.altova.com) by BELIN (ATOS) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:fin="http://www.atos.net/financeur" targetNamespace="http://www.atos.net/financeur">
+	<xs:simpleType name="CustomizedSortingCriteria">
+		<xs:annotation>
+			<xs:documentation>Critère de tri personnalisé</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\p{L}]{0,32}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ImportReportType">
+		<xs:annotation>
+			<xs:documentation>Format par defaut pour les flux retours</xs:documentation>
+		</xs:annotation>
+		<xs:complexContent>
+			<xs:extension base="fin:HeaderResultType">
+				<xs:choice>
+					<xs:element name="Detail" minOccurs="0" maxOccurs="unbounded">
+						<xs:complexType>
+							<xs:sequence>
+								<xs:element name="resultCode" type="fin:ResultCodeType"/>
+								<xs:element name="resultMsg" type="fin:ResultMsgType" minOccurs="0"/>
+							</xs:sequence>
+							<xs:attribute name="requestItemSeqNbr" use="optional">
+								<xs:simpleType>
+									<xs:restriction base="xs:nonNegativeInteger">
+										<xs:pattern value=".{1,10}"/>
+									</xs:restriction>
+								</xs:simpleType>
+							</xs:attribute>
+						</xs:complexType>
+					</xs:element>
+					<xs:sequence>
+						<xs:element name="resultCode" type="fin:ResultCodeType"/>
+						<xs:element name="resultMsg" type="fin:ResultMsgType" minOccurs="0"/>
+					</xs:sequence>
+				</xs:choice>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:simpleType name="ReferenceType">
+		<xs:annotation>
+			<xs:documentation>Format Alphanumerique UTF-8 pour les champs de type Reference</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\p{L}0-9]{1,45}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NotRestrictedReferenceType">
+		<xs:annotation>
+			<xs:documentation>Format Alphanumerique pour les champs de type Reference dans restriction de format</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value=".{0,45}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="IntType">
+		<xs:annotation>
+			<xs:documentation>Format Entier positif de longueur max 10 pour les champs de type entier</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:pattern value=".{1,10}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="sequenceNumberType">
+		<xs:annotation>
+			<xs:documentation>Format Entier positif de longueur unique 10 pour les champs de type numero de sequence</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:integer">
+			<xs:pattern value="[0-9]{10}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="AddressType">
+		<xs:annotation>
+			<xs:documentation>Format pour les adresses postales.</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="line1">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line2">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{0,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line3">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line4">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{0,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line5">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{0,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="zipCode">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="town">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="countrycode">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,38}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="phoneNumber" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{0,50}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AddressExtendedType">
+		<xs:annotation>
+			<xs:documentation>Format étendu pour les adresses.</xs:documentation>
+		</xs:annotation>
+		<xs:complexContent>
+			<xs:extension base="fin:AddressType">
+				<xs:sequence>
+					<xs:element name="cellNumber" minOccurs="0">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:pattern value=".{0,50}"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="email" minOccurs="0">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:pattern value=".{0,256}"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+				</xs:sequence>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:simpleType name="HourType">
+		<xs:annotation>
+			<xs:documentation>Heure au format HH:MM</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="(([01][0-9])|(2[0-3])):[0-5][0-9]"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DayAndMonthType">
+		<xs:annotation>
+			<xs:documentation>Jour au format DD/mm</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="MonthAndYearType">
+		<xs:annotation>
+			<xs:documentation>Date au format MMYY</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="(0[1-9]|1[0-2])[0-9]{2}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="CurrencyType">
+		<xs:annotation>
+			<xs:documentation>Format code devise</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]{3}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DayOfWeekType">
+		<xs:annotation>
+			<xs:documentation>Enumeration des jours de la semaine</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="MONDAY"/>
+			<xs:enumeration value="TUESDAY"/>
+			<xs:enumeration value="WEDNESDAY"/>
+			<xs:enumeration value="THURSDAY"/>
+			<xs:enumeration value="FRIDAY"/>
+			<xs:enumeration value="SATURDAY"/>
+			<xs:enumeration value="SUNDAY"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="MonthType">
+		<xs:annotation>
+			<xs:documentation>Enumération des mois</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="JANUARY"/>
+			<xs:enumeration value="FEBRUARY"/>
+			<xs:enumeration value="MARCH"/>
+			<xs:enumeration value="APRIL"/>
+			<xs:enumeration value="MAY"/>
+			<xs:enumeration value="JUNE"/>
+			<xs:enumeration value="JULY"/>
+			<xs:enumeration value="AUGUST"/>
+			<xs:enumeration value="SEPTEMBER"/>
+			<xs:enumeration value="OCTOBER"/>
+			<xs:enumeration value="NOVEMBER"/>
+			<xs:enumeration value="DECEMBER"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="QuarterType">
+		<xs:annotation>
+			<xs:documentation>Enumération des trimestres dans une restriction d'usage</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="JAN_APR_JUL_OCT"/>
+			<xs:enumeration value="FEB_MAY_AUG_NOV"/>
+			<xs:enumeration value="MAR_JUN_SEP_DEC"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="HeaderType">
+		<xs:annotation>
+			<xs:documentation>Attributs communs au noeud racine du flux</xs:documentation>
+		</xs:annotation>
+		<xs:attribute name="fileDate" type="xs:dateTime" use="required"/>
+		<xs:attribute name="fileId" use="required">
+			<xs:simpleType>
+				<xs:restriction base="xs:integer">
+					<xs:pattern value="[0-9]{1,10}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="nbrItems" use="required">
+			<xs:simpleType>
+				<xs:restriction base="xs:integer">
+					<xs:pattern value=".{1,10}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="distributorRef" use="required">
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:pattern value="[0-9a-zA-Z]{1,45}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="interfaceVersion">
+			<xs:simpleType>
+				<xs:restriction base="xs:int">
+					<xs:pattern value="[0-9]{1,3}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="HeaderResultType">
+		<xs:annotation>
+			<xs:documentation>Format des attributs pour les flux retours</xs:documentation>
+		</xs:annotation>
+		<xs:attribute name="fileDate" type="xs:dateTime" use="required"/>
+		<xs:attribute name="requestFileId" use="optional">
+			<xs:simpleType>
+				<xs:restriction base="xs:nonNegativeInteger">
+					<xs:pattern value="[0-9]{1,10}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="distributorRef" use="required">
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:pattern value="[0-9a-zA-Z]{1,45}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="nbEchecs" use="required">
+			<xs:simpleType>
+				<xs:restriction base="xs:nonNegativeInteger">
+					<xs:pattern value=".{1,10}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="interfaceVersion" use="optional">
+			<xs:simpleType>
+				<xs:restriction base="xs:int">
+					<xs:pattern value="[0-9]{1,3}"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="PersonalizedMsgType">
+		<xs:annotation>
+			<xs:documentation>Format pour les messages personnalises</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="line1">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,100}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line2" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,100}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line3" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,100}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="line4" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value=".{1,100}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="CardType">
+		<xs:annotation>
+			<xs:documentation>Format pour les informations carte de base</xs:documentation>
+		</xs:annotation>
+		<xs:attribute name="cardId" type="fin:CardIdType" use="optional"/>
+		<xs:attribute name="pan" type="fin:PanType" use="optional"/>
+		<xs:attribute name="psn" type="fin:PsnType" use="optional"/>
+		<xs:attribute name="expiryDate" type="fin:ExpiryDateType" use="optional"/>
+	</xs:complexType>
+	<xs:complexType name="CardResultType">
+		<xs:annotation>
+			<xs:documentation>Format pour les informations carte de base</xs:documentation>
+		</xs:annotation>
+		<xs:attribute name="cardId" type="fin:CardIdType" use="optional"/>
+		<xs:attribute name="pan" type="fin:TruncatedPanType" use="optional"/>
+		<xs:attribute name="psn" type="fin:PsnType" use="optional"/>
+		<xs:attribute name="expiryDate" type="fin:ExpiryDateType" use="optional"/>
+	</xs:complexType>
+	<xs:complexType name="VoucherType">
+		<xs:sequence>
+			<xs:element name="Amount" type="fin:AmountType" minOccurs="0"/>
+			<xs:element name="beginDate" type="xs:dateTime" minOccurs="0"/>
+			<xs:element name="endDate" type="xs:dateTime" minOccurs="0"/>
+			<xs:element name="externalReference" type="fin:UuidType" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AmountType">
+		<xs:annotation>
+			<xs:documentation>Format pour les montants (contient montant et devise) avec limite de 10 digits max</xs:documentation>
+		</xs:annotation>
+		<xs:complexContent>
+			<xs:restriction base="fin:BoundlessAmountType">
+				<xs:sequence>
+					<xs:element name="amount">
+						<xs:simpleType>
+							<xs:restriction base="xs:integer">
+								<xs:pattern value=".{1,10}"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="exponent" type="fin:ExponentType"/>
+					<xs:element name="currency" type="fin:CurrencyType"/>
+				</xs:sequence>
+			</xs:restriction>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="BoundlessAmountType">
+		<xs:annotation>
+			<xs:documentation>Format pour les montants (contient montant et devise)</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="amount" type="xs:integer"/>
+			<xs:element name="exponent" type="fin:ExponentType"/>
+			<xs:element name="currency" type="fin:CurrencyType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ExchangeRateType">
+		<xs:annotation>
+			<xs:documentation>Format pour les taux de change)</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="rate">
+				<xs:simpleType>
+					<xs:restriction base="xs:integer">
+						<xs:pattern value="[0-9]{1,7}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="exponent" type="fin:ExponentType"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="ResultMsgType">
+		<xs:annotation>
+			<xs:documentation>Format pour la donnee resultType des flux retour</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value=".{1,}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ResultCodeType">
+		<xs:annotation>
+			<xs:documentation>Format pour la donnee resultCode des flux retour</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[_0-9a-zA-Z]{1,45}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="CardIdType">
+		<xs:annotation>
+			<xs:documentation>Format pour le CardID d'une carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]{1,20}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="PanType">
+		<xs:annotation>
+			<xs:documentation>Format pour le PAN en clair d'une carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]{16,19}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="TruncatedPanType">
+		<xs:annotation>
+			<xs:documentation>Format pour le PAN masqué ou en clair d'une carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value=".{16,19}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="PsnType">
+		<xs:annotation>
+			<xs:documentation>Format pour le PSN d'une carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:int">
+			<xs:pattern value="[0-9]{1,2}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ExpiryDateType">
+		<xs:annotation>
+			<xs:documentation>Format pour la date d'expiration d'une carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="fin:MonthAndYearType"/>
+	</xs:simpleType>
+	<xs:simpleType name="SendingType">
+		<xs:annotation>
+			<xs:documentation>Type d'envoi pour la personnalisation</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="INDIV_CARD_PIN"/>
+			<xs:enumeration value="GROUPED_CARD_PIN"/>
+			<xs:enumeration value="GROUPED_CARD_INDIV_PIN"/>
+			<xs:enumeration value="INDIV_CARD_WITHOUT_PIN"/>
+			<xs:enumeration value="GROUPED_CARD_WITHOUT_PIN"/>
+			<xs:enumeration value="INDIV_PIN_WITHOUT_CARD"/>
+			<xs:enumeration value="NO_SEND"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="CardHolderNameType">
+		<xs:sequence>
+			<xs:element name="EmbossingName" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value="[\p{L}0-9 \-+.*/]{1,32}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="Title" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:enumeration value="M"/>
+						<xs:enumeration value="Mme"/>
+						<xs:enumeration value="Mlle"/>
+						<xs:enumeration value="Ste"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="FirstName" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value="[\p{L}0-9 -’.]{1,32}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="LastName" minOccurs="0">
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:pattern value="[\p{L}0-9 -’.]{1,64}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="IssuerIdType">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9]{5}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ExponentType">
+		<xs:annotation>
+			<xs:documentation>Format pour donnée exposant de monnaie</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:nonNegativeInteger">
+			<xs:pattern value=".{1}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="P1BxFooterType">
+		<xs:annotation>
+			<xs:documentation>Format pied pour les flux P1Bx</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="NumberOfDetails" type="fin:IntType"/>
+		</xs:sequence>
+		<xs:attribute name="numberOfCardOrders" type="fin:IntType" use="required"/>
+		<xs:attribute name="sequenceNumber" type="fin:sequenceNumberType" use="required"/>
+	</xs:complexType>
+	<xs:simpleType name="CardActionType">
+		<xs:annotation>
+			<xs:documentation>Types d'actions carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="ACTIVATION"/>
+			<xs:enumeration value="DEACTIVATION"/>
+			<xs:enumeration value="BLOCK"/>
+			<xs:enumeration value="UNBLOCK"/>
+			<xs:enumeration value="CONTACTLESS_ACTIVATION"/>
+			<xs:enumeration value="CONTACTLESS_DEACTIVATION"/>
+			<xs:enumeration value="PIN_UNBLOCK"/>
+			<xs:enumeration value="MODIFICATION"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="CardAssignType">
+		<xs:annotation>
+			<xs:documentation>Types d'actions de rattachement carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="ASSIGN"/>
+			<xs:enumeration value="REASSIGN"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="ActionType">
+		<xs:annotation>
+			<xs:documentation>Type d'action (Création, modification ...)</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="CREATION"/>
+			<xs:enumeration value="MODIFICATION"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="VoucherImpactsType">
+		<xs:annotation>
+			<xs:documentation>Liste des vouchers impactés</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="voucherImpact" type="fin:VoucherImpactType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="VoucherImpactsWithStatusType">
+		<xs:annotation>
+			<xs:documentation>Liste des vouchers impactés, avec leur statut</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="voucherImpact" type="fin:VoucherImpactWithStatusType" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="VoucherImpactType">
+		<xs:sequence>
+			<xs:element name="externalReference" type="fin:UuidType"/>
+			<xs:element name="amountImpact" type="fin:AmountType"/>
+		</xs:sequence>
+		<xs:attribute name="operationType" use="optional">
+			<xs:annotation>
+				<xs:documentation>EF276 : redressement au clearing - attribut utilisé pour DF20-B V13</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:enumeration value="authorization"/>
+					<xs:enumeration value="transaction"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+		<xs:attribute name="context" use="optional">
+			<xs:annotation>
+				<xs:documentation>EF276 : redressement au clearing - attribut utilisé pour DF20-B V13</xs:documentation>
+			</xs:annotation>
+			<xs:simpleType>
+				<xs:restriction base="xs:string">
+					<xs:enumeration value="authorization"/>
+					<xs:enumeration value="clearing"/>
+				</xs:restriction>
+			</xs:simpleType>
+		</xs:attribute>
+	</xs:complexType>
+	<xs:complexType name="VoucherImpactWithStatusType">
+		<xs:complexContent>
+			<xs:extension base="fin:VoucherImpactType">
+				<xs:sequence>
+					<xs:element name="status">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:enumeration value="ACTIVE"/>
+								<xs:enumeration value="PENDING"/>
+								<xs:enumeration value="EXPIRED"/>
+								<xs:enumeration value="PROCESSED"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+					<xs:element name="reason" minOccurs="0">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:enumeration value="CANCELLED"/>
+								<xs:enumeration value="UNLOADED_EXPIRED"/>
+								<xs:enumeration value="UNLOADED_PENDING"/>
+								<xs:enumeration value="UNLOADED_ACTIVE"/>
+								<xs:enumeration value="SPENT"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:element>
+				</xs:sequence>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:simpleType name="UuidType">
+		<xs:annotation>
+			<xs:documentation>Format Alphanumerique pour les champs de type UUID</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9a-fA-F]{32}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="DocumentListType">
+		<xs:sequence>
+			<xs:element name="Document" maxOccurs="5">
+				<xs:complexType>
+					<xs:annotation>
+						<xs:documentation>Type d'élément document</xs:documentation>
+					</xs:annotation>
+					<xs:attribute name="reference" type="fin:ReferenceType" use="required"/>
+					<xs:attribute name="volume" type="fin:IntType" use="required"/>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="nbrItems" type="fin:IntType" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="ElementDataListType">
+		<xs:annotation>
+			<xs:documentation>Liste générique d'élément</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="Item" maxOccurs="10">
+				<xs:complexType>
+					<xs:attribute name="eltName" type="fin:ReferenceType" use="required"/>
+					<xs:attribute name="eltValue" use="required">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:pattern value="[^|]{1,512}"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:attribute>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="nbrItems" type="fin:IntType" use="required"/>
+	</xs:complexType>
+	<xs:simpleType name="PinSendingType">
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="MAIL"/>
+			<xs:enumeration value="OTHER"/>
+			<xs:enumeration value="SMS"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="CardSortingCriteriaType">
+		<xs:annotation>
+			<xs:documentation>EF133 : ajout CUSTOMIZED</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:enumeration value="EMBOSSINGNAME"/>
+			<xs:enumeration value="ADRLINE1"/>
+			<xs:enumeration value="PAN"/>
+			<xs:enumeration value="CUSTOMIZED"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="TimeZoneType">
+		<xs:annotation>
+			<xs:documentation>Format pour les fuseaux horaires</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9a-zA-Z/\+_-]{1,128}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="AccountCategoryType">
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[\p{L}0-9]{1,20}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="OperationTypeChannelListType">
+		<xs:annotation>
+			<xs:documentation>EF130 – déclinaison PRB-08 au niveau profil Financeur et Bénéficiaire</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="OperationTypeChannel" maxOccurs="unbounded">
+				<xs:complexType>
+					<xs:attribute name="operationTypeValue" use="required">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:enumeration value="SALES"/>
+								<xs:enumeration value="SALES_CANCELLATION"/>
+								<xs:enumeration value="LOAD"/>
+								<xs:enumeration value="LOAD_CANCELLATION"/>
+								<xs:enumeration value="CARD_ACTIVATION"/>
+								<xs:enumeration value="CARD_ACTIVATION_CANCELLATION"/>
+								<xs:enumeration value="LOAD_ACTIVATION"/>
+								<xs:enumeration value="LOAD_ACTIVATION_CANCELLATION"/>
+								<xs:enumeration value="BALANCE_ENQUIRY"/>
+								<xs:enumeration value="CASH_WITHDRAWAL"/>
+								<xs:enumeration value="RETURN"/>
+								<xs:enumeration value="SALES_NOTIFICATION"/>
+								<xs:enumeration value="RETURN_NOTIFICATION"/>
+								<xs:enumeration value="SALES_CANCELLATION_NOTIFICATION"/>
+								<xs:enumeration value="REFUND_PURCHASE"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:attribute>
+					<xs:attribute name="canalAcceptationValue" use="required">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:enumeration value="PDP"/>
+								<xs:enumeration value="VAD"/>
+								<xs:enumeration value="ATM"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:attribute>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:simpleType name="CardProducerRefType">
+		<xs:annotation>
+			<xs:documentation>EF159 - Industriel carte en charge de la fabrication de la carte</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9a-z A-Z]{1,45}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="PinEditorRefType">
+		<xs:annotation>
+			<xs:documentation>EF159 - Industriel carte en charge de la communication du PIN </xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:string">
+			<xs:pattern value="[0-9a-z A-Z]{1,45}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="AccountNumberType">
+		<xs:annotation>
+			<xs:documentation>EF184 - Ajout des numéros de comptes bénéficiaires dans les flux</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:integer">
+			<xs:pattern value="[0-9]{1,11}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="ExemptionCodeListType">
+		<xs:sequence>
+			<xs:element name="exemptionCode" maxOccurs="unbounded">
+				<xs:complexType>
+					<xs:attribute name="exemptionCode" use="required">
+						<xs:simpleType>
+							<xs:restriction base="xs:string">
+								<xs:pattern value="[0-9]{2}"/>
+							</xs:restriction>
+						</xs:simpleType>
+					</xs:attribute>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+</xs:schema>

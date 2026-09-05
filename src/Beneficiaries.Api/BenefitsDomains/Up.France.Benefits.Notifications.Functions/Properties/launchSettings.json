@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Up.France.Benefits.Notifications.Functions": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7178",
+      "launchBrowser": false,
+      "environmentVariables": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+          "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+          "KEYVAULT_ENDPOINT": "https://up-fr-benefits-prod-kv.vault.azure.net/",
+          "SERVICEIDENTITY_CLIENTID": "0f62b005-bca6-4bc7-a15a-31f8fe8b7742"
+      }
+    }
+  }
+}

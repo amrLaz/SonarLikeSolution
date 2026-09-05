@@ -1,0 +1,35 @@
+trigger:
+  branches:
+    include:
+      - main
+      - master
+
+pr:
+  branches:
+    include:
+      - main
+      - master
+
+resources:
+  repositories:
+    - repository: SonarLikeSolution
+      type: git
+      # A adapter: projet/repo Azure DevOps qui centralise les templates
+      name: Up.France.ODI/SonarLikeSolution
+      # Recommandé: utiliser un tag immuable en production
+      ref: refs/heads/main
+
+variables:
+  PLATFORM_PROJECT_KEY: "MY_PROJECT"
+  PLATFORM_API_URL: "$(PLATFORM_API_URL)"
+  PLATFORM_API_TOKEN: "$(PLATFORM_API_TOKEN)"
+
+stages:
+  - template: templates/sast-stage.yml@SonarLikeSolution
+    parameters:
+      templatesRepoAlias: SonarLikeSolution
+      projectKey: $(PLATFORM_PROJECT_KEY)
+      apiUrl: $(PLATFORM_API_URL)
+      apiToken: $(PLATFORM_API_TOKEN)
+      scanTarget: src
+      scanIgnore: scripts/ci_platform_scan.py,**/ci_platform_scan.py

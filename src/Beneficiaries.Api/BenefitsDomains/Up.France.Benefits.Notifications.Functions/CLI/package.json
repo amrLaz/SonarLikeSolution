@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@azure/event-hubs": "^5.12.0"
+  }
+}

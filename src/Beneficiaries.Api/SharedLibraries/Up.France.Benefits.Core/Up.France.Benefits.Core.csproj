@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mapster" Version="7.4.0" />
+    <PackageReference Include="Mapster.Immutable" Version="1.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BenefitsDomains\Up.France.Benefits.Model\Up.France.Benefits.Model.csproj" />
+    <ProjectReference Include="..\Up.France.Benefits.Hosting\Up.France.Benefits.Hosting.csproj" />
+  </ItemGroup>
+
+</Project>

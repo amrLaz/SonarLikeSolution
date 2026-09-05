@@ -1,0 +1,888 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="0803AC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0803EX" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0803GF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0803M1" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0803M2" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0803MC" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="0804UA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="080537" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="0805AI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0805AR" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0805BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="0805C1" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805C2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805CC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0805CO" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805CV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0805DA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805de" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="0805FP" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="0805FR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="0805FU" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="0805HU" xml:space="preserve">
+    <value>votre achat est inférieur à 1€ (montant mini).</value>
+  </data>
+  <data name="0805I2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805NN" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="0805NP" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="0805PA" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="0805QG" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0805SC" xml:space="preserve">
+    <value>votre carte n'est pas activée.</value>
+  </data>
+  <data name="0805SD" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="0805SI" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="0805TV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0805UD" xml:space="preserve">
+    <value>ce jour n'est pas autorisé (ex: jour férié).</value>
+  </data>
+  <data name="0805UP" xml:space="preserve">
+    <value>ce jour n'est pas autorisé (ex: jour férié).</value>
+  </data>
+  <data name="0805UT" xml:space="preserve">
+    <value>cet horaire n'est pas autorisé.</value>
+  </data>
+  <data name="0812TI" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="0813MI" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="0814CL" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0825DM" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0825TI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0829DA" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="0830CA" xml:space="preserve">
+    <value>incident technique. Essayez à nouveau</value>
+  </data>
+  <data name="0830CF" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0830CV" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0834CC" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0841CP" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="0843CV" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="0847CO" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="0851BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="0854DV" xml:space="preserve">
+    <value>votre carte n'est plus valide. Pour plus d'infos,</value>
+  </data>
+  <data name="0856CA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0857CS" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0857ME" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0857MI" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0857ML" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="0857TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="0858TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="0858TF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="0858TT" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="0859NR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="0863" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0891" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="0894DD" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="0896" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="0898" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1103AC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1103EX" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1103GF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1103M1" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1103M2" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1103MC" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="1104UA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="110537" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="1105AI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1105AR" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1105BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="1105C1" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105C2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105CC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1105CO" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105CV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1105DA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105de" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="1105FP" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="1105FR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="1105FU" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="1105HU" xml:space="preserve">
+    <value>votre achat est inférieur à 1€ (montant mini).</value>
+  </data>
+  <data name="1105I2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105NN" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="1105NP" xml:space="preserve">
+    <value>votre plafond quotidien de 25€ a été dépassé.</value>
+  </data>
+  <data name="1105PA" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="1105QG" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1105SC" xml:space="preserve">
+    <value>votre carte n'est pas activée.</value>
+  </data>
+  <data name="1105SD" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="1105SI" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="1105TV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1105UD" xml:space="preserve">
+    <value>ce jour n'est pas autorisé (ex: jour férié).</value>
+  </data>
+  <data name="1105UP" xml:space="preserve">
+    <value>ce jour n'est pas autorisé (ex: jour férié).</value>
+  </data>
+  <data name="1105UT" xml:space="preserve">
+    <value>cet horaire n'est pas autorisé.</value>
+  </data>
+  <data name="1112TI" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="1113MI" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="1114CL" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1125DM" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1125TI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1129DA" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="1130CA" xml:space="preserve">
+    <value>incident technique. Essayez à nouveau</value>
+  </data>
+  <data name="1130CF" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1130CV" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1134CC" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1141CP" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="1143CV" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="1147CO" xml:space="preserve">
+    <value>votre carte a été opposée. Pour plus d'infos,</value>
+  </data>
+  <data name="1151BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="1154DV" xml:space="preserve">
+    <value>votre carte n'est plus valide. Pour plus d'infos,</value>
+  </data>
+  <data name="1156CA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1157CS" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1157ME" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1157MI" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1157ML" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="1157TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="1158TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="1158TF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="1158TT" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="1159NR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="1163" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1191" xml:space="preserve">
+    <value>incident technique. Si cela se reproduit</value>
+  </data>
+  <data name="1194DD" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="1196" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="1198" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2403AC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2403EX" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2403GF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2403M1" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2403M2" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="2403MC" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="2404UA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="240537" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2405AI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2405AR" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2405BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="2405C1" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405C2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405CC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2405CO" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405CV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2405DA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405de" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="2405FP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405FR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2405FU" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405HU" xml:space="preserve">
+    <value>votre achat est inférieur à 1€ (montant mini).</value>
+  </data>
+  <data name="2405I2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405NN" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2405NP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405PA" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="2405QG" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405SC" xml:space="preserve">
+    <value>votre carte n'est pas activée.</value>
+  </data>
+  <data name="2405SD" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2405SI" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2405TV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2405UD" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405UP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2405UT" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2412TI" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2413MI" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2414CL" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2425DM" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2425TI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2429DA" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2430CA" xml:space="preserve">
+    <value>incident technique. Essayez à nouveau</value>
+  </data>
+  <data name="2430CF" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2430CV" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2434CC" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2441CP" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2443CV" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2447CO" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2451BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="2454DV" xml:space="preserve">
+    <value>votre carte n'est plus valide.</value>
+  </data>
+  <data name="2456CA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2457CS" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2457ME" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2457MI" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2457ML" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2457TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2458TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2458TF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2458TT" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2459NR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2463" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2491" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2494DD" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2496" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2498" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2503AC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2503EX" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2503GF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2503M1" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2503M2" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="2503MC" xml:space="preserve">
+    <value>votre achat ne respecte pas la règlementation.</value>
+  </data>
+  <data name="2504UA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="250537" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2505AI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2505AR" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2505BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="2505C1" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505C2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505CC" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2505CO" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505CV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2505DA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505de" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="2505FP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505FR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2505FU" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505HU" xml:space="preserve">
+    <value>votre achat est inférieur à 1€ (montant mini).</value>
+  </data>
+  <data name="2505I2" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505NN" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2505NP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505PA" xml:space="preserve">
+    <value>carte non valable à l'étranger.</value>
+  </data>
+  <data name="2505QG" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505SC" xml:space="preserve">
+    <value>votre carte n'est pas activée.</value>
+  </data>
+  <data name="2505SD" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2505SI" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2505TV" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2505UD" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505UP" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2505UT" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2512TI" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2513MI" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2514CL" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2525DM" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2525TI" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2529DA" xml:space="preserve">
+    <value>un incident technique s'est produit.</value>
+  </data>
+  <data name="2530CA" xml:space="preserve">
+    <value>incident technique. Essayez à nouveau</value>
+  </data>
+  <data name="2530CF" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2530CV" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2534CC" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2541CP" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2543CV" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2547CO" xml:space="preserve">
+    <value>votre carte a été opposée.</value>
+  </data>
+  <data name="2551BA" xml:space="preserve">
+    <value>solde insuffisant. Consultez votre appli.</value>
+  </data>
+  <data name="2554DV" xml:space="preserve">
+    <value>votre carte n'est plus valide.</value>
+  </data>
+  <data name="2556CA" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2557CS" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2557ME" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2557MI" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2557ML" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2557TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2558TC" xml:space="preserve">
+    <value>ce mode de paiement n'est pas autorisé.</value>
+  </data>
+  <data name="2558TF" xml:space="preserve">
+    <value>une anomalie a été détectée sur votre carte.</value>
+  </data>
+  <data name="2558TT" xml:space="preserve">
+    <value>commerçant non autorisé à accepter la carte.</value>
+  </data>
+  <data name="2559NR" xml:space="preserve">
+    <value>votre carte est désactivée.</value>
+  </data>
+  <data name="2563" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2591" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2594DD" xml:space="preserve">
+    <value>incident technique. Essayez de nouveau.</value>
+  </data>
+  <data name="2596" xml:space="preserve">
+    <value>NC</value>
+  </data>
+  <data name="2598" xml:space="preserve">
+    <value>NC</value>
+  </data>
+</root>

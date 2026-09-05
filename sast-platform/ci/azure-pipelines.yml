@@ -1,0 +1,29 @@
+name: sast_platform_$(SourceBranchName)_$(date:yyyyMMdd)$(rev:.r)
+
+resources:
+  repositories:
+    - repository: AzPipelinesTpl
+      type: git
+      name: "Up.France.ODI.AzurePipelines"
+      ref: refs/tags/v1.1.4
+
+pr:
+  branches:
+    include:
+      - master
+
+trigger:
+  branches:
+    include:
+      - master
+      - refs/tags/v*
+
+jobs:
+  - template: az-terraform-tpl.yml@AzPipelinesTpl
+    parameters:
+      srcDir: $(System.DefaultWorkingDirectory)/sast-platform
+      flattenFolders: false
+      sonar_enabled: false
+      sonar_project_name: "Up.France.ODI.Devops-Governance.SastPlatform"
+      sonar_project_key: upfrance_Up.France.ODI_Up.France.ODI.Devops-Governance_SastPlatform
+      terraformVersion: "latest"

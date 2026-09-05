@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAST Platform — CI/CD (GitHub Actions)
+#
+# Auth Azure : OIDC via federated credential "github-sast-master"
+# App registration : APP-UP-FR-DEVOPS-FABRIK-01 (5a8a3282-fe0c-4cbe-bb5d-1683893c212b)
+# Aucun secret Azure à stocker — GitHub présente un token OIDC à Entra ID.
+#
+# GitHub Environment "SAST-Plateform" — configuration requise :
+#
+#   Secrets :
+#     ACR_LOGIN_SERVER      upgroup.azurecr.io
+#     CONTAINER_APP_NAME    up-france-odi-sast-prod-app
+#
+#   Variables :
+#     AZURE_CLIENT_ID       5a8a3282-fe0c-4cbe-bb5d-1683893c212b
+#     AZURE_TENANT_ID       475fd1d1-212f-472f-9c02-635526f47568
+#     AZURE_SUBSCRIPTION_ID 6936e3c2-8d29-4883-892b-9490850e9caa
+#     AZURE_RESOURCE_GROUP  up-france-odi-sast-prod-rg
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy SAST Platform
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "apps/web/src/**"
+      - "apps/web/index.html"
+      - "apps/web/vite.config.ts"
+      - "apps/web/tsconfig.json"
+      - "Dockerfile"
+      - ".github/workflows/deploy-platform.yml"
+
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Forcer un rebuild même sans changement de code"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: sast-platform
+  IMAGE_TAG: ${{ github.run_number }}
+
+jobs:
+  # ── Job 1 : Build & push l'image Docker vers ACR ─────────────────────────
+  build:
+    name: "Build & push image → ACR"
+    runs-on: ubuntu-latest
+    environment: SAST-Plateform
+    outputs:
+      image_tag: ${{ env.IMAGE_TAG }}
+
+    permissions:
+      id-token: write   # requis pour l'auth OIDC
+      contents: read
+
+    steps:
+      - name: "1. Checkout"
+        uses: actions/checkout@v4
+
+      - name: "2. Login Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "3. Login ACR via token OIDC"
+        run: |
+          TOKEN=$(az acr login \
+            --name "$(echo '${{ secrets.ACR_LOGIN_SERVER }}' | cut -d. -f1)" \
+            --expose-token --output tsv --query accessToken)
+          echo "$TOKEN" | docker login "${{ secrets.ACR_LOGIN_SERVER }}" \
+            --username 00000000-0000-0000-0000-000000000000 --password-stdin
+
+      - name: "4. Setup Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "5. Build multi-stage + push"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to:   type=registry,ref=${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  # ── Job 2 : Déployer la nouvelle image sur Azure Container Apps ────────────
+  deploy:
+    name: "Deploy → Container Apps"
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: SAST-Plateform
+      url: https://up-france-odi-sast-prod-app.azurewebsites.net
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: "1. Login Azure (OIDC)"
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: "2. Mettre à jour l'image du Web App"
+        run: |
+          az webapp config container set \
+            --name "${{ secrets.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --container-image-name "${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }}"
+
+      - name: "3. Redémarrer pour appliquer la nouvelle image"
+        run: |
+          az webapp restart \
+            --name "${{ secrets.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}"
+
+      - name: "4. URL de la plateforme"
+        run: |
+          FQDN=$(az webapp show \
+            --name "${{ secrets.CONTAINER_APP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "defaultHostName" --output tsv)
+          echo "════════════════════════════════════════════════════════"
+          echo "  Déploiement terminé — image :${{ needs.build.outputs.image_tag }}"
+          echo "  Platform URL : https://${FQDN}"
+          echo "  → Mettre à jour PLATFORM_API_URL dans Commercant.Common (ADO)"
+          echo "════════════════════════════════════════════════════════"

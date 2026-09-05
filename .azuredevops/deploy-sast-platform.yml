@@ -1,0 +1,103 @@
+name: Deploy_SAST_Platform_$(SourceBranchName)_$(date:yyyyMMdd)$(rev:.r)
+
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - apps/api/**
+      - apps/web/src/**
+      - apps/web/index.html
+      - apps/web/vite.config.ts
+      - apps/web/tsconfig.json
+      - Dockerfile
+      - .azuredevops/deploy-sast-platform.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  IMAGE_NAME: sast-platform
+  IMAGE_TAG: $(Build.BuildId)
+  ACR_LOGIN_SERVER: upgroup.azurecr.io
+  CONTAINER_APP_NAME: up-france-odi-sast-prod-app
+  RESOURCE_GROUP: up-france-odi-sast-prod-rg
+
+stages:
+
+  # ── Build & Push ──────────────────────────────────────────────────────────────
+  - stage: Build
+    displayName: 'Build & Push → ACR'
+    jobs:
+      - job: BuildAndPush
+        displayName: 'Docker build → upgroup.azurecr.io'
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: AzureCLI@2
+            displayName: 'Login ACR via token Azure + docker build & push'
+            inputs:
+              azureSubscription: 'Subscription Fabrik'
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                TOKEN=$(az acr login \
+                  --name upgroup \
+                  --expose-token \
+                  --output tsv \
+                  --query accessToken)
+                echo "$TOKEN" | docker login "$(ACR_LOGIN_SERVER)" \
+                  --username 00000000-0000-0000-0000-000000000000 \
+                  --password-stdin
+
+                docker build \
+                  -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)" \
+                  -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest" \
+                  -f Dockerfile \
+                  .
+
+                docker push "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)"
+                docker push "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest"
+
+  # ── Deploy ────────────────────────────────────────────────────────────────────
+  - stage: Deploy
+    displayName: 'Deploy → Web App'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeployWebApp
+        displayName: 'Update container + restart'
+        environment: 'sast-prod'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: 'az webapp config container set + restart'
+                  inputs:
+                    azureSubscription: 'Subscription Fabrik'
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      az webapp config container set \
+                        --name "$(CONTAINER_APP_NAME)" \
+                        --resource-group "$(RESOURCE_GROUP)" \
+                        --container-image-name "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
+                      az webapp restart \
+                        --name "$(CONTAINER_APP_NAME)" \
+                        --resource-group "$(RESOURCE_GROUP)"
+
+                      FQDN=$(az webapp show \
+                        --name "$(CONTAINER_APP_NAME)" \
+                        --resource-group "$(RESOURCE_GROUP)" \
+                        --query "defaultHostName" --output tsv)
+
+                      echo "════════════════════════════════════════════════════════"
+                      echo "  Déploiement terminé — image :$(IMAGE_TAG)"
+                      echo "  Platform URL : https://${FQDN}"
+                      echo "════════════════════════════════════════════════════════"
