@@ -55,21 +55,21 @@ steps:
         APPLY="${APPLY,,}"
         # Bootstrap data-plane access before refreshing the keyless Blob account.
         if [ "$APPLY" = true ] && ! terraform state list | grep -qx azurerm_role_assignment.deployment_reports; then
-          terraform plan -input=false -no-color -var-file=variables/production.tfvars -target=azurerm_role_assignment.deployment_reports -out=tfplan-access
+          terraform plan -lock-timeout=5m -input=false -no-color -var-file=variables/production.tfvars -target=azurerm_role_assignment.deployment_reports -out=tfplan-access
           terraform show -json tfplan-access | jq -e '[.resource_changes[]? | select(.change.actions | index("delete"))] | length == 0' >/dev/null
-          terraform apply -input=false -no-color tfplan-access
+          terraform apply -lock-timeout=5m -input=false -no-color tfplan-access
           sleep 30
         fi
         replace=()
         if [ "$RECREATE_DATABASE" = true ]; then
           replace=(-replace=azurerm_postgresql_flexible_server_database.app)
         fi
-        terraform plan -input=false -no-color -var-file=variables/production.tfvars "${replace[@]}" -out=tfplan
+        terraform plan -lock-timeout=5m -input=false -no-color -var-file=variables/production.tfvars "${replace[@]}" -out=tfplan
         terraform show -json tfplan | jq -e --arg recreate "$RECREATE_DATABASE" '
           [.resource_changes[]? | select(.change.actions | index("delete")) | .address]
           | all(. == "azurerm_postgresql_flexible_server_database.app" and $recreate == "true")' >/dev/null
         if [ "$APPLY" = true ]; then
-          terraform apply -input=false -no-color tfplan
+          terraform apply -lock-timeout=5m -input=false -no-color tfplan
         fi
     env:
       APPLY: ${{ parameters.apply }}
