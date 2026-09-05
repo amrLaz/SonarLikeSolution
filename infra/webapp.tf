@@ -47,7 +47,7 @@ resource "azurerm_linux_web_app" "sast" {
   )
 
   tags       = local.common_tags
-  depends_on = [azurerm_postgresql_flexible_server.sast]
+  depends_on = [azurerm_postgresql_flexible_server_database.app, azurerm_key_vault_secret.authentication_signing_key, azurerm_key_vault_secret.bootstrap_admin_password]
 
   # Azure DevOps sélectionne le tag d'image à déployer.
   lifecycle {
@@ -57,12 +57,8 @@ resource "azurerm_linux_web_app" "sast" {
 
 # ─── AcrPull permission pour l'identité managée du Web App ────────────────────
 
-data "azurerm_role_definition" "acr_pull" {
-  name = "AcrPull"
-}
-
 resource "azurerm_role_assignment" "app_acr_pull" {
-  scope              = data.azurerm_container_registry.main.id
-  role_definition_id = data.azurerm_role_definition.acr_pull.id
-  principal_id       = azurerm_linux_web_app.sast.identity[0].principal_id
+  scope                = data.azurerm_container_registry.main.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_linux_web_app.sast.identity[0].principal_id
 }
