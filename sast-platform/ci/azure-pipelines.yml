@@ -24,6 +24,6 @@ jobs:
       srcDir: $(System.DefaultWorkingDirectory)/sast-platform
       flattenFolders: false
       sonar_enabled: false
-      sonar_project_name: "Up.France.ODI.Devops-Governance.SastPlatform"
-      sonar_project_key: upfrance_Up.France.ODI_Up.France.ODI.Devops-Governance_SastPlatform
+      sonar_project_name: "Up.France.ODI.CodeInsights"
+      sonar_project_key: upfrance_Up.France.ODI_Up.France.ODI.CodeInsights
       terraformVersion: "latest"
