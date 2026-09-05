@@ -24,6 +24,17 @@ identifiants, une query ou un fragment ne sont pas reprises pour le dépôt.
 Une localisation avec `uriBaseId` non résolu ne produit pas de lien de code :
 la relation avec la racine du dépôt n'est pas prouvée.
 
+Pour les rapports SARIF natifs produisant des chemins absolus, le manifeste peut
+déclarer `source_root` explicitement : racine Windows `C:/agent/source`, POSIX
+`/agent/source`, ou URI locale `file:///...`. Les chemins SARIF ne sont convertis
+en chemins relatifs que s'ils sont strictement enfants de cette racine. Les
+chemins Windows se comparent sans distinction de casse, les chemins POSIX avec
+distinction de casse. Un préfixe voisin (`source-other`), une traversée même
+encodée, une URI UNC, une query ou un fragment sont refusés. Sans racine déclarée,
+un chemin absolu reste refusé. Aucun fichier source n'est lu et le rapport natif
+stocké demeure inchangé. Le chemin normalisé et la preuve de localisation
+permettent alors le lien au SHA analysé ; aucune racine n'est devinée.
+
 La documentation provient exclusivement de `tool.driver.rules[].helpUri` pour
 la règle correspondante. Un lien HTTPS sans identifiants est conservé avec la
 provenance `sarif.tool.driver.rules.helpUri` et l'état `producer_link_unverified`.

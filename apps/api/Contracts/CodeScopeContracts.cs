@@ -2,6 +2,7 @@ namespace CodeInsights.Api.Contracts;
 
 public sealed partial record IngestionManifest
 {
+    public string SourceRoot { get; init; } = "";
     public string CodeScopeVersion { get; init; } = "";
     public string[] RepositoryFiles { get; init; } = [];
 }

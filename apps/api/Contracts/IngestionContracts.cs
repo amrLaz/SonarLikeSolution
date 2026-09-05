@@ -54,6 +54,8 @@ public static class IngestionValidation
 {
     public static void Validate(IngestionManifest value, IngestionOptions options)
     {
+        try { SourcePaths.ValidateRoot(value.SourceRoot); }
+        catch (InvalidDataException ex) { throw new ApiException(422, ex.Message); }
         static bool Sha(string? v) => v is { Length: >= 6 and <= 64 } && v.All(Uri.IsHexDigit);
         if (value.SchemaVersion != 1 || !Sha(value.CommitSha) || string.IsNullOrWhiteSpace(value.BuildId)
             || value.BuildId.Length > 200 || string.IsNullOrWhiteSpace(value.Branch) || value.Branch.Length > 500

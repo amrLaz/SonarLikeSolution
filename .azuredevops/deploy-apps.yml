@@ -165,6 +165,25 @@ stages:
                       curl --fail --silent --max-time 20 "https://${FQDN}/healthz"
                       curl --fail --silent --max-time 20 "https://${FQDN}/" | grep -q '<div id="root">'
 
+                      export CODEINSIGHTS_SMOKE_URL="https://${FQDN}"
+                      CODEINSIGHTS_SMOKE_PASSWORD=$(az keyvault secret show --vault-name up-fr-odi-sast-prod-kv --name bootstrap-admin-password --query value -o tsv)
+                      export CODEINSIGHTS_SMOKE_PASSWORD
+                      python3 - <<'PY'
+                      import json, os, urllib.request
+                      base = os.environ['CODEINSIGHTS_SMOKE_URL']
+                      request = urllib.request.Request(base + '/api/v1/auth/login', data=json.dumps({
+                          'email': 'admin@codeinsights.local', 'password': os.environ['CODEINSIGHTS_SMOKE_PASSWORD']
+                      }).encode(), headers={'Content-Type': 'application/json'})
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          token = json.load(response)['token']
+                      for path in ['/api/v1/auth/me', '/api/v1/projects', '/api/v1/profiles', '/api/v1/ingestions/queue']:
+                          request = urllib.request.Request(base + path, headers={'Authorization': 'Bearer ' + token})
+                          with urllib.request.urlopen(request, timeout=30) as response:
+                              json.load(response)
+                          print('Authenticated database probe passed: ' + path)
+                      PY
+                      unset CODEINSIGHTS_SMOKE_PASSWORD
+
                       echo "════════════════════════════════════════════════════════"
                       echo "  Déploiement terminé — image :$(IMAGE_TAG)"
                       echo "  Platform URL : https://${FQDN}"

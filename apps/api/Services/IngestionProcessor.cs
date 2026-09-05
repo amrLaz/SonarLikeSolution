@@ -34,7 +34,7 @@ public sealed class IngestionProcessor(AppDbContext db, ReportStorage storage, I
             timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.ParseTimeoutSeconds));
             await using var stream = await storage.OpenAsync(report.BlobName, timeout.Token);
             ImportedReport imported;
-            try { imported = await ReportImports.ParseAsync(stream, descriptor.Format, descriptor.FormatVersion, descriptor.Tool, timeout.Token); }
+            try { imported = await ReportImports.ParseAsync(stream, descriptor.Format, descriptor.FormatVersion, descriptor.Tool, timeout.Token, manifest.SourceRoot); }
             catch (InvalidDataException ex)
             {
                 report.Error = ex.Message[..Math.Min(ex.Message.Length, 500)];

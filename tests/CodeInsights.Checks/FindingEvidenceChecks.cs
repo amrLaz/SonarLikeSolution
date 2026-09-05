@@ -53,10 +53,34 @@ internal static class FindingEvidenceChecks
         Check(used == firstSize, "Rejected evidence leaves budget unchanged");
         FindingEvidenceLinks.Serialize(evidence, ref used, firstSize * 2);
         Check(used == firstSize * 2, "Exact cumulative limit remains valid");
+        foreach (var (root, absolutePath) in new[] {
+            ("C:/agent/source", "file:///C:/agent/source/src/a.cs"),
+            ("C:\\agent\\source", "C:/agent/source/src/a.cs"),
+            ("file:///C:/agent/source", "file:///c:/AGENT/source/src/a.cs"),
+            ("/agent/source", "file:///agent/source/src/a.cs"),
+            ("file:///agent/source", "/agent/source/src/a.cs") })
+        {
+            var rooted = await Parse(report.Replace("src/a.cs", absolutePath), root);
+            Check(rooted.Findings.Single().Path == "src/a.cs" && rooted.Findings.Single().Evidence!.Locations[0].RepositoryRelative
+                && rooted.Findings.Single().Evidence!.Locations[0].Path == "src/a.cs", "Explicit source root maps native URI and proves relative evidence");
+        }
+        foreach (var absolutePath in new[] { "file:///C:/agent/source-other/a.cs", "file:///C:/agent/source/../a.cs", "file:///C:/agent/source/%2e%2e/a.cs",
+            "file:///C:/agent/source/%252e%252e/a.cs", "file://server/share/a.cs", "file:///C:/agent/source/a.cs?token=x", "file:///C:/agent/source/a.cs%23secret", "C:/other/a.cs", "C:/agent/source" })
+        {
+            try { await Parse(report.Replace("src/a.cs", absolutePath), "C:/agent/source"); throw new InvalidOperationException("Expected invalid rooted source path rejection"); }
+            catch (InvalidDataException) { }
+        }
+        try { await Parse(report.Replace("src/a.cs", "file:///C:/agent/source/src/a.cs")); throw new InvalidOperationException("Expected absolute path rejection without source root"); }
+        catch (InvalidDataException) { }
+        foreach (var root in new[] { "relative/root", "//server/share", "file://server/share", "/root/../other", "C:/root?query", "https://host/root" })
+        {
+            try { SourcePaths.ValidateRoot(root); throw new InvalidOperationException("Expected invalid source root rejection"); }
+            catch (InvalidDataException) { }
+        }
         Console.WriteLine("Finding evidence checks passed.");
     }
 
-    private static Task<ImportedReport> Parse(string report) => ReportImports.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(report)), "sarif", "2.1.0", "scanner", CancellationToken.None);
+    private static Task<ImportedReport> Parse(string report, string sourceRoot = "") => ReportImports.ParseAsync(new MemoryStream(Encoding.UTF8.GetBytes(report)), "sarif", "2.1.0", "scanner", CancellationToken.None, sourceRoot);
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);

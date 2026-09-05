@@ -52,6 +52,7 @@ public static class IngestionChecks
         var analysis = first.GetProperty("analysis_id").GetString()!;
         var repeated = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Call("POST", "/api/v1/ingestions", initial, ci)));
         Check(repeated.All(x => x.GetProperty("ingestion_id").GetString() == id), "concurrent identical manifests have one receipt");
+        await Call("POST", "/api/v1/ingestions", initial with { SourceRoot = "/different-checkout" }, ci, 409);
         await Call("POST", $"/api/v1/ingestions/{id}/finalize", token: ci, expected: 409);
         await Call("GET", $"/api/v1/ingestions/{id}", token: other, expected: 403);
         await Call("POST", $"/api/v1/ingestions/{id}/finalize", token: other, expected: 403);

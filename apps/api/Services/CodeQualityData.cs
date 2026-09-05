@@ -82,6 +82,7 @@ public static class CodeQualityData
             var values = rows.Where(x => x.Branch.Kind == kind).ToArray();
             if (unavailable || !coverageMeasured) return new("unavailable", null, null, null);
             var measuredFiles = data.Reports.Where(x => kind == "branches" ? x.BranchesMeasured : x.ConditionsMeasured).SelectMany(x => x.SourceFiles).ToHashSet(StringComparer.Ordinal);
+            if (path.Length > 0 && !measuredFiles.Any(InPath)) return new("not_measured", null, null, null);
             if (newCode && added.Any(x => x.Value.Count > 0 && InPath(x.Key) && !measuredFiles.Contains(x.Key))) return new("unavailable", null, null, null);
             if (values.Length == 0) return data.Reports.Any(x => kind == "branches" ? x.BranchesMeasured : x.ConditionsMeasured)
                 ? Ratio(0, 0) : new("not_measured", null, null, null);

@@ -52,7 +52,7 @@ public static class FindingEvidenceLinks
     }
 
     /// <summary>Reads SARIF metadata defensively; optional documentation never determines ingestion success.</summary>
-    public static FindingEvidence FromSarif(JsonElement driver, JsonElement rule, JsonElement result, JsonElement[] artifacts)
+    public static FindingEvidence FromSarif(JsonElement driver, JsonElement rule, JsonElement result, JsonElement[] artifacts, string sourceRoot = "")
     {
         var locations = new List<EvidenceLocation>();
         var truncated = false;
@@ -65,8 +65,13 @@ public static class FindingEvidenceLinks
             if (Text(artifact, "uri") is null && Integer(artifact, "index") is { } index && index >= 0 && index < artifacts.Length)
                 artifact = Property(artifacts[index], "location");
             var path = Text(artifact, "uri");
-            if (path is not null) path = Uri.UnescapeDataString(path).Replace('\\', '/');
-            var relative = RelativePath(path) && Text(artifact, "uriBaseId") is null;
+            var absolute = path is not null && (path.StartsWith('/') || path.StartsWith('\\') || path.Contains(':'));
+            if (path is not null)
+            {
+                try { path = SourcePaths.Relative(path, sourceRoot); }
+                catch (InvalidDataException) { path = null; }
+            }
+            var relative = RelativePath(path) && (Text(artifact, "uriBaseId") is null || absolute && sourceRoot.Length > 0);
             // Absolute paths may disclose build-agent directories or URI credentials; never expose them as evidence.
             if (!RelativePath(path)) path = null;
             var region = Property(physical, "region");

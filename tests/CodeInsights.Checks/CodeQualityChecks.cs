@@ -14,6 +14,7 @@ internal static class CodeQualityChecks
         CodeQualityData.AddReport(snapshot, second, Descriptor("two", "lcov"));
         var totals = CodeQualityData.Summarize(snapshot, first.Coverage.Concat(second.Coverage));
         Check(totals.Lines.Numerator == 2 && totals.Lines.Denominator == 2 && totals.Branches.Numerator == 2 && totals.Branches.Denominator == 2, "Exact LCOV branch identities and line union without averages");
+        Check(CodeQualityData.Summarize(snapshot, first.Coverage, "src/absent.cs").Branches.State == "not_measured", "A file absent from the coverage report has no proved branch denominator");
         var diff = new GitDiff { State = "available", Files = [new("src/a.cs", null, [2], [])] };
         var changed = CodeQualityData.Summarize(snapshot, first.Coverage, newCode: true, diff: diff);
         Check(changed.Lines.Numerator == 0 && changed.Lines.Denominator == 1 && changed.Branches.Denominator == 2, "Changed-line coverage scope");

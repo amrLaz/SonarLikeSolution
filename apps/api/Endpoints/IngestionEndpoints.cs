@@ -128,7 +128,7 @@ public static class IngestionEndpoints
         if (previous is not null)
         {
             var old = JsonSerializer.Deserialize<IngestionManifest>(previous.Manifest, ApiJson.Options)!;
-            if (old.Branch != manifest.Branch || old.TargetSha != manifest.TargetSha || old.SourceSha != manifest.SourceSha)
+            if (old.Branch != manifest.Branch || old.TargetSha != manifest.TargetSha || old.SourceSha != manifest.SourceSha || old.SourceRoot != manifest.SourceRoot)
                 throw new ApiException(409, "Build context cannot change between contributions");
             manifest.Reports = old.Reports.Where(x => manifest.Reports.All(y => y.ReportId != x.ReportId)).Concat(manifest.Reports).OrderBy(x => x.ReportId).ToList();
             IngestionValidation.Validate(manifest, options.Value);

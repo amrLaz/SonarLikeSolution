@@ -27,8 +27,9 @@ public static class ReportImports
     private const int MaxEntries = 250_000;
 
     /// <summary>Parses supported report formats. Invalid reports raise InvalidDataException.</summary>
-    public static async Task<ImportedReport> ParseAsync(Stream input, string format, string version, string tool, CancellationToken ct)
+    public static async Task<ImportedReport> ParseAsync(Stream input, string format, string version, string tool, CancellationToken ct, string sourceRoot = "")
     {
+        SourcePaths.ValidateRoot(sourceRoot);
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
         int count;
@@ -59,7 +60,7 @@ public static class ReportImports
                     using (var json = await JsonDocument.ParseAsync(buffer, new JsonDocumentOptions { MaxDepth = 64 }, ct))
                     {
                         Require(json.RootElement.ValueKind == JsonValueKind.Object, "Report must be an object.");
-                        if (format.Equals("sarif", StringComparison.OrdinalIgnoreCase)) Sarif(json.RootElement, report, tool, version, ct);
+                        if (format.Equals("sarif", StringComparison.OrdinalIgnoreCase)) Sarif(json.RootElement, report, tool, version, ct, sourceRoot);
                         else if (format.Equals("cyclonedx", StringComparison.OrdinalIgnoreCase))
                         {
                             report = report with { VulnerabilityAssessmentMeasured = Property(json.RootElement, "vulnerabilities").ValueKind == JsonValueKind.Array ? true : null };
@@ -81,7 +82,7 @@ public static class ReportImports
         }
     }
 
-    private static void Sarif(JsonElement root, ImportedReport report, string producer, string version, CancellationToken ct)
+    private static void Sarif(JsonElement root, ImportedReport report, string producer, string version, CancellationToken ct, string sourceRoot)
     {
         Require(Text(root, "version") == version, "SARIF version mismatch.");
         foreach (var run in Array(root, "runs", true))
@@ -118,7 +119,7 @@ public static class ReportImports
                 string? fingerprint = fingerprints.ValueKind == JsonValueKind.Object && fingerprints.EnumerateObject().Any()
                     ? JsonSerializer.Serialize(fingerprints.EnumerateObject().OrderBy(x => x.Name, StringComparer.Ordinal).ToDictionary(x => x.Name, x => x.Value.GetString())) : null;
                 var locations = Array(result, "locations").ToArray();
-                var evidence = FindingEvidenceLinks.FromSarif(driver, Text(rule, "id") == ruleId ? rule : default, result, artifacts);
+                var evidence = FindingEvidenceLinks.FromSarif(driver, Text(rule, "id") == ruleId ? rule : default, result, artifacts, sourceRoot);
                 if (locations.Length == 0) Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, null, null, fingerprint) { Evidence = evidence });
                 foreach (var location in locations)
                 {
@@ -132,7 +133,7 @@ public static class ReportImports
                     var path = Text(artifact, "uri");
                     var line = Number(Property(physical, "region"), "startLine");
                     Require(line is null or > 0, "Invalid SARIF line.");
-                    Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, path is null ? null : SafePath(path), line, fingerprint) { Evidence = evidence });
+                    Add(report.Findings, new ImportedFinding(tool, ruleId!, normalized, severity, "unknown", message!, path is null ? null : SourcePaths.Relative(path, sourceRoot), line, fingerprint) { Evidence = evidence });
                 }
             }
         }
