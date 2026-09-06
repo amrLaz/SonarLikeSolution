@@ -306,7 +306,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   }, [selectedProject, selectedSummary, summaryQuery.isSuccess, selectedSummaryQuery.isSuccess, selectedSummaryQuery.isError]);
 
   useEffect(() => {
-    if (selectedBranch && branchesQuery.isSuccess && selectedBranchQuery.isSuccess && selectedSummary && !selectedSummary.branches.some((branch) => branch.name === selectedBranch)) {
+    if (selectedBranch && branchesQuery.isSuccess && selectedBranchQuery.isSuccess && selectedSummary && !(selectedSummary.branches ?? []).some((branch) => branch.name === selectedBranch)) {
       setSelectedBranch('');
       setSelectedAnalysisId('');
     }
