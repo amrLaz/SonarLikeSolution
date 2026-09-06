@@ -65,23 +65,15 @@ Azure DevOps réel ; le lot P1.7 n'est donc pas accepté en production.
 
 La politique distingue échec technique et non-respect qualité. Une attente dépassée ne signifie jamais réussite. Le mode informatif précède l'activation bloquante ; la politique de blocage est décidée par les responsables du projet avant généralisation.
 
-## P2 — Collaborer et piloter la progression
+## P2 — Traiter et piloter les issues
 
-**État du checkout : capacités P2 implémentées et vérifiées localement ;
-acceptation du pilote non acquise.** [Assignation et revue](p2-collaboration.md),
-[Azure Boards et boîte ciblée](p2-boards.md), [portefeuille et historique](p2-portfolio.md)
-décrivent les contrats et limites. La correspondance sans fingerprint reste
-conservatrice ; les décisions de revue ne changent pas le gate. Une création
-Boards à résultat ambigu requiert une réconciliation, sans nouvelle création
-automatique. Aucun déploiement ni pilote Azure n'est déclaré réalisé.
+**État du checkout : assignation et revue intégrées à Issues et vérifiées localement ; acceptation du pilote non acquise.** [Traitement des issues](p2-collaboration.md) décrit les contrats et limites. La correspondance sans fingerprint reste conservatrice ; les décisions de revue ne changent pas le gate. Aucun déploiement ni pilote Azure n'est déclaré réalisé.
 
 | Fonctionnalité / valeur                    | Dépendances et effort                   | Risque à traiter                                            | Acceptation                                                                                                                                                              |
 | ------------------------------------------ | --------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | P2.1 Propriétaires, équipes et assignation | P0.1, identité finding durable P1.2 ; M | Attribution perdue au scan suivant                          | Assignation conservée entre analyses, filtres « mes problèmes » et équipe, droits serveur testés.                                                                        |
 | P2.2 Cycle de vie et revue                 | P2.1 ; L                                | Faux positif global ou suppression définitive non justifiée | Commentaires, états et réouverture auditables ; exception par périmètre avec motif/expiration ; revue distincte des hotspots ; décisions conservées après purge.         |
-| P2.3 Azure Boards et notifications ciblées | P2.2, livraison durable P1.4 ; M        | Tickets/commentaires dupliqués, bruit de notifications      | Work Item lié au finding et synchronisation traçable ; abonnement ciblé sur changement significatif ; reprise sans doublon.                                              |
-| P2.4 Portefeuille et tendances comparables | P0.3/P1.4/P1.6 ; L                      | Score moyen masque un projet critique ou une mesure absente | Vue organisation/équipe/projet/branche, régressions et objectifs ; dimensions séparées, complétude/fraîcheur et ruptures de formule affichées.                           |
-| P2.5 Historique durable et recherche       | P2.4 ; M                                | Purge détruit progression ou liens partagés                 | Synthèses conservées après suppression des rapports détaillés ; navigation période/commit, filtres et liens partageables ; export avec périmètre et version des mesures. |
+| P2.3 Historique projet et recherche        | P0.3/P1.4/P1.6 ; M                      | Purge détruit progression ou liens partagés                 | Synthèses conservées, navigation période/commit, filtres URL et dimensions affichées séparément.                                                                          |
 
 Les critères UX transversaux comprennent clavier, focus visible, libellés explicites, états de chargement/erreur, tableaux accessibles en alternative aux courbes, et présentation adaptée aux petits écrans. La consultation live confirme des courbes mais ne constitue pas un audit complet d'accessibilité.
 
@@ -101,7 +93,7 @@ La comparaison porte sur les parcours utiles aux équipes, sans promettre une pa
 
 ## P3 — Qualité du code au quotidien
 
-**Livraison logicielle : P3.1 à P3.8 implémentés ; résultats de validation et de déploiement dans [livraison Azure](p3-deployment.md).** Chaque lot complète P1/P2 et réutilise les producteurs, profils, droits et jobs existants. Les extensions de publication sont optionnelles dans le client canonique ; le contrat legacy `POST /api/v1/analyses` reste inchangé.
+**Livraison logicielle : P3.1 à P3.8 implémentés ; résultats de validation et de déploiement dans [livraison Azure](p3-deployment.md).** Chaque lot complète P1/P2 et réutilise les producteurs, profils, droits et jobs existants. Les extensions de publication sont optionnelles dans le client canonique ; le contrat direct `POST /api/v1/analyses` reste inchangé.
 
 | Fonctionnalité / valeur                                   | Dépendances et effort                  | Risque à traiter                                                            | Acceptation                                                                                                                                                                                                                                                                                                                                                                                                |
 | --------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

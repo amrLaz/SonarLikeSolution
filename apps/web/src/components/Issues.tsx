@@ -5,8 +5,8 @@ import { apiPage } from '../api';
 import { findingCategory, findingCategoryLabel } from '../metric-display';
 import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
-import { FindingReview, FINDING_STATES, type Team } from './Collaboration';
-import { evidenceLink } from '../evidence-links';
+import { FindingReview, FINDING_STATES, type Team } from './IssueReview';
+import { evidenceLink, ruleDefinitionLink } from '../evidence-links';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
   authToken?: string;
@@ -20,6 +20,7 @@ type Props = {
   setSelectedProject: (value: string) => void;
   setSelectedBranch: (value: string) => void;
   setSelectedAnalysisId: (value: string) => void;
+  initialSeverity?: IssueSeverityFilter;
 };
 type EvidenceLocation = { kind: string; flow?: number; thread?: number; step: number; path?: string; line?: number; end_line?: number; source_url?: string | null };
 type FindingEvidence = {
@@ -58,9 +59,10 @@ export default function Issues({
   setSelectedProject,
   setSelectedBranch,
   setSelectedAnalysisId,
+  initialSeverity = 'all',
 }: Props) {
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
-  const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>('all');
+  const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>(initialSeverity);
   const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>('all');
   const [issueRuleFilter, setIssueRuleFilter] = useState('');
   const [issueFileFilter, setIssueFileFilter] = useState('');
@@ -245,8 +247,8 @@ export default function Issues({
           <h2 style={{ margin: 0 }}>
             Issues{' '}
             <InfoHint>
-              Issues et Vulnerabilities &amp; IOCs utilisent la même analyse sélectionnée. Les compteurs et la liste ci-dessous portent uniquement sur ses findings détaillés ; un ancien résumé par
-              fichier ne crée aucune issue artificielle. Aucun extrait de source n’est conservé dans cette vue.
+              Problèmes détectés dans l’analyse sélectionnée. Les compteurs et la liste portent uniquement sur ses findings détaillés ; un résumé par fichier ne crée aucune issue artificielle. Le lien
+              de code ouvre le commit exact dans le dépôt.
             </InfoHint>
           </h2>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
@@ -279,15 +281,16 @@ export default function Issues({
                     ? 'sev-high'
                     : severityLower === 'warning' || severityLower === 'medium'
                       ? 'sev-medium'
-                      : severityLower === 'info' || severityLower === 'convention'
-                        ? 'sev-info'
-                        : 'sev-low';
+                      : severityLower === 'low' || severityLower === 'convention'
+                        ? 'sev-low'
+                        : 'sev-info';
               const shortFile = issue.file_path.split('/').slice(-2).join('/');
               const lineLabel = issue.end_line && issue.end_line !== issue.line ? `L${issue.line}–${issue.end_line}` : issue.line == null ? 'Ligne indisponible' : `L${issue.line}`;
               const isExpanded = expandedIssueId === issue.id;
 
+              const definitionUrl = issue.documentation_url ?? ruleDefinitionLink(issue.tool, issue.rule);
               return (
-                <article key={issue.id} className={`issue-card ${isExpanded ? 'expanded' : ''}`}>
+                <article key={issue.id} className={`issue-card ${sevClass}${isExpanded ? ' expanded' : ''}`}>
                   <div className="issue-card-header">
                     <div className="issue-card-left">
                       <span className={`sev-badge ${sevClass}`}>{issue.severity}</span>
@@ -355,15 +358,15 @@ export default function Issues({
                         <p>
                           Producteur : {issue.producer} · règle <code>{issue.rule}</code> · analyseur {issue.tool_version ?? 'version inconnue'}.
                         </p>
-                        {issue.documentation_url ? (
+                        {definitionUrl ? (
                           <>
-                            <a href={issue.documentation_url} target="_blank" rel="noreferrer">
-                              Documentation de la règle
+                            <a href={definitionUrl} target="_blank" rel="noreferrer">
+                              Consulter la définition externe
                             </a>
                             <InfoHint>
-                              Lien fourni par le producteur dans le rapport ({issue.evidence?.documentation_source ?? 'provenance non précisée'}). Disponibilité et contenu non vérifiés en ligne.
-                              Version documentaire : {issue.evidence?.documentation_version ?? 'inconnue'} ; correspondance avec la version de l’analyseur non vérifiée. Les explications et éventuels
-                              conseils de résolution sont ceux de cette source.
+                              {issue.documentation_url
+                                ? `Lien fourni par le producteur dans le rapport (${issue.evidence?.documentation_source ?? 'provenance non précisée'}). Version documentaire : ${issue.evidence?.documentation_version ?? 'inconnue'}.`
+                                : 'Lien construit vers le référentiel public officiel reconnu pour cet identifiant. Aucune définition de règle n’est stockée dans CodeInsights.'}
                             </InfoHint>
                           </>
                         ) : (

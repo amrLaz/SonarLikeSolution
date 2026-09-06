@@ -86,18 +86,6 @@ public static class RuleEndpoints
                 return Results.Ok(new { status = "active", rule_key = key });
             }
         );
-        app.MapGet(
-            "/api/v1/vulnerabilities",
-            async (HttpContext context, AuthService auth, CancellationToken ct) =>
-            {
-                var user = await auth.RequireAsync(context, ct: ct);
-                auth.AssertCiPermission(user);
-                var key = context.Request.Query["project_key"].ToString();
-                if (key.Length > 0)
-                    await auth.AssertProjectAccessAsync(user, key, ct: ct);
-                return Results.Ok(Array.Empty<object>());
-            }
-        );
         return app;
     }
 
@@ -136,53 +124,53 @@ public static class RuleEndpoints
         ).ToHashSet();
         var rules = new Dictionary<string, RuleSummary>();
         foreach (var row in rows)
-        foreach (var (path, issue) in AnalysisFindings.Enumerate(row.AffectedFiles))
-        {
-            var rule = AnalysisFindings.Text(issue, "rule");
-            if (rule.Length == 0 || AnalysisFindings.ScaPrefixes.Any(rule.StartsWith))
-                continue;
-            if (!rules.TryGetValue(rule, out var summary))
+            foreach (var (path, issue) in AnalysisFindings.Enumerate(row.AffectedFiles))
             {
-                var rest = rule.Contains('/') ? rule[(rule.IndexOf('/') + 1)..] : rule;
-                var title = rule.Contains('/')
-                    ? rest.Split('.').Last().Replace('-', ' ').Replace('_', ' ').Trim()
-                    : rule;
-                if (title.Length == 0)
-                    title = rest;
-                var severity = AnalysisFindings
-                    .Text(issue, "severity", "info")
-                    .ToUpperInvariant() switch
+                var rule = AnalysisFindings.Text(issue, "rule");
+                if (rule.Length == 0 || AnalysisFindings.ScaPrefixes.Any(rule.StartsWith))
+                    continue;
+                if (!rules.TryGetValue(rule, out var summary))
                 {
-                    "BLOCKER" or "CRITICAL" => "Critical",
-                    "HIGH" => "High",
-                    "MEDIUM" or "WARNING" => "Medium",
-                    _ => "Low",
-                };
-                var category = AnalysisFindings.Text(issue, "category", "vulnerability") switch
-                {
-                    "bug" => "Reliability",
-                    "code_smell" => "Maintainability",
-                    _ => "Security",
-                };
-                var language = rule.Split('/')[0] switch
-                {
-                    "bandit" => "Python",
-                    "eslint" => "JavaScript",
-                    "detect-secrets" or "gitleaks" => "Any",
-                    "cppcheck" => "C/C++",
-                    "detekt" => "Kotlin",
-                    _ => Languages.GetValueOrDefault(
-                        Path.GetExtension(path).TrimStart('.').ToLowerInvariant(),
-                        "Multi"
-                    ),
-                };
-                summary = new RuleSummary(rule, title, category, severity, language);
-                rules[rule] = summary;
+                    var rest = rule.Contains('/') ? rule[(rule.IndexOf('/') + 1)..] : rule;
+                    var title = rule.Contains('/')
+                        ? rest.Split('.').Last().Replace('-', ' ').Replace('_', ' ').Trim()
+                        : rule;
+                    if (title.Length == 0)
+                        title = rest;
+                    var severity = AnalysisFindings
+                        .Text(issue, "severity", "info")
+                        .ToUpperInvariant() switch
+                    {
+                        "BLOCKER" or "CRITICAL" => "Critical",
+                        "HIGH" => "High",
+                        "MEDIUM" or "WARNING" => "Medium",
+                        _ => "Low",
+                    };
+                    var category = AnalysisFindings.Text(issue, "category", "vulnerability") switch
+                    {
+                        "bug" => "Reliability",
+                        "code_smell" => "Maintainability",
+                        _ => "Security",
+                    };
+                    var language = rule.Split('/')[0] switch
+                    {
+                        "bandit" => "Python",
+                        "eslint" => "JavaScript",
+                        "detect-secrets" or "gitleaks" => "Any",
+                        "cppcheck" => "C/C++",
+                        "detekt" => "Kotlin",
+                        _ => Languages.GetValueOrDefault(
+                            Path.GetExtension(path).TrimStart('.').ToLowerInvariant(),
+                            "Multi"
+                        ),
+                    };
+                    summary = new RuleSummary(rule, title, category, severity, language);
+                    rules[rule] = summary;
+                }
+                summary.Occurrences++;
+                summary.Files.Add(path);
+                summary.Projects.Add(row.ProjectKey);
             }
-            summary.Occurrences++;
-            summary.Files.Add(path);
-            summary.Projects.Add(row.ProjectKey);
-        }
         // ponytail: query afresh so suppression changes are immediately consistent; add bounded authorization-scoped caching only if measured load requires it.
         return Results.Ok(
             rules

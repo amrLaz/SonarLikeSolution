@@ -5,9 +5,6 @@
 # Node – rebuilt inside the Docker stage
 apps/web/node_modules
 apps/web/dist
-# React manifest generated during build
-apps/web/package.json
-apps/web/package-lock.json
 apps/web/coverage-final.json
 
 # Local dev files

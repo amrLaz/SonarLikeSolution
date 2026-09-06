@@ -21,6 +21,9 @@
   --success: #197047;
   --warning: #876000;
   --danger: #b42332;
+  --severity-high: #c24f24;
+  --severity-low: #2f6fa9;
+  --severity-info: #667085;
   --info: var(--primary);
   --border: #d8e1eb;
   --bg-light: #f2f5f9;
@@ -697,6 +700,17 @@ button:disabled,
   border-color: var(--primary);
   background-color: var(--primary-light);
 }
+
+.issue-card.sev-blocker { border-color: var(--danger); }
+.issue-card.sev-high { border-color: var(--severity-high); }
+.issue-card.sev-medium { border-color: var(--warning); }
+.issue-card.sev-low { border-color: var(--severity-low); }
+.issue-card.sev-info { border-color: var(--severity-info); }
+.sev-badge.sev-blocker { color: var(--danger); background: var(--danger-light); }
+.sev-badge.sev-high { color: var(--severity-high); background: color-mix(in srgb, var(--severity-high) 10%, var(--bg-lighter)); }
+.sev-badge.sev-medium { color: var(--warning); background: var(--warning-light); }
+.sev-badge.sev-low { color: var(--severity-low); background: var(--primary-light); }
+.sev-badge.sev-info { color: var(--severity-info); background: var(--bg-light); }
 
 .issue-card h4 {
   margin: 0 0 0.5rem 0;
@@ -2053,6 +2067,53 @@ pre {
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
+.project-open-issues {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+}
+.project-open-issues:hover { color: var(--primary); background: transparent; }
+.project-open-issues span { color: var(--primary); font-size: 12px; white-space: nowrap; }
+.issue-severity-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+.severity-link {
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-lighter);
+  font-size: 12px;
+}
+.severity-link.blocker { border-color: var(--danger); color: var(--danger); }
+.severity-link.high { border-color: var(--severity-high); color: var(--severity-high); }
+.severity-link.medium { border-color: var(--warning); color: var(--warning); }
+.severity-link.low { border-color: var(--severity-low); color: var(--severity-low); }
+.severity-link.info { border-color: var(--severity-info); color: var(--severity-info); }
+.metrics-history {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.metric-trend {
+  min-width: 0;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.metric-trend header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.metric-trend header strong { color: var(--text-primary); font-size: 13px; }
 .project-overview-card > span {
   color: var(--text-secondary);
   font-size: 12px;

@@ -23,8 +23,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         CodeScopeModel.Configure(modelBuilder);
         FindingIdentityModel.Configure(modelBuilder);
         CollaborationModel.Configure(modelBuilder);
-        BoardsModel.Configure(modelBuilder);
-        PortfolioModel.Configure(modelBuilder);
         modelBuilder.Entity<Project>(e =>
         {
             e.ToTable("projects");

@@ -29,7 +29,6 @@ public sealed class IngestionWorker(IServiceScopeFactory scopes, IOptions<Ingest
                 {
                     switch (job.Kind)
                     {
-                        case "boards": await scope.ServiceProvider.GetRequiredService<BoardsDelivery>().SendAsync(job.ResourceId, work.Token); break;
                         case "ingest": await scope.ServiceProvider.GetRequiredService<IngestionProcessor>().ProcessAsync(job.ResourceId, job.LeaseOwner!, work.Token); break;
                         case "ado-pending":
                         case "ado":

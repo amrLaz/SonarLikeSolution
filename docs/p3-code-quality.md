@@ -55,18 +55,12 @@ la sévérité ou du message d'une occurrence.
 
 ## Consultation et nouveau code
 
-`GET /api/v1/analyses/{id}/code-quality` applique les droits de l'analyse et renvoie
-410 après purge des détails. Les paramètres sont `view=files|directories|lines|
-branches|duplicates`, `path` (fichier ou préfixe répertoire), `scope=global|new_code`,
-`limit` (1–100) et `cursor` numérique. La réponse contient `totals`, `items`,
-`next_cursor`, `provenance`, le commit figé et `formula_version=counts-v1`.
+Les totaux utiles sont présentés dans Projects et dans les preuves du Quality Gate. Les données détaillées restent internes au calcul : elles ne justifient plus une vue Code concurrente à Issues.
 
 Les lignes/branches de nouveau code utilisent les lignes ajoutées du diff figé.
 Un bloc dupliqué appartient au nouveau code lorsqu'une de ses deux plages
 intersecte les lignes ajoutées du périmètre. Sans diff, les valeurs sont inconnues.
-La taille et la complexité de classes restent globales : les rapports natifs
-ne fournissent pas de répartition ligne par ligne permettant de calculer leur
-part de nouveau code. Les liens de fichier ciblent exclusivement le SHA analysé.
+La taille et la complexité de classes restent globales : les rapports natifs ne fournissent pas de répartition ligne par ligne permettant de calculer leur part de nouveau code. Les liens de fichier exposés par Issues ciblent exclusivement le SHA analysé.
 
 Les checks exécutables `CodeQualityChecks` couvrent union LCOV, ambiguïté
 Cobertura, diff absent, nouveau code, comptages cloc, duplications réelles,

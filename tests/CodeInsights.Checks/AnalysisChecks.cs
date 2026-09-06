@@ -192,6 +192,22 @@ public static class AnalysisChecks
                 == "https://dev.azure.com/org/project/_git/repo?path=%2Fa.cs&version=GCabcdef&line=4&lineEnd=7&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents",
             "ADO source link"
         );
+        Check(AnalysisFindings.SeverityBucket("CRITICAL") == "blocker", "critical severity bucket");
+        Check(AnalysisFindings.SeverityBucket("warning") == "medium", "warning severity bucket");
+        Check(AnalysisFindings.SeverityBucket("convention") == "low", "convention severity bucket");
+        Check(AnalysisFindings.SeverityBucket("unknown") == "info", "unknown severity bucket");
+        Check(
+            AnalysisFindings.RepoFileUrl(
+                "azure-devops",
+                "https://example.com/_git/repo",
+                "abcdef",
+                "a.cs",
+                1,
+                1
+            )
+                is null,
+            "source link host allowlist"
+        );
         var record = new AnalysisRecord
         {
             AnalysisId = "12345678",
@@ -225,52 +241,7 @@ public static class AnalysisChecks
     public static async Task RunExternalAsync()
     {
         await CheckPrDecorationAsync();
-        var options = new AnalysisOptions
-        {
-            AzureOpenAiEndpoint = "https://model.invalid",
-            AzureOpenAiApiKey = "fixture",
-            AzureOpenAiDeployment = "fixture-model",
-        };
-        var handler = new StubHandler();
-        var factory = new StubFactory(handler);
-        var request = new AiFixRequest
-        {
-            CveId = "CVE-2026-1",
-            PkgName = "sample",
-            Version = "1",
-            FixedVersion = "2",
-            Severity = "HIGH",
-        };
-        await AnalysisExternal.AiFixAsync(request, factory, options, CancellationToken.None);
-        Check(
-            handler.Request?.RequestUri?.AbsolutePath
-                == "/openai/deployments/fixture-model/chat/completions",
-            "Azure AI endpoint"
-        );
-        Check(
-            handler.Body.Contains("Why it matters")
-                && handler.Body.Contains("upgrade to 2")
-                && handler.Body.Contains("max_tokens"),
-            "AI prompt and token limit"
-        );
-        options.AzureOpenAiEndpoint = "";
-        options.AzureOpenAiApiKey = "";
-        options.AnthropicApiKey = "fixture";
-        handler.Anthropic = true;
-        await AnalysisExternal.AiFixAsync(request, factory, options, CancellationToken.None);
-        Check(
-            handler.Request?.RequestUri?.Host == "api.anthropic.com"
-                && handler.Request.Headers.Contains("anthropic-version"),
-            "Anthropic fallback"
-        );
-        handler.Failure = true;
-        try
-        {
-            await AnalysisExternal.AiFixAsync(request, factory, options, CancellationToken.None);
-            throw new InvalidOperationException("AI failure accepted");
-        }
-        catch (ApiException) { }
-        Console.WriteLine("AI outbound contract and errors verified using an HTTP substitute.");
+        Console.WriteLine("PR decoration outbound contract verified using an HTTP substitute.");
     }
 
     private static async Task CheckPrDecorationAsync()
@@ -295,7 +266,12 @@ public static class AnalysisChecks
         );
         await db.SaveChangesAsync();
         var handler = new PrHandler();
-        var record = new AnalysisRecord { AnalysisId = "fixture-id", QualityGate = "fail", GateSnapshot = "{\"technical_state\":\"success\"}" };
+        var record = new AnalysisRecord
+        {
+            AnalysisId = "fixture-id",
+            QualityGate = "fail",
+            GateSnapshot = "{\"technical_state\":\"success\"}",
+        };
         var request = new AnalysisRequest
         {
             PrAdoOrgUrl = orgUrl + "/",
@@ -378,14 +354,38 @@ public static class AnalysisChecks
             );
         handler.Bodies.Clear();
         record.GateSnapshot = "{\"technical_state\":\"incomplete\"}";
-        await AnalysisExternal.DecorateAsync(record, request, metrics, [], db, new PrFactory(handler), options, CancellationToken.None);
+        await AnalysisExternal.DecorateAsync(
+            record,
+            request,
+            metrics,
+            [],
+            db,
+            new PrFactory(handler),
+            options,
+            CancellationToken.None
+        );
         using (var incomplete = JsonDocument.Parse(handler.Bodies[0]))
-            Check(incomplete.RootElement.GetProperty("state").GetString() == "error", "informative technical failure is not success");
+            Check(
+                incomplete.RootElement.GetProperty("state").GetString() == "error",
+                "informative technical failure is not success"
+            );
         handler.Bodies.Clear();
         var originalOrg = request.PrAdoOrgUrl;
         request.PrAdoOrgUrl = "https://unconfigured.invalid";
-        await AnalysisExternal.DecorateAsync(record, request, metrics, [], db, new PrFactory(handler), options, CancellationToken.None);
-        Check(handler.Bodies.Count == 0 && record.PrDecorationStatus == "skipped", "no fallback to another configured organization");
+        await AnalysisExternal.DecorateAsync(
+            record,
+            request,
+            metrics,
+            [],
+            db,
+            new PrFactory(handler),
+            options,
+            CancellationToken.None
+        );
+        Check(
+            handler.Bodies.Count == 0 && record.PrDecorationStatus == "skipped",
+            "no fallback to another configured organization"
+        );
         request.PrAdoOrgUrl = originalOrg;
         handler.Failure = true;
         await AnalysisExternal.DecorateAsync(
@@ -430,36 +430,6 @@ public static class AnalysisChecks
             return new(Failure ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.Created)
             {
                 Content = new StringContent("{}"),
-            };
-        }
-    }
-
-    private sealed class StubFactory(StubHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler, false);
-    }
-
-    private sealed class StubHandler : HttpMessageHandler
-    {
-        public HttpRequestMessage? Request { get; private set; }
-        public string Body { get; private set; } = "";
-        public bool Anthropic { get; set; }
-        public bool Failure { get; set; }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken ct
-        )
-        {
-            Request = request;
-            Body = await request.Content!.ReadAsStringAsync(ct);
-            return new(Failure ? HttpStatusCode.BadGateway : HttpStatusCode.OK)
-            {
-                Content = new StringContent(
-                    Anthropic
-                        ? "{\"content\":[{\"text\":\"fix\"}]}"
-                        : "{\"choices\":[{\"message\":{\"content\":\"fix\"}}]}"
-                ),
             };
         }
     }

@@ -44,10 +44,19 @@ public static class FindingCollaboration
                 var occurrence = group.First().Occurrence;
                 if (!existing.TryGetValue(group.Key, out var finding))
                 {
-                    finding = new DurableFinding { Id = group.Key, ProjectKey = analysis.ProjectKey, Branch = analysis.Branch,
-                        Tool = occurrence.Tool, RuleId = occurrence.RuleId, Category = occurrence.Category, Message = occurrence.Message,
+                    finding = new DurableFinding
+                    {
+                        Id = group.Key,
+                        ProjectKey = analysis.ProjectKey,
+                        Branch = analysis.Branch,
+                        Tool = occurrence.Tool,
+                        RuleId = occurrence.RuleId,
+                        Category = occurrence.Category,
+                        Message = occurrence.Message,
                         IdentityKind = !string.IsNullOrEmpty(occurrence.Fingerprint) && fingerprints[(occurrence.Tool, occurrence.RuleId, occurrence.Fingerprint)] == 1 ? "fingerprint" : "exact_location",
-                        AssigneeUserId = ownership?.OwnerUserId, TeamId = ownership?.TeamId };
+                        AssigneeUserId = ownership?.OwnerUserId,
+                        TeamId = ownership?.TeamId
+                    };
                     db.Add(finding);
                 }
                 if (seenAt >= finding.LastSeenAt)
@@ -116,13 +125,41 @@ public static class FindingCollaboration
             if (proof is not null && commit is not null)
                 snapshot["review_evidence"] = JsonSerializer.SerializeToNode(new SecurityReviewProof(SecurityReviewEvaluation.EvidenceHash(proof), commit, proof.Path, proof.Line, proof.Fingerprint), ApiJson.Options);
         }
-        var decision = new FindingDecision { FindingId = finding.Id, ProjectKey = finding.ProjectKey, ActorUserId = actor.Sub,
-            ActorEmail = actor.Email, Action = action, Reason = reason, Snapshot = snapshot.ToJsonString(ApiJson.Options) };
+        var decision = new FindingDecision
+        {
+            FindingId = finding.Id,
+            ProjectKey = finding.ProjectKey,
+            ActorUserId = actor.Sub,
+            ActorEmail = actor.Email,
+            Action = action,
+            Reason = reason,
+            Snapshot = snapshot.ToJsonString(ApiJson.Options)
+        };
         db.Add(decision);
-        await BoardsDelivery.EnqueueAsync(db, finding, decision, ct);
     }
 
-    public static object View(DurableFinding x) => new { x.Id, x.ProjectKey, x.Branch, x.Tool, x.RuleId, x.Category, x.Message, x.Path, x.Line,
-        x.IdentityKind, x.State, effective_state = EffectiveState(x, DateTime.UtcNow), x.HotspotReview, x.AssigneeUserId, x.TeamId,
-        x.ExceptionReason, x.ExceptionExpiresAt, x.LastAnalysisId, x.LastSeenAt, x.UpdatedAt, x.Version };
+    public static object View(DurableFinding x) => new
+    {
+        x.Id,
+        x.ProjectKey,
+        x.Branch,
+        x.Tool,
+        x.RuleId,
+        x.Category,
+        x.Message,
+        x.Path,
+        x.Line,
+        x.IdentityKind,
+        x.State,
+        effective_state = EffectiveState(x, DateTime.UtcNow),
+        x.HotspotReview,
+        x.AssigneeUserId,
+        x.TeamId,
+        x.ExceptionReason,
+        x.ExceptionExpiresAt,
+        x.LastAnalysisId,
+        x.LastSeenAt,
+        x.UpdatedAt,
+        x.Version
+    };
 }

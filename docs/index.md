@@ -17,8 +17,6 @@ Le code versionné fait autorité sur les capacités disponibles. Les recommanda
 | [Exploitation](exploitation.md)               | Exploitants et contributeurs : configuration, diagnostic et validation         |
 | [Performances](performances.md)               | Équipe plateforme : risques, budgets et protocole de charge                    |
 | [Roadmap produit](roadmap.md)                 | Responsables produit et équipes : fonctionnalités, dépendances et acceptation  |
-| [Collaboration P2](p2-collaboration.md)       | Équipes : propriétaires, assignation, revue et décisions durables              |
-| [Azure Boards P2](p2-boards.md)               | Équipes et administrateurs : tickets, réconciliation et abonnements ciblés     |
-| [Portefeuille P2](p2-portfolio.md)            | Responsables : tendances comparables, objectifs, historique et export          |
+| [Traitement des issues](p2-collaboration.md)  | Équipes : propriétaires, assignation, revue et décisions durables              |
 
 La cible concerne quelques centaines de projets Azure DevOps. Elle repose sur les moteurs d'analyse existants ; elle ne revendique pas la parité des règles ou de la précision des analyseurs SonarQube.

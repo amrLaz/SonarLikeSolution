@@ -65,16 +65,9 @@ Une absence de scanner ou de comparaison nécessaire donne `unknown`. Aucun
 hotspot dans un périmètre effectivement mesuré donne `not_applicable`, une
 valeur `null` et un dénominateur nul ; aucun pourcentage de 100 % n'est inventé.
 
-`GET /api/v1/collaboration/hotspots?project_key=…&branch=…` retourne la file de la
-dernière analyse achevée de cette branche. Chaque entrée expose outil, règle,
-message, localisation et priorité du scanner. La réponse distingue le snapshot
-du dernier gate de l'état de revue actuel. Les contrôles existants enregistrent
-la décision ; seul un administrateur peut accorder ou prolonger une exception.
-La route exige les droits du projet et pagine avant restitution.
+Issues fournit le filtre `security_hotspot` dans le même parcours paginé que les autres catégories. Le détail expose outil, règle, message, localisation et priorité du scanner ; ses contrôles enregistrent la décision, et seul un administrateur peut accorder ou prolonger une exception.
 
-L'écran Collaboration présente cette file après sélection d'un projet et d'une
-branche exacts. Les preuves de calcul présentent le taux, les fractions, le
-seuil et les décisions figées. Une réapparition après résolution, une expiration
+Les preuves de calcul présentent le taux, les fractions, le seuil et les décisions figées. Une réapparition après résolution, une expiration
 ou un changement de preuve réinitialise la revue pour éviter qu'une ancienne
 décision `safe` soit réutilisée automatiquement.
 
@@ -94,10 +87,7 @@ Les collisions ne choisissent pas arbitrairement une ancienne occurrence : elles
 restent `indeterminate`, sans transfert automatique. La conservation d'une
 identité n'empêche pas la réinitialisation de sa revue si la preuve change.
 
-`GET /api/v1/collaboration/findings/{id}/matches` restitue l'historique paginé des
-correspondances confirmées avec les mêmes droits projet que le finding.
-L'éditeur collaboratif affiche cet historique et les commits associés. La purge
-des détails ne supprime ni les décisions ni cet historique.
+Les correspondances confirmées restent une preuve interne de continuité du finding. La purge des détails ne supprime ni les décisions ni ces correspondances.
 
 ## Vérification
 
@@ -109,16 +99,13 @@ la réutilisation d'une correspondance et l'absence de transfert interbranches.
 Les checks s'exécutent via `dotnet run --project tests/CodeInsights.Checks -c Release`.
 
 Le typage frontend et le check du formulaire collaboratif utilisent les outils
-du stage frontend existant ; aucun package ni manifeste npm suivi n'est ajouté.
+du frontend existant ; aucune dépendance supplémentaire n'est ajoutée.
 Ces checks ne constituent pas une validation de déploiement Azure.
 
-`CodeScopeChecks` exerce les routes de la file et de l'historique, leurs refus
-interprojets, puis une publication réelle avec approbation et une autre après
+`CodeScopeChecks` exerce une publication réelle avec approbation et une autre après
 révocation : seule la seconde perd l'exception. Le premier verdict reste intact.
 `IngestionChecks` couvre aussi l'import groupé SARIF/LCOV/jscpd/cloc, les fractions
 de branches, le manifeste Git, la durée estimée documentée et la dérive de
 configuration qui rend le gate inconnu.
 
-La purge d'ingestion efface les métadonnées détaillées `CodeData` et l'inventaire
-`repository_files`. Les endpoints de code renvoient 410 après purge ; les
-snapshots de verdict et décisions restent consultables.
+La purge d'ingestion efface les métadonnées détaillées `CodeData` et l'inventaire `repository_files`; les snapshots de verdict et décisions restent consultables.

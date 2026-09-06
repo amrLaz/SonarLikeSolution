@@ -1,36 +1,10 @@
 # syntax=docker/dockerfile:1
 # ── Stage 1 : build the React SPA ─────────────────────────────────────────────
-# The build generates the React package manifest.
 FROM node:20-slim AS web-builder
 WORKDIR /build
 
-RUN cat > package.json << 'PKGJSON'
-{
-  "name": "sast-platform-web",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@tanstack/react-query": "5.102.8"
-  },
-  "devDependencies": {
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.3",
-    "vite": "^5.3.4"
-  }
-}
-PKGJSON
-
-RUN npm install
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci
 
 COPY apps/web/src/        ./src/
 COPY apps/web/public/     ./public/

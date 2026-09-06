@@ -8,7 +8,7 @@ description: Contrat et limites de l'ingestion durable, formats, profils, compar
 Le checkout contient le parcours P1 et son client canonique dans le dépôt partagé
 `Up.France.ODI.AzurePipelines`. La validation locale couvre l'import et un smoke
 de charge ; elle ne remplace ni la campagne A/B/C complète ni le pilote Azure
-DevOps et sa branch policy. Le contrat legacy `POST /api/v1/analyses` reste séparé.
+DevOps et sa branch policy. La publication directe `POST /api/v1/analyses` reste séparée.
 
 ## Publier des rapports déjà produits
 
@@ -130,7 +130,7 @@ Un état incomplet ou `unknown` est une erreur ADO. Le mode informatif peut acce
 un `fail` mesuré ; le mode bloquant le refuse. Le lien cible vient de
 `Ingestion:PlatformUrl`, pas d'une URL arbitraire du rapport.
 
-Le parcours legacy garde ses retours PR synchrones et ses notifications en
+La publication directe garde ses retours PR synchrones et ses notifications en
 mémoire ; il ne bénéficie pas des garanties de reprise/itération du parcours P1.
 La branch policy requise, les droits du PAT, les retours réels et les retries ADO
 doivent encore être validés sur un dépôt de test autorisé. Aucun déploiement

@@ -9,12 +9,11 @@ description: Risques vérifiés, priorités d'optimisation et protocole de charg
 
 | Surface                | État du checkout P1                                                                       | Limite résiduelle                                                                                |
 | ---------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Historiques d'analyse  | Projections de synthèse paginées, curseurs déterministes ; mêmes bornes sur le GET legacy | Tester les filtres/indices sur les volumes A/B/C                                                 |
-| Portefeuille           | Agrégats serveur par projet/branche, projets paginés                                      | Branches par projet non bornées ; catalogue GET projets encore complet                           |
+| Historiques d'analyse  | Projections de synthèse paginées et curseurs déterministes                                | Tester les filtres/indices sur les volumes A/B/C                                                 |
 | Findings et composants | Tables normalisées et détails paginés ; rapports hors des listes                          | Mesurer les plans SQL et la densité réelle des rapports                                          |
 | Ingestion              | Upload Blob borné et queue PostgreSQL durable avec baux/retries                           | JSON en mémoire jusqu'à 50 MiB, 250 000 entrées normalisées par lot ; EF AddRange sans bulk COPY |
 | Retours externes       | Jobs durables ADO/notifications pour P1, hors transaction d'import                        | Livraison externe au moins une fois ; verrous par PR pendant les appels ADO                      |
-| Parcours legacy        | Contrat POST conservé, mesures et gate P0                                                 | Décoration synchrone et notifications mémoire toujours distinctes de P1                          |
+| Publication directe    | Contrat POST conservé, mesures et gate                                                    | Décoration synchrone et notifications mémoire distinctes de l'ingestion durable                  |
 | Rétention              | Maintenance horaire durable et conservation des synthèses P1                              | Lots de 100 détails ; mesurer retard de purge et scan des objets orphelins                       |
 | Coût CI                | Client publication seule disponible ; artefacts producteurs isolés                        | Ancien stage full reste coûteux ; ne pas superposer deux parcours par défaut                     |
 

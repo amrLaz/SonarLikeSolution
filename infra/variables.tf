@@ -105,37 +105,3 @@ variable "developer_ip" {
   type        = string
   default     = ""
 }
-
-# ─── AI / Azure OpenAI ────────────────────────────────────────────────────────
-# Provide at apply time via TF_VAR_* — never commit values.
-
-variable "azure_openai_endpoint" {
-  description = "Azure OpenAI resource endpoint, e.g. https://poc-openai-finops-agent.openai.azure.com"
-  type        = string
-  sensitive   = true
-}
-
-variable "azure_openai_api_key" {
-  description = "Azure OpenAI API key."
-  type        = string
-  sensitive   = true
-}
-
-variable "azure_openai_deployment" {
-  description = "Azure OpenAI deployment/model name."
-  type        = string
-  default     = "gpt-4o-mini"
-}
-
-variable "azure_openai_api_version" {
-  description = "Azure OpenAI REST API version."
-  type        = string
-  default     = "2024-02-15-preview"
-}
-
-variable "anthropic_api_key" {
-  description = "Anthropic API key (optional fallback if Azure OpenAI is unavailable). Leave empty to skip."
-  type        = string
-  default     = ""
-  sensitive   = true
-}

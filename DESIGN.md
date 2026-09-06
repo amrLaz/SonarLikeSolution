@@ -11,13 +11,13 @@ Interface de gouvernance **claire, technique et légèrement futuriste**, destin
 - Pas de néon, glow, glassmorphism fort, gradients flashy, animation permanente ou décoration de type terminal fictif.
 - Réglages de référence : variation visuelle **4/10**, mouvement **2/10**, densité **6/10**. Ne pas transformer les écrans métier en landing pages.
 
-| Source | Rôle |
-| --- | --- |
-| [styles.css](apps/web/src/styles.css) | Tokens CSS partagés, contrôles et mise en page globale |
-| [components](apps/web/src/components/) | Composants existants et leurs styles locaux |
+| Source                                              | Rôle                                                                   |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| [styles.css](apps/web/src/styles.css)               | Tokens CSS partagés, contrôles et mise en page globale                 |
+| [components](apps/web/src/components/)              | Composants existants et leurs styles locaux                            |
 | [metric-display.ts](apps/web/src/metric-display.ts) | Présentation des mesures absentes, verdicts et coordonnées des courbes |
-| [Interface](docs/interface.md) | Comportements, limites et commandes de validation |
-| [Roadmap](docs/roadmap.md) | Capacités futures ; ne pas les présenter comme disponibles |
+| [Interface](docs/interface.md)                      | Comportements, limites et commandes de validation                      |
+| [Roadmap](docs/roadmap.md)                          | Capacités futures ; ne pas les présenter comme disponibles             |
 
 Ce document définit les règles à respecter ; le CSS les implémente. Les valeurs ci-dessous reflètent le thème actuel. Lors d'une évolution visuelle demandée, mettre à jour le code et ce document ensemble.
 
@@ -25,20 +25,20 @@ Ce document définit les règles à respecter ; le CSS les implémente. Les vale
 
 Utiliser `var(--token)` dans les styles globaux et locaux. Ne pas recopier les valeurs hexadécimales dans les composants ou créer une palette propre à un écran. Les couleurs d'une marque tierce, par exemple le logo Microsoft, restent celles de cette marque.
 
-| Usage | Token | Valeur actuelle |
-| --- | --- | --- |
-| Action principale, sélection, focus | `--primary` | `#005eb8` |
-| Survol d'action principale | `--primary-dark` | `#004a94` |
-| Fond sélectionné | `--primary-light` | `#eaf2fb` |
-| Fond de page | `--bg-light` | `#f2f5f9` |
-| Surface | `--bg-lighter` | `#ffffff` |
-| Bordure | `--border` | `#d8e1eb` |
-| Texte principal | `--text-primary` | `#172a41` |
-| Texte secondaire | `--text-secondary` | `#516278` |
-| Texte tertiaire | `--text-tertiary` | `#586b80` |
-| Réussite / fond | `--success` / `--success-light` | `#197047` / `#eaf6ef` |
-| Avertissement / fond | `--warning` / `--warning-light` | `#876000` / `#fff5dc` |
-| Erreur / fond | `--danger` / `--danger-light` | `#b42332` / `#fff0f1` |
+| Usage                               | Token                           | Valeur actuelle       |
+| ----------------------------------- | ------------------------------- | --------------------- |
+| Action principale, sélection, focus | `--primary`                     | `#005eb8`             |
+| Survol d'action principale          | `--primary-dark`                | `#004a94`             |
+| Fond sélectionné                    | `--primary-light`               | `#eaf2fb`             |
+| Fond de page                        | `--bg-light`                    | `#f2f5f9`             |
+| Surface                             | `--bg-lighter`                  | `#ffffff`             |
+| Bordure                             | `--border`                      | `#d8e1eb`             |
+| Texte principal                     | `--text-primary`                | `#172a41`             |
+| Texte secondaire                    | `--text-secondary`              | `#516278`             |
+| Texte tertiaire                     | `--text-tertiary`               | `#586b80`             |
+| Réussite / fond                     | `--success` / `--success-light` | `#197047` / `#eaf6ef` |
+| Avertissement / fond                | `--warning` / `--warning-light` | `#876000` / `#fff5dc` |
+| Erreur / fond                       | `--danger` / `--danger-light`   | `#b42332` / `#fff0f1` |
 
 Le bleu est l'accent de navigation et d'action ; vert, ambre et rouge sont réservés aux états sémantiques. Accompagner chaque état d'un texte, jamais de la seule couleur. Réutiliser `--shadow-sm`, `--shadow-md` et `--shadow-lg` pour les ombres légères ; réserver l'ombre la plus forte aux surfaces élevées comme les dialogues.
 
@@ -62,16 +62,16 @@ L'icône de CodeInsights reprend le bouclier associant code et validation créé
 
 Les écrans métier de `apps/web/src/components/` possèdent leur présentation, leurs formulaires et leurs états d'interaction. App conserve la session, la navigation et les sélections communes ; les données serveur appartiennent à TanStack Query. Réutiliser notamment `AnalysisEvidence` et `MetricGrid` pour les preuves et mesures. Cette séparation ne change pas le système visuel : boutons, formulaires, tableaux et dialogues restent HTML natifs avec les tokens CSS partagés.
 
-| Besoin | Règle |
-| --- | --- |
-| Navigation | Réutiliser `.main-tabs` / `.main-tab`, état actif explicite et `aria-current`. Les onglets qui ne tiennent pas sont accessibles via les trois points verticaux et un menu natif ; aucune scrollbar sur la navigation principale. |
-| Actions | Boutons HTML natifs ; `.primary` pour l'action principale, contrôles neutres pour les actions secondaires, traitement danger uniquement pour une action destructive. |
-| Formulaire | Libellé associé à chaque champ, état désactivé ou lecture seule visible, retour d'erreur explicite. Préférer `<select>` aux menus personnalisés. |
-| Mesures | Réutiliser `.metric-grid` / `.metric-card` et les helpers de présentation. Conserver dimensions distinctes, unité visible et absence de donnée explicite. |
-| Listes et tableaux | Réutiliser les styles existants ; sélection activable au clavier. Placer les tableaux larges dans `.table-wrap`, avec zone défilable accessible au clavier et nom accessible. |
-| Courbes | Afficher périmètre et échelle ; interrompre les segments aux valeurs absentes. Fournir un tableau des valeurs exactes en alternative. |
-| Dialogue | Utiliser `<dialog>` et `showModal()`, un titre accessible, Échap selon l'état de l'opération, et retour du focus au déclencheur. Ne pas recréer un piège de focus. |
-| Retour utilisateur | Distinguer chargement, erreur, absence de données, filtre sans résultat et succès. Utiliser `role="status"` ou `role="alert"` selon le cas ; une erreur réseau ne devient pas un état vide rassurant. |
+| Besoin             | Règle                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Navigation         | Cinq destinations seulement : Projects, Issues, Rules, Quality Gates et Administration pour les administrateurs. Le détail du code, la revue et l'historique sont intégrés au parcours projet → issue, pas exposés comme vues concurrentes. Réutiliser `.main-tabs` / `.main-tab`, état actif explicite et `aria-current`. |
+| Actions            | Boutons HTML natifs ; `.primary` pour l'action principale, contrôles neutres pour les actions secondaires, traitement danger uniquement pour une action destructive.                                                                                                                                                       |
+| Formulaire         | Libellé associé à chaque champ, état désactivé ou lecture seule visible, retour d'erreur explicite. Préférer `<select>` aux menus personnalisés.                                                                                                                                                                           |
+| Mesures            | Réutiliser `.metric-grid` / `.metric-card` et les helpers de présentation. Conserver dimensions distinctes, unité visible et absence de donnée explicite.                                                                                                                                                                  |
+| Listes et tableaux | Réutiliser les styles existants ; sélection activable au clavier. Placer les tableaux larges dans `.table-wrap`, avec zone défilable accessible au clavier et nom accessible.                                                                                                                                              |
+| Courbes            | Afficher périmètre et échelle ; interrompre les segments aux valeurs absentes. Fournir un tableau des valeurs exactes en alternative.                                                                                                                                                                                      |
+| Dialogue           | Utiliser `<dialog>` et `showModal()`, un titre accessible, Échap selon l'état de l'opération, et retour du focus au déclencheur. Ne pas recréer un piège de focus.                                                                                                                                                         |
+| Retour utilisateur | Distinguer chargement, erreur, absence de données, filtre sans résultat et succès. Utiliser `role="status"` ou `role="alert"` selon le cas ; une erreur réseau ne devient pas un état vide rassurant.                                                                                                                      |
 
 Les transitions servent au retour d'interaction : **durée de référence de 150 ms**, sur couleur, bordure ou fond. Pas de déplacement décoratif des contrôles ni de boucle animée. Respecter `prefers-reduced-motion` en supprimant animations, transitions et défilement doux.
 
@@ -83,9 +83,11 @@ Les transitions servent au retour d'interaction : **durée de référence de 150
 - Distinguer verdict qualité (`pass`, `fail`, `unknown`) et état technique de l'analyse. Afficher les motifs transmis sans inventer provenance ou complétude.
 - New Code affiche uniquement la comparaison Git et les mesures renvoyées par son endpoint dédié. Si cette comparaison est indisponible, conserver le motif explicite ; aucun résultat global de substitution.
 - Les preuves de gate distinguent périmètre global/nouveau code et état non applicable ; afficher les fractions et références Git reçues. Issues expose les liens de code au commit analysé et la documentation déclarée par le producteur, avec provenance et absence explicites. Ne jamais composer un aperçu de source à partir du message d'un finding.
-- L'onglet Code réutilise les sélecteurs projet/branche/analyse et les tableaux natifs. Distinguer inventaire Git et fichiers de rapports, annotations et contenu source, couvert/non couvert/non mesuré. Les branches et conditions, la duplication et la taille restent des dimensions séparées. Les versions de périmètre et les archives utilisent les formulaires existants ; les écritures sont réservées aux administrateurs.
+- Les cartes Issues utilisent un contour et un badge sémantiques distincts pour Blocker, High, Medium, Low et Info ; le texte de criticité reste obligatoire. Le dashboard reprend ces mêmes niveaux comme liens vers la liste préfiltrée.
+- Une définition de règle reste externe : préférer le lien fourni par le producteur, sinon construire uniquement un lien déterministe vers un référentiel public reconnu (Microsoft Learn, MITRE CWE, NVD, ESLint ou StyleCop). Ne pas stocker ni inventer une explication locale.
+- Issues est l'unique entrée vers un problème : localisation au SHA, lien source, annotations, définition externe, assignation et décision de revue utilisent une divulgation progressive dans la même carte.
 - Le catalogue producteur est distinct des règles observées. L'affectation de profil présente d'abord son impact ; les preuves d'analyse affichent l'empreinte effective et les décisions de revue figées, sans réécrire l'historique.
-- Expliquer le périmètre des compteurs et listes. Ne pas assimiler Issues à l'inventaire Vulnerabilities & IOCs. Les fonctionnalités futures de la roadmap ne deviennent pas des contrôles factices.
+- Expliquer le périmètre des compteurs et listes. Les catégories vulnérabilité, secret, dépendance, code et IOC sont des filtres d'Issues, pas une vue concurrente. Les fonctionnalités futures de la roadmap ne deviennent pas des contrôles factices.
 - Respecter les droits existants : lecture seule des gates pour les non-administrateurs. Un contrôle désactivé ne remplace jamais l'autorisation serveur.
 - Les limites des valeurs déjà produites par l'API sont détaillées dans [Interface](docs/interface.md) ; ne pas prétendre les résoudre par une modification visuelle.
 

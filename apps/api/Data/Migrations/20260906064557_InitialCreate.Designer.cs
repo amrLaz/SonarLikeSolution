@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CodeInsights.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260905191923_CollaborationAndPortfolio")]
-    partial class CollaborationAndPortfolio
+    [Migration("20260906064557_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -196,6 +196,25 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("analysis_records", (string)null);
                 });
 
+            modelBuilder.Entity("CodeInsights.Api.Data.ArchivedCodeBranch", b =>
+                {
+                    b.Property<string>("ProjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Branch")
+                        .HasColumnType("text")
+                        .HasColumnName("branch");
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("archived");
+
+                    b.HasKey("ProjectKey", "Branch");
+
+                    b.ToTable("archived_code_branches", (string)null);
+                });
+
             modelBuilder.Entity("CodeInsights.Api.Data.AuditLog", b =>
                 {
                     b.Property<string>("Id")
@@ -367,68 +386,6 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("azure_devops_org_config", (string)null);
                 });
 
-            modelBuilder.Entity("CodeInsights.Api.Data.BoardsProjectConfig", b =>
-                {
-                    b.Property<string>("ProjectKey")
-                        .HasColumnType("text")
-                        .HasColumnName("project_key");
-
-                    b.Property<string>("AdoProject")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("ado_project");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean")
-                        .HasColumnName("enabled");
-
-                    b.Property<string>("OrganizationConfigId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("organization_config_id");
-
-                    b.Property<string>("WorkItemType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("work_item_type");
-
-                    b.HasKey("ProjectKey");
-
-                    b.ToTable("boards_project_configs", (string)null);
-                });
-
-            modelBuilder.Entity("CodeInsights.Api.Data.BoardsSyncEvent", b =>
-                {
-                    b.Property<string>("DecisionId")
-                        .HasColumnType("text")
-                        .HasColumnName("decision_id");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<string>("Error")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("error");
-
-                    b.Property<string>("FindingId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("finding_id");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("state");
-
-                    b.HasKey("DecisionId");
-
-                    b.HasIndex("FindingId");
-
-                    b.ToTable("boards_sync_events", (string)null);
-                });
-
             modelBuilder.Entity("CodeInsights.Api.Data.Branch", b =>
                 {
                     b.Property<string>("Id")
@@ -466,6 +423,46 @@ namespace CodeInsights.Api.Data.Migrations
                     b.HasIndex("ProjectId", "Name");
 
                     b.ToTable("branches", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.CodeScopeAssignment", b =>
+                {
+                    b.Property<string>("ProjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("version");
+
+                    b.HasKey("ProjectKey");
+
+                    b.ToTable("code_scope_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.CodeScopeVersion", b =>
+                {
+                    b.Property<string>("ProjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("project_key");
+
+                    b.Property<string>("Version")
+                        .HasColumnType("text")
+                        .HasColumnName("version");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Definition")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("definition");
+
+                    b.HasKey("ProjectKey", "Version");
+
+                    b.ToTable("code_scope_versions", (string)null);
                 });
 
             modelBuilder.Entity("CodeInsights.Api.Data.CollaborationTeam", b =>
@@ -728,50 +725,88 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("finding_decisions", (string)null);
                 });
 
-            modelBuilder.Entity("CodeInsights.Api.Data.FindingNotification", b =>
+            modelBuilder.Entity("CodeInsights.Api.Data.FindingIdentityMatch", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("text")
                         .HasColumnName("id");
 
-                    b.Property<string>("Action")
+                    b.Property<string>("AnalysisId")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("action");
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("BaseSha")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("base_sha");
+
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("branch");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("DecisionId")
+                    b.Property<string>("EvidenceHash")
                         .IsRequired()
                         .HasColumnType("text")
-                        .HasColumnName("decision_id");
+                        .HasColumnName("evidence_hash");
 
                     b.Property<string>("FindingId")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("finding_id");
+
+                    b.Property<string>("HeadSha")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("head_sha");
+
+                    b.Property<string>("IngestionId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ingestion_id");
+
+                    b.Property<int?>("Line")
+                        .HasColumnType("integer")
+                        .HasColumnName("line");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("method");
+
+                    b.Property<string>("OccurrenceIdentity")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("occurrence_identity");
+
+                    b.Property<int?>("OldLine")
+                        .HasColumnType("integer")
+                        .HasColumnName("old_line");
+
+                    b.Property<string>("OldPath")
+                        .HasColumnType("text")
+                        .HasColumnName("old_path");
+
+                    b.Property<string>("Path")
+                        .HasColumnType("text")
+                        .HasColumnName("path");
 
                     b.Property<string>("ProjectKey")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("project_key");
 
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("user_id");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "CreatedAt", "Id");
+                    b.HasIndex("FindingId", "CreatedAt");
 
-                    b.ToTable("finding_notifications", (string)null);
+                    b.HasIndex("ProjectKey", "Branch", "OccurrenceIdentity", "CreatedAt");
+
+                    b.ToTable("finding_identity_matches", (string)null);
                 });
 
             modelBuilder.Entity("CodeInsights.Api.Data.FindingOccurrence", b =>
@@ -792,6 +827,11 @@ namespace CodeInsights.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("category");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("evidence");
 
                     b.Property<bool>("Excepted")
                         .HasColumnType("boolean")
@@ -862,105 +902,6 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("finding_occurrences", (string)null);
                 });
 
-            modelBuilder.Entity("CodeInsights.Api.Data.FindingSubscription", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("project_key");
-
-                    b.Property<string>("Scope")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("scope");
-
-                    b.Property<string>("ScopeId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("scope_id");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectKey");
-
-                    b.HasIndex("UserId", "Scope", "ScopeId")
-                        .IsUnique();
-
-                    b.ToTable("finding_subscriptions", (string)null);
-                });
-
-            modelBuilder.Entity("CodeInsights.Api.Data.FindingWorkItem", b =>
-                {
-                    b.Property<string>("FindingId")
-                        .HasColumnType("text")
-                        .HasColumnName("finding_id");
-
-                    b.Property<string>("AdoProject")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("ado_project");
-
-                    b.Property<string>("Error")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("error");
-
-                    b.Property<string>("LastDecisionId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("last_decision_id");
-
-                    b.Property<string>("OrganizationConfigId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("organization_config_id");
-
-                    b.Property<string>("OrganizationUrl")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("organization_url");
-
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("project_key");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("state");
-
-                    b.Property<int>("SyncedVersion")
-                        .HasColumnType("integer")
-                        .HasColumnName("synced_version");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<int?>("WorkItemId")
-                        .HasColumnType("integer")
-                        .HasColumnName("work_item_id");
-
-                    b.Property<string>("WorkItemType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("work_item_type");
-
-                    b.HasKey("FindingId");
-
-                    b.ToTable("finding_work_items", (string)null);
-                });
-
             modelBuilder.Entity("CodeInsights.Api.Data.IngestionProjectPolicy", b =>
                 {
                     b.Property<string>("ProjectKey")
@@ -1002,6 +943,16 @@ namespace CodeInsights.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("build_key");
+
+                    b.Property<string>("CodeData")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code_data");
+
+                    b.Property<string>("CodeScopeSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("code_scope_snapshot");
 
                     b.Property<string>("Comparison")
                         .IsRequired()
@@ -1063,6 +1014,11 @@ namespace CodeInsights.Api.Data.Migrations
                     b.Property<int>("Revision")
                         .HasColumnType("integer")
                         .HasColumnName("revision");
+
+                    b.Property<string>("SecurityReviewSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("security_review_snapshot");
 
                     b.Property<string>("State")
                         .IsRequired()
@@ -1383,58 +1339,6 @@ namespace CodeInsights.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("platform_users", (string)null);
-                });
-
-            modelBuilder.Entity("CodeInsights.Api.Data.PortfolioObjective", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Branch")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("branch");
-
-                    b.Property<string>("Dimension")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("dimension");
-
-                    b.Property<DateTime>("DueAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("due_at");
-
-                    b.Property<string>("FormulaVersion")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("formula_version");
-
-                    b.Property<string>("ProfileId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("profile_id");
-
-                    b.Property<string>("ProfileVersion")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("profile_version");
-
-                    b.Property<string>("ProjectKey")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("project_key");
-
-                    b.Property<int>("Target")
-                        .HasColumnType("integer")
-                        .HasColumnName("target");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectKey", "Branch", "Dimension")
-                        .IsUnique();
-
-                    b.ToTable("portfolio_objectives", (string)null);
                 });
 
             modelBuilder.Entity("CodeInsights.Api.Data.ProfileException", b =>

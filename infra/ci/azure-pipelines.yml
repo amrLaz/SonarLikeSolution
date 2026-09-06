@@ -43,11 +43,6 @@ steps:
         else
           export ARM_CLIENT_SECRET="$servicePrincipalKey"
         fi
-        if az keyvault show --name up-fr-odi-sast-prod-kv --output none 2>/dev/null; then
-          TF_VAR_azure_openai_endpoint=$(az keyvault secret show --vault-name up-fr-odi-sast-prod-kv --name azure-openai-endpoint --query value --output tsv)
-          TF_VAR_azure_openai_api_key=$(az keyvault secret show --vault-name up-fr-odi-sast-prod-kv --name azure-openai-api-key --query value --output tsv)
-          export TF_VAR_azure_openai_endpoint TF_VAR_azure_openai_api_key
-        fi
         terraform init -input=false -lockfile=readonly -backend-config=variables/backend-production.tfvars
         terraform fmt -check -recursive
         terraform validate -no-color
@@ -77,5 +72,3 @@ steps:
       TF_VAR_postgres_admin_password: $(postgres-admin-password)
       TF_VAR_platform_admin_password: $(bootstrap-admin-password)
       TF_VAR_authentication_signing_key: $(authentication-signing-key)
-      TF_VAR_azure_openai_endpoint: $(azure-openai-endpoint)
-      TF_VAR_azure_openai_api_key: $(azure-openai-api-key)

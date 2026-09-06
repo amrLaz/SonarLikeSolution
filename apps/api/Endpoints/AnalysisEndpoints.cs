@@ -117,54 +117,6 @@ public static class AnalysisEndpoints
                     $"sast-report-{analysis_id[..Math.Min(8, analysis_id.Length)]}.pdf"
                 )
         );
-        routes.MapGet(
-            "/{analysis_id}/vulnerabilities",
-            async (
-                string analysis_id,
-                HttpContext context,
-                AppDbContext db,
-                AuthService auth,
-                KevService kev,
-                CancellationToken ct
-            ) =>
-            {
-                var record = await FindAsync(analysis_id, context, db, auth, ct);
-                var integration = await db.Set<ProjectIntegration>()
-                    .FirstOrDefaultAsync(x => x.ProjectKey == record.ProjectKey, ct);
-                return Results.Ok(
-                    AnalysisFindings.Build(record, integration, await kev.GetIdsAsync(ct))
-                );
-            }
-        );
-        routes.MapPost(
-            "/{analysis_id}/ai-fix",
-            async (
-                string analysis_id,
-                AiFixRequest request,
-                HttpContext context,
-                AppDbContext db,
-                AuthService auth,
-                IHttpClientFactory clients,
-                IOptions<AnalysisOptions> options,
-                CancellationToken ct
-            ) =>
-            {
-                await auth.RequireAsync(context, "admin", ct);
-                request.Validate();
-                if (
-                    string.IsNullOrEmpty(options.Value.AzureOpenAiEndpoint)
-                    && string.IsNullOrEmpty(options.Value.AnthropicApiKey)
-                )
-                    throw new ApiException(
-                        503,
-                        "AI fix suggestions not configured — set Analysis:AzureOpenAiEndpoint and Analysis:AzureOpenAiApiKey, or Analysis:AnthropicApiKey"
-                    );
-                await FindAsync(analysis_id, context, db, auth, ct);
-                return Results.Ok(
-                    await AnalysisExternal.AiFixAsync(request, clients, options.Value, ct)
-                );
-            }
-        );
         routes.MapDelete(
             "/projects/{project_key}",
             async (
@@ -312,7 +264,7 @@ public static class AnalysisEndpoints
         await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
             db.Add(record);
-            var occurrences = LegacyFindings.Normalize(record).ToList();
+            var occurrences = AnalysisOccurrences.From(record).ToList();
             db.AddRange(occurrences);
             await FindingCollaboration.ObserveAsync(db, record, occurrences, ct);
             await db.SaveChangesAsync(ct);

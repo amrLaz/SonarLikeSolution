@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiJson, apiPage } from './api';
-import type { PortfolioSummary } from './types';
+import type { DashboardSummary } from './types';
 import type { AnalysisRecord, GateLibraryItem, ProjectIntegrationRecord, AuthProvider, SessionUser, LocalUserRole, AzureDevOpsOrganizationConfig, AppTab, AdminSection } from './types';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 
@@ -19,12 +19,12 @@ export function useWorkspaceData(authToken: string | undefined, activeTab: AppTa
   });
   const summaryQuery = useQuery({
     queryKey: ['analyses', 'summary', projectCursor], enabled: signedIn,
-    queryFn: ({ signal }) => apiJson<PortfolioSummary>(`${API_BASE}/v1/insights/summary?cursor=${encodeURIComponent(projectCursor)}`, authToken, { signal }),
+    queryFn: ({ signal }) => apiJson<DashboardSummary>(`${API_BASE}/v1/insights/summary?cursor=${encodeURIComponent(projectCursor)}`, authToken, { signal }),
   });
 
   const selectedSummaryQuery = useQuery({
     queryKey: ['analyses', 'summary-project', project], enabled: signedIn && !!project,
-    queryFn: ({ signal }) => apiJson<PortfolioSummary>(`${API_BASE}/v1/insights/summary?project_key=${encodeURIComponent(project)}`, authToken, { signal }),
+    queryFn: ({ signal }) => apiJson<DashboardSummary>(`${API_BASE}/v1/insights/summary?project_key=${encodeURIComponent(project)}`, authToken, { signal }),
   });
 
   const branchesQuery = useQuery({

@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -16,6 +17,7 @@ namespace CodeInsights.Api.Data.Migrations
                 columns: table => new
                 {
                     analysis_id = table.Column<string>(type: "character varying(36)", nullable: false),
+                    details_purged = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     project_key = table.Column<string>(type: "character varying(255)", nullable: false),
                     commit_sha = table.Column<string>(type: "character varying(255)", nullable: false),
                     branch = table.Column<string>(type: "character varying(255)", nullable: false),
@@ -52,6 +54,19 @@ namespace CodeInsights.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_analysis_records", x => x.analysis_id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "archived_code_branches",
+                columns: table => new
+                {
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    branch = table.Column<string>(type: "text", nullable: false),
+                    archived = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_archived_code_branches", x => new { x.project_key, x.branch });
                 });
 
             migrationBuilder.CreateTable(
@@ -113,6 +128,228 @@ namespace CodeInsights.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_azure_devops_org_config", x => x.config_id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "code_scope_assignments",
+                columns: table => new
+                {
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    version = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_code_scope_assignments", x => x.project_key);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "code_scope_versions",
+                columns: table => new
+                {
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    version = table.Column<string>(type: "text", nullable: false),
+                    definition = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_code_scope_versions", x => new { x.project_key, x.version });
+                });
+
+            migrationBuilder.CreateTable(
+                name: "collaboration_teams",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    name = table.Column<string>(type: "text", nullable: false),
+                    owner_user_id = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_collaboration_teams", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "coverage_lines",
+                columns: table => new
+                {
+                    ingestion_id = table.Column<string>(type: "text", nullable: false),
+                    path = table.Column<string>(type: "text", nullable: false),
+                    line = table.Column<int>(type: "integer", nullable: false),
+                    covered = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_coverage_lines", x => new { x.ingestion_id, x.path, x.line });
+                });
+
+            migrationBuilder.CreateTable(
+                name: "durable_findings",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    branch = table.Column<string>(type: "text", nullable: false),
+                    tool = table.Column<string>(type: "text", nullable: false),
+                    rule_id = table.Column<string>(type: "text", nullable: false),
+                    category = table.Column<string>(type: "text", nullable: false),
+                    message = table.Column<string>(type: "text", nullable: false),
+                    path = table.Column<string>(type: "text", nullable: true),
+                    line = table.Column<int>(type: "integer", nullable: true),
+                    identity_kind = table.Column<string>(type: "text", nullable: false),
+                    state = table.Column<string>(type: "text", nullable: false),
+                    hotspot_review = table.Column<string>(type: "text", nullable: false),
+                    assignee_user_id = table.Column<string>(type: "text", nullable: true),
+                    team_id = table.Column<string>(type: "text", nullable: true),
+                    exception_reason = table.Column<string>(type: "text", nullable: true),
+                    exception_expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    last_analysis_id = table.Column<string>(type: "text", nullable: false),
+                    last_seen_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    version = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_durable_findings", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "durable_jobs",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    kind = table.Column<string>(type: "text", nullable: false),
+                    resource_id = table.Column<string>(type: "text", nullable: false),
+                    state = table.Column<string>(type: "text", nullable: false),
+                    attempts = table.Column<int>(type: "integer", nullable: false),
+                    available_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    lease_until = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    lease_owner = table.Column<string>(type: "text", nullable: true),
+                    error = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_durable_jobs", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "finding_decisions",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    finding_id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    actor_user_id = table.Column<string>(type: "text", nullable: false),
+                    actor_email = table.Column<string>(type: "text", nullable: false),
+                    action = table.Column<string>(type: "text", nullable: false),
+                    reason = table.Column<string>(type: "text", nullable: false),
+                    snapshot = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_finding_decisions", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "finding_identity_matches",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    branch = table.Column<string>(type: "text", nullable: false),
+                    analysis_id = table.Column<string>(type: "text", nullable: false),
+                    ingestion_id = table.Column<string>(type: "text", nullable: false),
+                    occurrence_identity = table.Column<string>(type: "text", nullable: false),
+                    finding_id = table.Column<string>(type: "text", nullable: true),
+                    method = table.Column<string>(type: "text", nullable: false),
+                    base_sha = table.Column<string>(type: "text", nullable: false),
+                    head_sha = table.Column<string>(type: "text", nullable: false),
+                    old_path = table.Column<string>(type: "text", nullable: true),
+                    old_line = table.Column<int>(type: "integer", nullable: true),
+                    path = table.Column<string>(type: "text", nullable: true),
+                    line = table.Column<int>(type: "integer", nullable: true),
+                    evidence_hash = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_finding_identity_matches", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "finding_occurrences",
+                columns: table => new
+                {
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    finding_id = table.Column<string>(type: "text", nullable: true),
+                    ingestion_id = table.Column<string>(type: "text", nullable: false),
+                    analysis_id = table.Column<string>(type: "text", nullable: false),
+                    report_id = table.Column<string>(type: "text", nullable: false),
+                    tool = table.Column<string>(type: "text", nullable: false),
+                    original_tool = table.Column<string>(type: "text", nullable: false),
+                    rule_id = table.Column<string>(type: "text", nullable: false),
+                    severity = table.Column<string>(type: "text", nullable: false),
+                    original_severity = table.Column<string>(type: "text", nullable: false),
+                    category = table.Column<string>(type: "text", nullable: false),
+                    message = table.Column<string>(type: "text", nullable: false),
+                    path = table.Column<string>(type: "text", nullable: true),
+                    line = table.Column<int>(type: "integer", nullable: true),
+                    fingerprint = table.Column<string>(type: "text", nullable: true),
+                    excepted = table.Column<bool>(type: "boolean", nullable: false),
+                    evidence = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_finding_occurrences", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ingestion_project_policies",
+                columns: table => new
+                {
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    profile_id = table.Column<string>(type: "text", nullable: false),
+                    profile_version = table.Column<string>(type: "text", nullable: false),
+                    enforcement = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ingestion_project_policies", x => x.project_key);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ingestions",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    analysis_id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    build_key = table.Column<string>(type: "text", nullable: false),
+                    manifest_hash = table.Column<string>(type: "text", nullable: false),
+                    manifest = table.Column<string>(type: "text", nullable: false),
+                    profile_snapshot = table.Column<string>(type: "text", nullable: false),
+                    exception_snapshot = table.Column<string>(type: "text", nullable: false),
+                    revision = table.Column<int>(type: "integer", nullable: false),
+                    state = table.Column<string>(type: "text", nullable: false),
+                    technical_state = table.Column<string>(type: "text", nullable: false),
+                    quality_gate = table.Column<string>(type: "text", nullable: false),
+                    error = table.Column<string>(type: "text", nullable: false),
+                    gate_snapshot = table.Column<string>(type: "text", nullable: false),
+                    comparison = table.Column<string>(type: "text", nullable: false),
+                    code_data = table.Column<string>(type: "text", nullable: false),
+                    code_scope_snapshot = table.Column<string>(type: "text", nullable: false),
+                    security_review_snapshot = table.Column<string>(type: "text", nullable: false),
+                    details_purged = table.Column<bool>(type: "boolean", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ingestions", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -220,6 +457,38 @@ namespace CodeInsights.Api.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "profile_exceptions",
+                columns: table => new
+                {
+                    id = table.Column<string>(type: "text", nullable: false),
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    tool = table.Column<string>(type: "text", nullable: false),
+                    rule_id = table.Column<string>(type: "text", nullable: false),
+                    path = table.Column<string>(type: "text", nullable: true),
+                    reason = table.Column<string>(type: "text", nullable: false),
+                    expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_profile_exceptions", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "profile_versions",
+                columns: table => new
+                {
+                    profile_id = table.Column<string>(type: "text", nullable: false),
+                    version = table.Column<string>(type: "text", nullable: false),
+                    definition = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_profile_versions", x => new { x.profile_id, x.version });
+                });
+
+            migrationBuilder.CreateTable(
                 name: "project_integrations",
                 columns: table => new
                 {
@@ -235,6 +504,19 @@ namespace CodeInsights.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_project_integrations", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "project_ownerships",
+                columns: table => new
+                {
+                    project_key = table.Column<string>(type: "text", nullable: false),
+                    team_id = table.Column<string>(type: "text", nullable: true),
+                    owner_user_id = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_project_ownerships", x => x.project_key);
                 });
 
             migrationBuilder.CreateTable(
@@ -269,6 +551,56 @@ namespace CodeInsights.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_rule_suppressions", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "sbom_components",
+                columns: table => new
+                {
+                    id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ingestion_id = table.Column<string>(type: "text", nullable: false),
+                    analysis_id = table.Column<string>(type: "text", nullable: false),
+                    report_id = table.Column<string>(type: "text", nullable: false),
+                    reference = table.Column<string>(type: "text", nullable: false),
+                    name = table.Column<string>(type: "text", nullable: false),
+                    version = table.Column<string>(type: "text", nullable: true),
+                    purl = table.Column<string>(type: "text", nullable: true),
+                    ecosystem = table.Column<string>(type: "text", nullable: true),
+                    licenses = table.Column<string>(type: "text", nullable: false),
+                    relationship = table.Column<string>(type: "text", nullable: false),
+                    license_decision = table.Column<string>(type: "text", nullable: false),
+                    vulnerabilities = table.Column<string>(type: "text", nullable: false),
+                    dependencies = table.Column<string>(type: "text", nullable: false),
+                    source = table.Column<string>(type: "text", nullable: false),
+                    observed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_sbom_components", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ingestion_reports",
+                columns: table => new
+                {
+                    ingestion_id = table.Column<string>(type: "text", nullable: false),
+                    report_id = table.Column<string>(type: "text", nullable: false),
+                    blob_name = table.Column<string>(type: "text", nullable: false),
+                    sha256 = table.Column<string>(type: "text", nullable: false),
+                    size_bytes = table.Column<long>(type: "bigint", nullable: false),
+                    state = table.Column<string>(type: "text", nullable: false),
+                    error = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ingestion_reports", x => new { x.ingestion_id, x.report_id });
+                    table.ForeignKey(
+                        name: "FK_ingestion_reports_ingestions_ingestion_id",
+                        column: x => x.ingestion_id,
+                        principalTable: "ingestions",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -465,6 +797,75 @@ namespace CodeInsights.Api.Data.Migrations
                 columns: new[] { "project_id", "name" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_collaboration_teams_project_key_name",
+                table: "collaboration_teams",
+                columns: new[] { "project_key", "name" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_durable_findings_assignee_user_id_team_id",
+                table: "durable_findings",
+                columns: new[] { "assignee_user_id", "team_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_durable_findings_project_key_branch_id",
+                table: "durable_findings",
+                columns: new[] { "project_key", "branch", "id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_durable_jobs_kind_resource_id",
+                table: "durable_jobs",
+                columns: new[] { "kind", "resource_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_durable_jobs_state_available_at",
+                table: "durable_jobs",
+                columns: new[] { "state", "available_at" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_finding_decisions_finding_id_created_at_id",
+                table: "finding_decisions",
+                columns: new[] { "finding_id", "created_at", "id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_finding_identity_matches_finding_id_created_at",
+                table: "finding_identity_matches",
+                columns: new[] { "finding_id", "created_at" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_finding_identity_matches_project_key_branch_occurrence_iden~",
+                table: "finding_identity_matches",
+                columns: new[] { "project_key", "branch", "occurrence_identity", "created_at" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_finding_occurrences_analysis_id_tool_rule_id",
+                table: "finding_occurrences",
+                columns: new[] { "analysis_id", "tool", "rule_id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_finding_occurrences_ingestion_id_id",
+                table: "finding_occurrences",
+                columns: new[] { "ingestion_id", "id" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ingestions_analysis_id_revision",
+                table: "ingestions",
+                columns: new[] { "analysis_id", "revision" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ingestions_build_key_manifest_hash",
+                table: "ingestions",
+                columns: new[] { "build_key", "manifest_hash" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ingestions_project_key_created_at",
+                table: "ingestions",
+                columns: new[] { "project_key", "created_at" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_oidc_transactions_cookie_hash",
                 table: "oidc_transactions",
                 column: "cookie_hash");
@@ -519,6 +920,11 @@ namespace CodeInsights.Api.Data.Migrations
                 column: "role");
 
             migrationBuilder.CreateIndex(
+                name: "IX_profile_exceptions_project_key_expires_at",
+                table: "profile_exceptions",
+                columns: new[] { "project_key", "expires_at" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_project_gate_assignments_gate_id",
                 table: "project_gate_assignments",
                 column: "gate_id");
@@ -558,6 +964,11 @@ namespace CodeInsights.Api.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_sbom_components_ingestion_id_id",
+                table: "sbom_components",
+                columns: new[] { "ingestion_id", "id" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_token_project_access_project_key",
                 table: "token_project_access",
                 column: "project_key");
@@ -586,6 +997,9 @@ namespace CodeInsights.Api.Data.Migrations
                 name: "analysis_records");
 
             migrationBuilder.DropTable(
+                name: "archived_code_branches");
+
+            migrationBuilder.DropTable(
                 name: "audit_logs");
 
             migrationBuilder.DropTable(
@@ -598,6 +1012,39 @@ namespace CodeInsights.Api.Data.Migrations
                 name: "branches");
 
             migrationBuilder.DropTable(
+                name: "code_scope_assignments");
+
+            migrationBuilder.DropTable(
+                name: "code_scope_versions");
+
+            migrationBuilder.DropTable(
+                name: "collaboration_teams");
+
+            migrationBuilder.DropTable(
+                name: "coverage_lines");
+
+            migrationBuilder.DropTable(
+                name: "durable_findings");
+
+            migrationBuilder.DropTable(
+                name: "durable_jobs");
+
+            migrationBuilder.DropTable(
+                name: "finding_decisions");
+
+            migrationBuilder.DropTable(
+                name: "finding_identity_matches");
+
+            migrationBuilder.DropTable(
+                name: "finding_occurrences");
+
+            migrationBuilder.DropTable(
+                name: "ingestion_project_policies");
+
+            migrationBuilder.DropTable(
+                name: "ingestion_reports");
+
+            migrationBuilder.DropTable(
                 name: "notification_channels");
 
             migrationBuilder.DropTable(
@@ -607,10 +1054,19 @@ namespace CodeInsights.Api.Data.Migrations
                 name: "platform_settings");
 
             migrationBuilder.DropTable(
+                name: "profile_exceptions");
+
+            migrationBuilder.DropTable(
+                name: "profile_versions");
+
+            migrationBuilder.DropTable(
                 name: "project_gate_assignments");
 
             migrationBuilder.DropTable(
                 name: "project_integrations");
+
+            migrationBuilder.DropTable(
+                name: "project_ownerships");
 
             migrationBuilder.DropTable(
                 name: "retention_policies");
@@ -619,10 +1075,16 @@ namespace CodeInsights.Api.Data.Migrations
                 name: "rule_suppressions");
 
             migrationBuilder.DropTable(
+                name: "sbom_components");
+
+            migrationBuilder.DropTable(
                 name: "token_project_access");
 
             migrationBuilder.DropTable(
                 name: "user_grants");
+
+            migrationBuilder.DropTable(
+                name: "ingestions");
 
             migrationBuilder.DropTable(
                 name: "quality_gate_config");

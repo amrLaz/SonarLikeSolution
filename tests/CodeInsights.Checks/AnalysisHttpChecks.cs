@@ -104,14 +104,6 @@ public static class AnalysisHttpChecks
                 .ValueKind == JsonValueKind.Null,
             "global list omits findings"
         );
-        var findings = await Json(
-            await Send(HttpMethod.Get, $"/api/v1/analyses/{id}/vulnerabilities")
-        );
-        Require(
-            findings.GetProperty("vulnerabilities").GetArrayLength() == 2
-                && findings.GetProperty("high_count").GetInt32() == 2,
-            "SAST and SCA materialization"
-        );
         foreach (
             var path in new[]
             {
@@ -203,21 +195,6 @@ public static class AnalysisHttpChecks
                 "/api/v1/rules/semgrep/csharp.sample-rule/suppress",
                 token: adminToken
             )
-        );
-        await Json(
-            await Send(
-                HttpMethod.Get,
-                $"/api/v1/vulnerabilities?project_key={Uri.EscapeDataString(projectKey)}"
-            )
-        );
-        await Json(
-            await Send(
-                HttpMethod.Post,
-                $"/api/v1/analyses/{id}/ai-fix",
-                new AiFixRequest(),
-                adminToken
-            ),
-            HttpStatusCode.ServiceUnavailable
         );
         complete.Measurements["security_score"] = new("measured", 0);
         var failed = await Json(await Send(HttpMethod.Post, "/api/v1/analyses", complete));

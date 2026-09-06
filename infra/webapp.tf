@@ -34,20 +34,17 @@ resource "azurerm_linux_web_app" "sast" {
     }
   }
 
-  app_settings = merge(
-    {
-      ConnectionStrings__CodeInsights    = format("Host=%s;Database=\"%s\";Username=\"%s\";Password=\"%s\";SSL Mode=Require", azurerm_postgresql_flexible_server.sast.fqdn, replace(var.postgres_db_name, "\"", "\"\""), replace(var.postgres_admin_login, "\"", "\"\""), replace(var.postgres_admin_password, "\"", "\"\""))
-      Bootstrap__AdminEmail              = var.platform_admin_email
-      Bootstrap__AdminPassword           = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=bootstrap-admin-password)"
-      Bootstrap__RequireCompleteMappings = tostring(var.p0_require_complete_mappings)
-      Authentication__SigningKey         = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=authentication-signing-key)"
-      WEBSITES_PORT                      = "8000"
-      Ingestion__BlobServiceUri          = azurerm_storage_account.reports.primary_blob_endpoint
-      Ingestion__Container               = azurerm_storage_container.reports.name
-      Ingestion__PlatformUrl             = "https://${local.prefix}-app.azurewebsites.net"
-    },
-    local.ai_app_settings
-  )
+  app_settings = {
+    ConnectionStrings__CodeInsights    = format("Host=%s;Database=\"%s\";Username=\"%s\";Password=\"%s\";SSL Mode=Require", azurerm_postgresql_flexible_server.sast.fqdn, replace(var.postgres_db_name, "\"", "\"\""), replace(var.postgres_admin_login, "\"", "\"\""), replace(var.postgres_admin_password, "\"", "\"\""))
+    Bootstrap__AdminEmail              = var.platform_admin_email
+    Bootstrap__AdminPassword           = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=bootstrap-admin-password)"
+    Bootstrap__RequireCompleteMappings = tostring(var.p0_require_complete_mappings)
+    Authentication__SigningKey         = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.sast.name};SecretName=authentication-signing-key)"
+    WEBSITES_PORT                      = "8000"
+    Ingestion__BlobServiceUri          = azurerm_storage_account.reports.primary_blob_endpoint
+    Ingestion__Container               = azurerm_storage_container.reports.name
+    Ingestion__PlatformUrl             = "https://${local.prefix}-app.azurewebsites.net"
+  }
 
   tags       = local.common_tags
   depends_on = [azurerm_postgresql_flexible_server_database.app, azurerm_key_vault_secret.authentication_signing_key, azurerm_key_vault_secret.bootstrap_admin_password]

@@ -154,18 +154,6 @@
     ]
   },
   {
-    "path": "/api/v1/analyses/{analysis_id}/vulnerabilities",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/analyses/{analysis_id}/ai-fix",
-    "methods": [
-      "POST"
-    ]
-  },
-  {
     "path": "/api/v1/analyses/export/csv",
     "methods": [
       "GET"
@@ -466,24 +454,6 @@
     ]
   },
   {
-    "path": "/api/v1/vulnerabilities",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/kev/status",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/kev/refresh",
-    "methods": [
-      "POST"
-    ]
-  },
-  {
     "path": "/healthz",
     "methods": [
       "GET"
@@ -636,69 +606,6 @@
     ]
   },
   {
-    "path": "/api/v1/collaboration/projects/{projectKey}/boards",
-    "methods": [
-      "GET",
-      "PUT"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/findings/{id}/boards",
-    "methods": [
-      "GET",
-      "POST"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/findings/{id}/boards/reconcile",
-    "methods": [
-      "POST"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/subscriptions",
-    "methods": [
-      "GET",
-      "POST"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/subscriptions/{id}",
-    "methods": [
-      "DELETE"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/notifications",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/notifications/{id}/read",
-    "methods": [
-      "PUT"
-    ]
-  },
-  {
-    "path": "/api/v1/portfolio/history",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/portfolio/export",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/portfolio/objectives",
-    "methods": [
-      "PUT"
-    ]
-  },
-  {
     "path": "/api/v1/code/projects/{key}/configuration",
     "methods": [
       "GET",
@@ -717,24 +624,6 @@
     "methods": [
       "GET",
       "PUT"
-    ]
-  },
-  {
-    "path": "/api/v1/code/analyses/{id}/files",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/code/analyses/{id}/file",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/analyses/{id}/code-quality",
-    "methods": [
-      "GET"
     ]
   },
   {
@@ -757,18 +646,6 @@
   },
   {
     "path": "/api/v1/profiles/projects/{key}/impact",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/hotspots",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
-    "path": "/api/v1/collaboration/findings/{id}/matches",
     "methods": [
       "GET"
     ]

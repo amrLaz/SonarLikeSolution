@@ -6,7 +6,7 @@ description: Conditions globales ou limitées au diff Git, preuves de calcul et 
 # Gate sur le nouveau code
 
 Le parcours d'ingestion accepte un `scope` par condition de profil : `global`
-(défaut compatible avec les profils existants) ou `new_code`. Le contrat legacy
+(défaut compatible avec les profils existants) ou `new_code`. Le contrat direct
 `POST /api/v1/analyses` reste inchangé. L'éditeur de profils permet de publier
 une nouvelle version JSON, puis de l'affecter au projet.
 

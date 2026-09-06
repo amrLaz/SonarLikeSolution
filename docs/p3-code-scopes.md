@@ -5,33 +5,9 @@ description: Navigation au commit analysé et gestion des périmètres versionn�
 
 # Code, composants et branches
 
-L’onglet **Code** réutilise les sélections de projet, branche et analyse.
-La liste `/api/v1/code/analyses/{id}/files` affiche les chemins au SHA analysé,
-leur type (source, test, généré, tiers), le nombre de findings et les totaux de
-couverture reçus. Le filtre est un préfixe de chemin, par exemple `apps/api/`.
-La navigation reste paginée explicitement, 50 fichiers par défaut (maximum 100).
+Le code n'est plus un écran autonome. Depuis Issues, chaque occurrence dont la preuve est suffisante ouvre directement le fichier et la ligne au SHA analysé dans Azure DevOps. Aucun code source n'est copié dans CodeInsights et aucun chemin mutable n'est inventé lorsque le rapport ne permet pas un lien sûr.
 
-Avec `repository_files` publié par la CI, l’inventaire provient de l’arbre Git.
-Sans lui, la vue annonce qu’elle se limite aux fichiers cités dans les rapports.
-Un fichier sans finding reste consultable lorsque présent dans l’inventaire Git.
-Sans rapport SARIF complet, le compteur de findings reste « Non mesuré »,
-jamais zéro. Les totaux de couverture restent inconnus si un rapport de
-couverture déclaré manque ou échoue ; le détail conserve les annotations reçues.
-L’API applique le périmètre de composant figé dans l’import, sans l’étendre selon
-la configuration courante du projet.
-
-Le détail `/api/v1/code/analyses/{id}/file?path=…` superpose les annotations
-reçues par ligne : couverture couverte/non couverte/non mesurée et occurrences
-avec producteur, règle, catégorie, sévérité et message. Les liens Azure DevOps
-ciblent le SHA et la ligne ; un lien manquant reste indisponible. La page annonce
-la borne de 500 findings par page de lignes lorsqu’elle est atteinte.
-Seules les lignes annotées apparaissent ; aucun code source n’est copié ou
-reconstitué à partir d’un message de scanner. Les détails purgés retournent 410.
-
-Le panneau de qualité détaillée complète cette lecture avec les mesures des
-rapports : couvertures lignes/branches/conditions distinctes, répertoires,
-blocs dupliqués et leurs deux localisations, taille et complexité mesurées.
-Les absences de mesure ne deviennent pas zéro.
+Les inventaires Git, classifications de fichiers, lignes de couverture et mesures natives restent des données d'ingestion utilisées pour le gate, New Code et les métriques du dashboard. L’API applique le périmètre de composant figé dans l’import, sans l’étendre selon la configuration courante du projet. Une mesure absente ne devient jamais zéro.
 
 ## Gestion du composant
 

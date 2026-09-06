@@ -32,7 +32,7 @@ ASP.NET Core 10 + EF Core/Npgsql + PostgreSQL en backend, React (Vite/TS) en fro
 
 ```text
 apps/api/                -> API .NET 10 (Endpoints/, Data/, Auth/, Services/, Program.cs)
-apps/web/src/             -> frontend React (App.tsx, components/) — package.json non suivi en git
+apps/web/                 -> frontend React (Vite/TS), manifeste npm et sources
 src/                       -> échantillons de code analysés par le SAST, PAS le runtime
 infra/          -> infrastructure Terraform (PLATFORM_SAST.md)
 docs/                      -> documentation faisant autorité — la lire avant de changer un comportement
@@ -43,7 +43,7 @@ docs/                      -> documentation faisant autorité — la lire avant 
 ## Configuration
 
 - La connexion utilise `ConnectionStrings__CodeInsights` ; les options sont regroupées dans `Authentication`, `Bootstrap`, `Analysis`, `Ingestion` et `Cors`.
-- `apps/web` n'a pas de `package.json` suivi en git ; il est généré inline par le [Dockerfile](Dockerfile) — un `npm install` seul dans ce dossier ne fonctionne pas.
+- `apps/web/package.json` et son lockfile sont suivis ; utiliser `npm ci`, `npm run check` et `npm run build` depuis ce dossier. Le Dockerfile consomme les mêmes manifests.
 - La rétention s'exécute via le worker et sa maintenance horaire ; les migrations versionnées sont exécutées avant le serveur web par le point d'entrée de l'image.
 
 ## Boundaries
@@ -57,7 +57,6 @@ docs/                      -> documentation faisant autorité — la lire avant 
 
 ### Ask First
 
-- Ajouter un `package.json` suivi dans `apps/web` ou changer le mécanisme de build du `Dockerfile`.
 - Changer le contrat de `POST /api/v1/analyses` (consommé par le runner partagé `Up.France.ODI.AzurePipelines`).
 
 ### Never

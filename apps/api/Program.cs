@@ -51,13 +51,11 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<EntraService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<RetentionService>();
-builder.Services.AddScoped<KevService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.Configure<IngestionOptions>(builder.Configuration.GetSection("Ingestion"));
 builder.Services.AddSingleton<ReportStorage>();
 builder.Services.AddScoped<IngestionProcessor>();
 builder.Services.AddScoped<IngestionAdo>();
-builder.Services.AddScoped<BoardsDelivery>();
 builder.Services.AddScoped<IngestionMaintenance>();
 builder.Services.AddHostedService<IngestionWorker>();
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 50L * 1024 * 1024);
@@ -85,13 +83,6 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 if (args.Contains("--migrate"))
     return 0;
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    await scope
-        .ServiceProvider.GetRequiredService<KevService>()
-        .MaybeRefreshAsync(CancellationToken.None);
-}
-
 app.Use(
     async (context, next) =>
     {
@@ -136,17 +127,12 @@ app.MapIngestionEndpoints();
 app.MapProfileEndpoints();
 app.MapInsightEndpoints();
 app.MapCodeEndpoints();
-app.MapCodeQualityEndpoints();
 app.MapCollaborationEndpoints();
-app.MapSecurityReviewEndpoints();
-app.MapBoardsEndpoints();
-app.MapPortfolioEndpoints();
 app.MapRuleEndpoints();
 app.MapPlatformEndpoints();
 app.MapIntegrationEndpoints();
 app.MapNotificationEndpoints();
 app.MapAuditEndpoints();
-app.MapKevEndpoints();
 app.MapOpenApi("/openapi.json");
 app.MapMethods("/openapi.json", ["HEAD"], () => Results.Ok());
 app.MapMethods("/docs", ["GET", "HEAD"], () => Results.File(Path.Combine(AppContext.BaseDirectory, "Docs", "swagger.html"), "text/html; charset=utf-8"));

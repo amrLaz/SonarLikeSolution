@@ -5,7 +5,7 @@ description: Identité durable, assignation, décisions motivées et conservatio
 
 # Collaboration et revue
 
-Les publications legacy et P1 associent désormais les occurrences à un finding
+Les deux parcours de publication associent les occurrences à un finding
 durable dans la transaction du résultat. La clé versionnée `finding/1` contient
 le projet, la branche, l'outil et la règle. Un fingerprint unique dans le rapport
 normalisé conserve cette identité après un déplacement ou un renommage. Sans
@@ -69,5 +69,4 @@ La purge des rapports conserve assignation et décisions. La suppression explici
 d'un projet reste une opération administrative distincte ; ses anciens findings
 ne sont plus accessibles lorsque le projet ne fait plus partie des droits.
 
-Voir [Azure Boards et abonnements](p2-boards.md), [portefeuille](p2-portfolio.md)
-et [validation](validation.md). Les tests locaux ne remplacent pas le pilote Azure.
+Voir [validation](validation.md). Les tests locaux ne remplacent pas le pilote Azure.

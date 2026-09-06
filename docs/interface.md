@@ -21,7 +21,7 @@ Les sept assets originaux de la tâche « Ajouter favicon et assets SPA » ont �
 
 ## Données serveur et formulaires
 
-Le frontend utilise React/React DOM **19.2.8**, TanStack Query **5.102.8**, TypeScript et Vite. Les types React **19.2.18** et React DOM **19.2.7** sont déclarés avec ces dépendances dans le [Dockerfile](../Dockerfile). Le manifeste reste généré pendant le build ; l'installation utilise encore `npm install`, sans lockfile consommé par ce stage.
+Le frontend utilise React/React DOM **19.2.8**, TanStack Query **5.102.8**, TypeScript et Vite. Les dépendances sont suivies dans [package.json](../apps/web/package.json) et son lockfile. Le développement local et le Dockerfile utilisent `npm ci`.
 
 Chaque connexion ou déconnexion remonte l'arbre de session avec un nouveau `QueryClient`. Les lectures précédentes sont annulées ; leurs résultats ne sont pas réutilisés par la nouvelle identité. Le cache des gates dans `localStorage` est retiré. Les clés de requête décrivent les ressources, l'analyse ou les filtres appliqués, sans inclure de token. La fraîcheur est de 30 secondes, sans retry automatique ni relecture déclenchée par le focus ou la reconnexion réseau. Une invalidation après mutation ou une action explicite de rafraîchissement permet de relire les données.
 
@@ -38,14 +38,13 @@ Le client HTTP partagé conserve `fetch`, ajoute le Bearer et rejette les répon
 - **Mesures** : un nombre fini explicitement reçu, y compris zéro, est conservé. Une valeur absente, `null` ou non finie s'affiche « Non disponible ». Le navigateur n’estime pas fiabilité, couverture, duplication ou compteurs manquants.
 - **New Code** : lit la comparaison de l’analyse sélectionnée, sans recalcul navigateur. Affiche nouveaux, persistants, résolus, indéterminés et couverture des lignes modifiées. Baseline absente, détails purgés ou profils incompatibles affichent le motif reçu ; aucun résultat global de substitution. Les profils d'ingestion acceptent des conditions `new_code` ; l'éditeur historique Quality Gates conserve son périmètre global.
 - **Verdict** : `pass`, `fail` et `unknown` sont distincts. Le statut d'exécution `queued`, `running`, `completed` ou `failed` et l'état technique P0 `success`, `failed` ou `incomplete` sont présentés séparément. Le détail Projects montre la complétude, les états `measured`/`absent`/`failed`/`not_measured`, les exécutions d'outils et les conditions de l'instantané du gate. l'interface ne reconstruit ni seuil ni provenance.
-- **Evolution** : les valeurs manquantes interrompent les segments des courbes. Les compteurs ont une échelle adaptée aux valeurs reçues ; les pourcentages et scores restent sur 100. Un tableau défilable au clavier donne chaque valeur, commit, date, état technique et verdict.
+- **Historique du dashboard** : le détail d'un projet affiche directement les courbes de toutes les métriques de la branche. Les valeurs manquantes interrompent les segments ; compteurs, pourcentages et scores gardent des échelles distinctes. Un tableau repliable donne les valeurs exactes.
 - **Issues** : projet, branche et analyse sont sélectionnés explicitement. La liste et ses compteurs portent uniquement sur les findings détaillés de cette analyse. Un total par fichier est un résumé et ne crée pas de finding détaillé. Les catégories `secret`, `dependency`, `code`, `ioc` et `unknown` ainsi que l'outil sont ceux transmis par le serveur, sans classement par le texte de la règle.
-- **Vulnerabilities & IOCs** : cet onglet reprend la même sélection d'analyse que Issues et en affiche le projet, la branche et le commit. Les dépendances/code, les secrets et les IOC sont présentés dans trois vues séparées à partir de la catégorie serveur ; la catégorie inconnue reste dans la vue dépendances/code. TOTAL compte les entrées effectivement retournées dans ce périmètre. Les compteurs absents et le CVSS manquant sont explicites. Le frontend ne reclasse pas les secrets en CVE ou inversement à partir d'heuristiques de texte.
 - **Quality Gates** : création, modification, suppression, affectation, suppression de règles et suggestion IA suivent `permissions.is_admin` relu par `/api/v1/auth/me`. Les autres utilisateurs consultent les données en lecture seule, même si un rôle obsolète subsiste dans la session locale. Le repli utilise le gate reçu de l'API.
 - **Accès explicites** : Administration > Access Management charge les catalogues d'organisations et de projets depuis l'API. L'administrateur remplace en une opération les grants d'un utilisateur ; une sélection vide laisse un non-administrateur sans accès projet. Un grant d'organisation et un grant de projet restent affichés séparément.
 - **Tokens CI** : la création exige au moins un projet et envoie les scopes fixes `analysis:read`, `analysis:write` et `integration:write`. L'historique affiche projets, scopes, expiration et révocation ; un token actif peut être révoqué explicitement. Plusieurs tokens indépendants peuvent coexister.
 
-Les lectures Rules, Issues, Vulnerabilities et ProjectManager signalent les erreurs HTTP et ignorent les réponses devenues obsolètes lors d'un changement de contexte. ProjectManager conserve ses actions de création/rétention, affiche leurs erreurs et annonce le chargement des branches ; ce composant n'est actuellement pas monté dans App.
+Les lectures Rules, Issues et ProjectManager signalent les erreurs HTTP et ignorent les réponses devenues obsolètes lors d'un changement de contexte. ProjectManager conserve ses actions de création/rétention, affiche leurs erreurs et annonce le chargement des branches ; ce composant n'est actuellement pas monté dans App.
 
 Les exports PDF/CSV sont téléchargés par le client avec le Bearer de la session ; les routes d’export exigent une authentification.
 
@@ -57,28 +56,21 @@ l'automatisation par groupes Entra/App Roles appartient à un lot ultérieur. Le
 
 ## Limites
 
-Les profils P0 historiques restent disponibles. L’éditeur P1 permet de publier une définition JSON versionnée, de l’affecter explicitement à un projet et de créer une exception motivée avec expiration ; ces écritures sont réservées aux administrateurs. Les décisions collaboratives P2 ne changent pas le verdict automatique des gates.
+Les profils existants restent disponibles. L’éditeur permet de publier une définition JSON versionnée, de l’affecter explicitement à un projet et de créer une exception motivée avec expiration ; ces écritures sont réservées aux administrateurs. Les décisions de traitement ne changent pas le verdict automatique des gates.
 
-## Collaboration et portefeuille P2
+## Suivi des issues
 
-L’onglet **Collaboration** consulte les findings durables, y compris après purge des rapports détaillés. Les filtres projet, branche exacte, équipe, état effectif et « Mes problèmes » sont appliqués au serveur avant pagination. Les tableaux annoncent leur périmètre de page. Issues propose les mêmes filtres collaboratifs en complément de ses filtres de scanner ; ouvrir un détail permet de consulter le suivi ou de matérialiser explicitement celui d’une ancienne occurrence. Les anciens scans ne sont pas tous adoptés au chargement de la liste.
+Issues applique au serveur les filtres projet, branche, analyse, équipe, état effectif et « Mes problèmes ». Ouvrir une carte permet de consulter ou modifier le suivi durable du finding sans passer par un écran de collaboration séparé.
 
 Le suivi affiche responsable, équipe, état, revue distincte des hotspots, date d’observation et identité. Une empreinte scanner permet la continuité ; le repli sur la localisation exacte est annoncé car un déplacement peut créer un autre finding. La résolution et la réouverture sont des décisions explicites ; une absence au scan n’est pas présentée comme une résolution. Les états faux positif et risque accepté exigent une revue administrateur, un motif et une expiration future d’un an maximum, limitée au finding/projet/branche. Leur expiration rend l’état effectif ouvert. Ces décisions restent indépendantes des exceptions P1 de profil et du gate automatique.
 
-L’édition conserve un brouillon avec sa version. Une réponse 409 affiche un conflit, sans écraser la saisie ; « Recharger et abandonner la saisie » permet de repartir des données serveur. Les commentaires et décisions sont paginés et conservent auteur, motif, date et instantané. Les catalogues de personnes et équipes proposent des pages explicites de 50 entrées ; la personne ou équipe assignée reste représentée lorsqu’elle est hors page. L’administration peut créer une équipe et définir le propriétaire initial des nouveaux findings du projet. Les contrôles complètent les autorisations serveur. Les liens `?finding_id=…` ouvrent directement le suivi après connexion et restent utilisables après la purge des détails.
+L’édition utilise la version du finding pour refuser une écriture concurrente. Les commentaires et décisions conservent auteur, motif et date. Les personnes et équipes sont limitées au projet ; les contrôles complètent les autorisations serveur.
 
-Les abonnements portent sur un projet, une équipe sélectionnée ou un finding. La boîte personnelle affiche les changements significatifs, permet de marquer une notification comme lue et de retirer un abonnement. Il s’agit de notifications dans CodeInsights ; un abonnement ne configure aucun email ou webhook. Un finding peut déclencher explicitement la création asynchrone d’un Work Item Azure Boards ; l’interface distingue demande enregistrée, état de livraison, lien obtenu et erreurs de synchronisation. La configuration administrateur réutilise une intégration Azure DevOps existante et le projet lié au dépôt. Le pilote Azure réel demeure distinct de la validation locale.
-
-L’onglet **Portefeuille** filtre organisation, équipe propriétaire, projet, branche, commit et période ; il propose l’historique ou la dernière synthèse par projet/branche. Les dimensions, leurs états de mesure, la complétude, la fraîcheur, la référence de comparaison et les ruptures de profil/formule sont affichés séparément. Les objectifs administrateur gardent le périmètre et les versions de la synthèse. Les liens `?tab=portfolio&portfolio_…` restituent les filtres appliqués. L’export JSON authentifié parcourt explicitement les pages du périmètre demandé et inclut les versions et métadonnées ; il peut être annulé et est interrompu à la sortie de l’écran. Les synthèses restent consultables lorsque les rapports détaillés ont été purgés. Evolution conserve sa vue de la page d’analyses sélectionnée ; ses courbes interrompent désormais les segments lors d’une rupture ou absence de versions, et le tableau donne ces versions.
+L'assignation, les commentaires et les décisions restent disponibles dans ce détail. Les écrans autonomes de boîte personnelle, configuration Boards, équipe/propriétaire et objectifs de portefeuille ont été retirés du parcours principal.
 
 ## Consultations P1
 
-P3 ajoute l'onglet [Code et périmètres](p3-code-scopes.md), avec sélecteurs
-projet/branche/analyse, fichiers au SHA, annotations de ligne et [mesures
-détaillées](p3-code-quality.md). Les tableaux paginés restent accessibles au
-clavier. Le catalogue producteur, l'export natif et l'aperçu avant affectation
-se trouvent dans [Rules/profils](p3-profiles.md). Collaboration présente la file
-hotspots, les correspondances Git et les [décisions de revue](p3-security-review.md).
+Les liens au SHA et annotations utiles sont accessibles depuis Issues ; la configuration technique des [périmètres](p3-code-scopes.md) n'est plus une vue utilisateur. Le catalogue producteur, l'export natif et l'aperçu avant affectation se trouvent dans [Rules/profils](p3-profiles.md). Le détail d'une issue conserve les [décisions de revue](p3-security-review.md).
 Preuves de calcul affiche dérive de configuration, estimation de remédiation
 et décisions utilisées par le gate, avec absence explicite des données.
 
@@ -86,7 +78,7 @@ L'incrément [P3 nouveau code](p3-new-code.md) ajoute les scopes de condition
 `global`/`new_code` aux profils d'ingestion. Preuves de calcul affiche le scope,
 la baseline, les SHA, la fraction de couverture et le motif ; une condition
 non applicable est distincte d'une réussite et d'une mesure absente. La
-configuration historique Quality Gates reste globale pour le parcours legacy.
+configuration Quality Gates existante reste globale pour la publication directe.
 
 Issues affiche les [preuves SARIF](p3-evidence.md) et les liens de fichier
 au commit analysé transmis par le serveur. L'aperçu fabriqué à partir du message
@@ -95,7 +87,7 @@ est un lien déclaré par le producteur, avec version/provenance et absence
 explicites ; les localisations secondaires et flux reçus restent consultables.
 Un SHA ou un chemin non prouvé ne produit aucun repli vers une branche mutable.
 
-Projects utilise `/api/v1/insights/summary` : agrégats par projet et branche calculés sur le serveur, avec uniquement leur dernière analyse. L’historique sélectionné utilise `/insights/analyses` avec projet, branche et curseur. Les pages contiennent 50 analyses ; les contrôles « Analyses précédentes » et « Première page » sont explicites. Evolution représente uniquement la page d’historique annoncée, sans télécharger toutes les pages. Les branches et compteurs globaux viennent des synthèses, jamais d’un sous-ensemble d’historique.
+Projects utilise `/api/v1/insights/summary` : agrégats et criticités de la dernière analyse par projet. L’historique sélectionné utilise `/insights/analyses` avec projet, branche et curseur. Les pages contiennent 50 analyses ; les contrôles « Analyses précédentes » et « Première page » sont explicites. Les courbes représentent cette page annoncée sans télécharger silencieusement tout l'historique.
 
 Issues utilise les occurrences normalisées de l’analyse choisie ; les filtres catégorie, sévérité, règle et fichier s’appliquent au serveur avant pagination. Rules utilise les agrégats des occurrences de la dernière analyse de chaque projet, avec filtres serveur et pages explicites. Les suppressions globales historiques ne sont pas proposées sur ce catalogue : les exceptions P1 se configurent dans le panneau de profils.
 
@@ -111,22 +103,17 @@ Validation P1 locale : typage TypeScript avec `--noUnusedLocals` et les quatre c
 
 Le nom produit affiché est **CodeInsights** : titre du navigateur, écrans de connexion et de déconnexion, bandeau principal et nom d'instance par défaut. La société Upcoop figure dans le copyright du footer. Le nom reste visible sur mobile ; le texte de connexion mesure 28 px. Le dépôt et le dossier se nomment `Up.France.CodeInsights`.
 
-Depuis la racine du dépôt, utiliser la recette frontend existante (le manifeste npm reste défini dans le Dockerfile) :
+Depuis `apps/web`, installer les versions verrouillées puis lancer les checks et le build :
 
 ```powershell
-docker build --target web-builder -t quality-hub:web-design-check .
-docker run --rm quality-hub:web-design-check npx tsc --noEmit
-docker run --rm quality-hub:web-design-check node src/metric-display.check.mjs
-docker run --rm quality-hub:web-design-check node src/forms.check.mjs
-docker run --rm quality-hub:web-design-check node src/server-state.check.mjs
-docker run --rm quality-hub:web-design-check node src/admin-data.check.mjs
-docker run --rm quality-hub:web-design-check node src/collaboration.check.mjs
-docker run --rm quality-hub:web-design-check node src/evidence-links.check.mjs
+npm ci
+npm run check
+npm run build
 ```
 
-Les checks utilisent TypeScript, TanStack Query et les assertions natives Node déjà disponibles dans ce stage, sans framework de test supplémentaire. `metric-display` vérifie absence versus zéro, verdict inconnu, absence de résultats New Code et coordonnées des courbes. `forms` exerce les handlers des formulaires et conserve la saisie après un échec. `server-state` vérifie erreurs HTTP, transmission du Bearer, annulation de session et isolation des pages. `admin-data` couvre pagination du journal, mutations de notifications refusées sans faux succès ni invalidation et contrat de rotation des tokens CI.
+Les checks utilisent TypeScript, TanStack Query et les assertions natives Node installés localement, sans framework de test supplémentaire. Le build Docker relance `npm ci` depuis les mêmes manifests. `metric-display` vérifie absence versus zéro, verdict inconnu, absence de résultats New Code et coordonnées des courbes. `forms` exerce les handlers des formulaires et conserve la saisie après un échec. `server-state` vérifie erreurs HTTP, transmission du Bearer, annulation de session et isolation des pages. `admin-data` couvre pagination du journal, mutations de notifications refusées sans faux succès ni invalidation et contrat de rotation des tokens CI.
 
-Validation frontend P2 locale : build `web-builder` sous l’image `codeinsights:web-p2`, typage `--noUnusedLocals` et cinq checks Node réussis. `collaboration` exerce les handlers réels du formulaire : conservation du motif et de l’expiration d’une exception lors d’une assignation, version du brouillon, refus local d’une soumission concurrente/invalide ou avec catalogue indisponible et retrait de l’expiration lors d’une réouverture. Ce check couvre aussi les cibles entières, les dates d’objectif invalides et le maintien du jour d’échéance UTC dans un navigateur au fuseau Europe/Paris ; le tableau annonce explicitement « Échéance UTC ». `metric-display` vérifie également les ruptures de courbe aux changements ou absences de versions. Cette validation ne remplace pas les parcours navigateur et le pilote Azure Boards.
+Validation frontend de la simplification : le check `collaboration` vérifie le typage du traitement intégré, la version de concurrence, l'expiration des exceptions et le rafraîchissement d'Issues. `metric-display` vérifie les ruptures de courbe aux changements ou absences de versions. Cette validation ne remplace pas un parcours navigateur connecté.
 
 Validation de la migration React 19 / Query (5 septembre 2026) : build du stage `web-builder`, typage avec `--noUnusedLocals` et quatre checks Node réussis. Le bundle de production a été consulté dans le navigateur intégré avec une API simulée isolée : sept onglets à 390, 768 et 1440 px sans débordement horizontal global, connexion locale, callback Entra simulé avec nettoyage du fragment, puis passage du compte A au compte B pendant une réponse A retardée. Les contrôles ont aussi couvert le champ gate vidé au clavier, les refus HTTP visibles, les filtres appliqués du journal et le dialogue DevOps (erreur dans le dialogue, Échap après requête et retour du focus). La confirmation système `window.confirm` de suppression n'a pas pu être pilotée dans ce navigateur ; les erreurs de suppression sont couvertes par les assertions Node. Ces essais ne valident pas une connexion Entra réelle, l'autorisation du backend ou un déploiement Azure.
 
@@ -151,3 +138,10 @@ L'Administration n'affiche pas les contrôles globaux Overall / New Code / Refre
 Validation locale v0.4.0 (6 septembre 2026) : compilation .NET Release sans avertissement, build Docker complet, typage TypeScript strict et tous les checks Node réussis, dont les nouveaux checks de concurrence de session, de badge information et de calcul du débordement de navigation. Navigateur intégré avec API simulée isolée : retour à Sign In sur 401, maintien de session et erreur visible sur 403, appbar et champs natifs, badges au clavier/Échap, menu ⋮ et absence de débordement global à 390/768/1440 px, absence des contrôles d'analyse dans Administration. Les probes de production restent à vérifier après déploiement.
 
 Déploiement v0.4.0 confirmé : pipeline Azure DevOps 276091 réussie depuis le tag v0.4.0 (commit aee4b4c). La production sert le bundle index-DKHQgyK9.js avec la version v0.4.0 ; contrôle de santé HTTP réussi. Dans le navigateur intégré, la session expirée existante revient automatiquement à Sign In et une reconnexion Entra réelle ramène dans l'application ; le footer affiche © 2026 Upcoop et CodeInsights · v0.4.0.
+## Parcours principal
+
+La navigation utilisateur est limitée à **Projects**, **Issues**, **Rules** et **Quality Gates** ; **Administration** apparaît selon les droits. Les anciennes vues autonomes Code, Evolution, Collaboration, Portefeuille et Vulnerabilities & IOCs ne sont plus exposées : leurs usages utiles sont intégrés au dashboard et au détail d'une issue.
+
+Depuis Projects, le nom d'un projet ouvre directement les issues de sa dernière analyse. Les compteurs Blocker, High, Medium, Low et Info ouvrent la même liste avec la criticité correspondante. Le détail projet affiche l'évolution de chaque métrique sur la branche sélectionnée ; les échelles restent séparées et les valeurs exactes sont disponibles dans un tableau repliable.
+
+Issues réunit la localisation au commit analysé, le lien vers le code source, les preuves, l'assignation et la décision de revue. La définition d'une règle est consultée depuis un référentiel externe déclaré par le rapport ou reconnu à partir de son identifiant ; son contenu n'est pas copié dans la base.

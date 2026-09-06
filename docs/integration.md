@@ -13,7 +13,7 @@ Trois parcours coexistent dans le dépôt partagé : `platform-sast-stage.yml` o
 
 Le stage partagé exécute le mode métier `full` du runner canonique. Les findings sont transmis dans la création d'analyse ; aucune publication individuelle vers une route inexistante n'est effectuée.
 
-## Contrat legacy maintenu
+## Publication directe
 
 La source exacte est [AnalysisRequest](../apps/api/Contracts/AnalysisContracts.cs) et les [routes d'analyse](../apps/api/Endpoints/AnalysisEndpoints.cs) ASP.NET Core 10. La route de création est `POST /api/v1/analyses` ; son corps reste inchangé. La collection `GET /api/v1/analyses` sert désormais des synthèses paginées, avec `limit` (1–100, défaut 50), `Link` et `X-Next-Cursor`. Les détails sont consultés séparément.
 
@@ -38,7 +38,7 @@ Le catalogue version 1 attend Semgrep, Trivy et Gitleaks pour les profils `p0-do
 Le template canonique `platform-publish-reports-tpl.yml` publie les rapports déjà
 produits sans réinstaller les scanners ni relancer les tests. Le contexte ADO est
 déduit du build ; l'association dépôt/projet et le profil versionné doivent être
-configurés côté hub. Le mode `full` du stage historique reste un parcours de scan.
+configurés côté hub. Le mode `full` du stage partagé reste un parcours de scan.
 
 Le contrat version 1 est `POST /api/v1/ingestions`, suivi des uploads bruts
 `PUT /api/v1/ingestions/{id}/reports/{report_id}`, du POST `/finalize` et du GET du
@@ -76,6 +76,6 @@ pas la capacité A/B/C ni l'ensemble des matrices de rapports.
 
 Le pilote Azure DevOps reste nécessaire : dépôt/organisation autorisés, droits
 PAT, statut rattaché à l'itération, commentaire mis à jour et branch policy requise.
-Le legacy `POST /analyses` conserve sa décoration synchrone et ses notifications
+Le `POST /analyses` direct conserve sa décoration synchrone et ses notifications
 en mémoire ; seule la nouvelle ingestion dispose du traitement durable décrit.
 Voir les [lots P1 restant à accepter](roadmap.md) et les [budgets](performances.md).

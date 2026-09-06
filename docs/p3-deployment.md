@@ -46,13 +46,12 @@ permet de reprendre le même plan, sans recréer PostgreSQL ni le compte Blob.
   Semgrep vérifie aussi défaut, correction, puis gate `fail` → `pass` sans
   modification du premier verdict. Les chemins absolus utilisent `source_root`
   explicite ; aucune lecture de source ni réécriture du rapport n'est effectuée.
-- Navigateur intégré local : connexion, sélection projet/analyse, explorateur,
-  ligne couverte/non couverte, absence de mesure et deux localisations de
-  duplication consultées sans erreur visible ni débordement horizontal global.
+- Navigateur intégré local : connexion, sélection projet/analyse, mesures et
+  issues consultées sans erreur visible ni débordement horizontal global.
 
 L'acceptation organisationnelle des branch policies et la campagne de charge
-restent distinctes de ces checks fonctionnels. Aucun envoi Teams ou création
-de ticket Azure Boards n'est utilisé par les scénarios locaux.
+restent distinctes de ces checks fonctionnels. Aucun envoi externe n'est utilisé
+par les scénarios locaux.
 
 ## Vérification Azure
 
