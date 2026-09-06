@@ -1,13 +1,26 @@
 using System.Globalization;
 using System.Text;
+using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Data;
 using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 
 namespace CodeInsights.Api.Services;
 
 public static class ExportService
 {
+    private static string CsvField(object? value)
+    {
+        var text = value switch
+        {
+            null => "",
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString() ?? "",
+        };
+        return text.IndexOfAny([',', '"', '\r', '\n']) >= 0 ? '"' + text.Replace("\"", "\"\"") + '"' : text;
+    }
+
     public static byte[] Csv(IEnumerable<AnalysisRecord> records)
     {
         var output = new StringBuilder();
@@ -18,15 +31,7 @@ public static class ExportService
                         ',',
                         fields.Select(x =>
                         {
-                            var text = x switch
-                            {
-                                null => "",
-                                IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-                                _ => x.ToString() ?? "",
-                            };
-                            return text.IndexOfAny([',', '"', '\r', '\n']) >= 0
-                                ? '"' + text.Replace("\"", "\"\"") + '"'
-                                : text;
+                            return CsvField(x);
                         })
                     )
                 )
@@ -83,6 +88,55 @@ public static class ExportService
                 r.GateSnapshot,
             ]);
         return Encoding.UTF8.GetBytes(output.ToString());
+    }
+
+    public static byte[] FindingsCsv(IEnumerable<FindingOccurrence> findings, IngestionManifest? manifest)
+    {
+        var output = new StringBuilder("id,finding_id,tool,tool_version,rule_id,severity,original_severity,category,path,line,message,excepted\r\n");
+        foreach (var finding in findings)
+        {
+            var version = manifest?.Reports.FirstOrDefault(report => report.ReportId == finding.ReportId)?.ToolVersion;
+            output.AppendJoin(',', new object?[] { finding.Id, finding.FindingId, finding.Tool, version, finding.RuleId, finding.Severity,
+                finding.OriginalSeverity, finding.Category, finding.Path, finding.Line, finding.Message, finding.Excepted }.Select(CsvField)).Append("\r\n");
+        }
+        return Encoding.UTF8.GetBytes(output.ToString());
+    }
+
+    public static byte[] FindingsPdf(AnalysisRecord analysis, IReadOnlyCollection<FindingOccurrence> findings, IngestionManifest? manifest)
+    {
+        ExportFontResolver.Initialize();
+        var doc = new Document();
+        doc.Info.Title = "CodeInsights filtered issues";
+        doc.Styles["Normal"]!.Font.Name = "DejaVu Sans";
+        doc.Styles["Normal"]!.Font.Size = 8;
+        var section = doc.AddSection();
+        section.PageSetup.Orientation = Orientation.Landscape;
+        section.PageSetup.LeftMargin = Unit.FromMillimeter(10);
+        section.PageSetup.RightMargin = Unit.FromMillimeter(10);
+        var title = section.AddParagraph("Filtered issues");
+        title.Format.Font.Size = 16;
+        title.Format.Font.Bold = true;
+        section.AddParagraph($"{analysis.ProjectKey} · {analysis.Branch} · {analysis.CommitSha} · {findings.Count} issue(s)");
+        var table = section.AddTable();
+        foreach (var width in new[] { 22, 24, 26, 22, 42, 18, 70 }) table.AddColumn(Unit.FromMillimeter(width));
+        var header = table.AddRow();
+        header.HeadingFormat = true;
+        header.Format.Font.Bold = true;
+        header.Shading.Color = Color.FromRgb(15, 118, 110);
+        header.Format.Font.Color = Colors.White;
+        foreach (var (cell, label) in header.Cells.Cast<Cell>().Zip(new[] { "Tool", "Version", "Rule", "Severity", "Location", "Category", "Message" })) cell.AddParagraph(label);
+        foreach (var finding in findings)
+        {
+            var row = table.AddRow();
+            var version = manifest?.Reports.FirstOrDefault(report => report.ReportId == finding.ReportId)?.ToolVersion ?? "";
+            var values = new[] { finding.Tool, version, finding.RuleId, finding.Severity, finding.Path is null ? "" : $"{finding.Path}:{finding.Line}", finding.Category, finding.Message };
+            foreach (var (cell, value) in row.Cells.Cast<Cell>().Zip(values)) cell.AddParagraph(value);
+        }
+        var renderer = new PdfDocumentRenderer { Document = doc };
+        renderer.RenderDocument();
+        using var stream = new MemoryStream();
+        renderer.PdfDocument.Save(stream, false);
+        return stream.ToArray();
     }
 
     public static byte[] Pdf(AnalysisRecord record)

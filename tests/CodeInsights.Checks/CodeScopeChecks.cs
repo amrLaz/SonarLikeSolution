@@ -270,6 +270,64 @@ internal static class CodeScopeChecks
                 && exported.GetProperty("configuration_hash").GetString()?.Length == 64,
             "native configuration export includes reproducible fingerprint"
         );
+        var disabled = await Call(
+            "POST",
+            $"/api/v1/profiles/projects/{key}/rule-activation",
+            new { tool = "eslint", tool_version = "9.0.0", rule_id = "no-eval", enabled = false, expected_profile_id = key, expected_profile_version = "1" },
+            admin
+        );
+        Check(
+            disabled.GetProperty("status").GetString() == "disabled"
+                && disabled.GetProperty("profile_version").GetString() == "1-rules.1"
+                && !disabled.GetProperty("historical_verdicts_changed").GetBoolean(),
+            "rule deactivation creates a profile revision without rewriting history"
+        );
+        exported = await Call("GET", $"/api/v1/profiles/projects/{key}/configuration", token: admin);
+        Check(exported.GetProperty("files")[0].GetProperty("content").GetString()!.Contains("\"no-eval\":\"off\""), "project export applies disabled rule");
+        var ruleAnalysis = new AnalysisRecord
+        {
+            AnalysisId = Guid.NewGuid().ToString(), ProjectKey = key, Branch = "main", CommitSha = "abcdef123456",
+            CreatedAt = ApiJson.Iso(DateTime.UtcNow), Status = "completed"
+        };
+        db.Add(ruleAnalysis);
+        db.Add(new FindingOccurrence
+        {
+            AnalysisId = ruleAnalysis.AnalysisId, Tool = "eslint", RuleId = "no-eval", Category = "vulnerability",
+            Severity = "high", Message = "Managed rule", Path = "src/a.js", Line = 1
+        });
+        await db.SaveChangesAsync();
+        var disabledRules = await Call("GET", $"/api/v1/insights/rules?project_key={key}&status=disabled&language=javascript", token: admin);
+        Check(disabledRules.GetArrayLength() == 1
+            && disabledRules[0].GetProperty("tool").GetString() == "eslint"
+            && disabledRules[0].GetProperty("tool_version").GetString() == "9.0.0"
+            && disabledRules[0].GetProperty("profile_version").GetString() == "1-rules.1",
+            "rules insight applies language/status filters and exposes exact profile identity");
+        await Call(
+            "POST",
+            $"/api/v1/profiles/projects/{key}/rule-activation",
+            new { tool = "eslint", tool_version = "9.0.0", rule_id = "no-eval", enabled = true, expected_profile_id = key, expected_profile_version = "1" },
+            admin,
+            409
+        );
+        await Call(
+            "POST",
+            $"/api/v1/profiles/projects/{key}/rule-activation",
+            new { tool = "eslint", tool_version = "9.0.0", rule_id = "no-eval", enabled = true, expected_profile_id = key, expected_profile_version = "1-rules.1" },
+            other,
+            403
+        );
+        var enabled = await Call(
+            "POST",
+            $"/api/v1/profiles/projects/{key}/rule-activation",
+            new { tool = "eslint", tool_version = "9.0.0", rule_id = "no-eval", enabled = true, expected_profile_id = key, expected_profile_version = "1-rules.1" },
+            admin
+        );
+        Check(enabled.GetProperty("profile_version").GetString() == "1-rules.2", "rule reactivation increments the readable profile revision");
+        var enabledRules = await Call("GET", $"/api/v1/insights/rules?project_key={key}&status=enabled&language=javascript", token: admin);
+        Check(enabledRules.GetArrayLength() == 1 && enabledRules[0].GetProperty("status").GetString() == "enabled",
+            "rules insight reflects the newly assigned profile version");
+        exported = await Call("GET", $"/api/v1/profiles/projects/{key}/configuration", token: admin);
+        Check(exported.GetProperty("files")[0].GetProperty("content").GetString()!.Contains("\"no-eval\":\"error\""), "rule reactivation restores source configuration");
         await Call(
             "GET",
             $"/api/v1/profiles/projects/{key}/configuration",

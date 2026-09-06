@@ -48,6 +48,24 @@ le catalogue à 10 000 règles. Les chemins sont relatifs, sans traversée,
 identifiants de disque ni doublons insensibles à la casse. Les contenus
 exportés ne sont jamais exécutés par le serveur.
 
+## Activation des règles par projet
+
+Une définition peut porter `disabled_rules`, liste d'identités complètes
+`{tool, tool_version, rule_id}`. L'absence de cette propriété reste compatible
+avec les profils publiés et équivaut à une liste vide. La commande administrative
+`POST /api/v1/profiles/projects/{key}/rule-activation` exige l'identité de la règle,
+l'état demandé et l'identifiant/version attendus du profil affecté. Un changement
+concurrent d'affectation répond `409`.
+
+La commande clone la version immutable, publie une version
+`<version-base>-rules.<n>` puis l'affecte au projet dans la même transaction. La
+désactivation met une règle ESLint à `off`, retire la règle de l'export Semgrep ou
+ajoute une surcharge `dotnet_diagnostic.<id>.severity = none` en fin
+d'EditorConfig. La réactivation repart toujours de la configuration source de la
+version parente : elle ne détruit donc pas la valeur d'origine. Une règle absente
+du catalogue ou un format qui ne peut pas être transformé sûrement est refusé.
+Les analyses et verdicts déjà enregistrés ne sont jamais réécrits.
+
 ## Consommation CI canonique
 
 Télécharger l'export authentifié du projet, puis utiliser le client partagé :

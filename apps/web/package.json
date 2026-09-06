@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "node src/admin-data.check.mjs && node src/collaboration.check.mjs && node src/evidence-links.check.mjs && node src/forms.check.mjs && node src/info-hint.check.mjs && node src/metric-display.check.mjs && node src/navigation.check.mjs && node src/server-state.check.mjs && node src/session.check.mjs",
+    "check": "node src/admin-data.check.mjs && node src/collaboration.check.mjs && node src/evidence-links.check.mjs && node src/forms.check.mjs && node src/info-hint.check.mjs && node src/metric-display.check.mjs && node src/navigation.check.mjs && node src/navigation-state.check.mjs && node src/projects-ux.check.mjs && node src/server-state.check.mjs && node src/session.check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -7,6 +7,7 @@ import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary 
 import ProjectHeader from './ProjectHeader';
 import { FindingReview, FINDING_STATES, type Team } from './IssueReview';
 import { evidenceLink, ruleDefinitionLink } from '../evidence-links';
+import type { IssueFilters } from '../navigation-state';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
   authToken?: string;
@@ -20,7 +21,9 @@ type Props = {
   setSelectedProject: (value: string) => void;
   setSelectedBranch: (value: string) => void;
   setSelectedAnalysisId: (value: string) => void;
-  initialSeverity?: IssueSeverityFilter;
+  downloadExport: (url: string, filename: string) => Promise<void>;
+  filters: IssueFilters;
+  onFiltersChange: (filters: IssueFilters) => void;
 };
 type EvidenceLocation = { kind: string; flow?: number; thread?: number; step: number; path?: string; line?: number; end_line?: number; source_url?: string | null };
 type FindingEvidence = {
@@ -59,18 +62,15 @@ export default function Issues({
   setSelectedProject,
   setSelectedBranch,
   setSelectedAnalysisId,
-  initialSeverity = 'all',
+  downloadExport,
+  filters,
+  onFiltersChange,
 }: Props) {
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
-  const [issueSeverityFilter, setIssueSeverityFilter] = useState<IssueSeverityFilter>(initialSeverity);
-  const [issueTypeFilter, setIssueTypeFilter] = useState<IssueTypeFilter>('all');
-  const [issueRuleFilter, setIssueRuleFilter] = useState('');
-  const [issueFileFilter, setIssueFileFilter] = useState('');
-  const [mine, setMine] = useState(false);
-  const [state, setState] = useState('');
-  const [team, setTeam] = useState({ project: '', id: '', cursor: '' });
-  const teamId = team.project === selectedProject ? team.id : '';
-  const teamCursor = team.project === selectedProject ? team.cursor : '';
+  const { severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, file: issueFileFilter, mine, state, team: teamId } = filters;
+  const updateFilters = (patch: Partial<IssueFilters>) => onFiltersChange({ ...filters, ...patch });
+  const [teamPage, setTeamPage] = useState({ project: '', cursor: '' });
+  const teamCursor = teamPage.project === selectedProject ? teamPage.cursor : '';
   const teams = useQuery({
     queryKey: ['collaboration', 'teams', selectedProject, teamCursor],
     enabled: !!selectedProject,
@@ -79,6 +79,15 @@ export default function Issues({
   const filterKey = [selectedAnalysisId, issueSeverityFilter, issueTypeFilter, issueRuleFilter, issueFileFilter, mine, state, teamId].join('|');
   const [page, setPage] = useState({ key: '', cursor: '' });
   const cursor = page.key === filterKey ? page.cursor : '';
+  const exportQuery = new URLSearchParams({
+    severity: issueSeverityFilter,
+    category: issueTypeFilter,
+    rule: issueRuleFilter,
+    path: issueFileFilter,
+    mine: mine ? 'true' : '',
+    state,
+    team_id: teamId,
+  });
   const issuesQuery = useQuery({
     queryKey: ['findings', filterKey, cursor],
     enabled: !!selectedAnalysisId,
@@ -140,11 +149,11 @@ export default function Issues({
         <h3>Filters</h3>
         <div className="issue-filter-group">
           <label className="collaboration-checkbox">
-            <input type="checkbox" checked={mine} onChange={(event) => setMine(event.target.checked)} /> Mes problèmes
+            <input type="checkbox" checked={mine} onChange={(event) => updateFilters({ mine: event.target.checked })} /> Mes problèmes
           </label>
           <label>
             État collaboratif
-            <select value={state} onChange={(event) => setState(event.target.value)}>
+            <select value={state} onChange={(event) => updateFilters({ state: event.target.value })}>
               <option value="">Tous les états</option>
               {Object.entries(FINDING_STATES).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -155,7 +164,7 @@ export default function Issues({
           </label>
           <label>
             Équipe
-            <select value={teamId} disabled={!teams.isSuccess} onChange={(event) => setTeam({ project: selectedProject, id: event.target.value, cursor: teamCursor })}>
+            <select value={teamId} disabled={!teams.isSuccess} onChange={(event) => updateFilters({ team: event.target.value })}>
               <option value="">Toutes les équipes</option>
               {teamId && !teams.data?.items.some((item) => item.id === teamId) && <option value={teamId}>Équipe sélectionnée hors page</option>}
               {teams.data?.items.map((item) => (
@@ -167,12 +176,12 @@ export default function Issues({
           </label>
           {teams.error && <p role="alert">{teams.error.message}</p>}
           {teamCursor && (
-            <button type="button" onClick={() => setTeam({ project: selectedProject, id: teamId, cursor: '' })}>
+            <button type="button" onClick={() => setTeamPage({ project: selectedProject, cursor: '' })}>
               Premières équipes
             </button>
           )}
           {teams.data?.next && (
-            <button type="button" onClick={() => setTeam({ project: selectedProject, id: teamId, cursor: teams.data!.next! })}>
+            <button type="button" onClick={() => setTeamPage({ project: selectedProject, cursor: teams.data!.next! })}>
               Équipes suivantes
             </button>
           )}
@@ -181,7 +190,7 @@ export default function Issues({
         <div className="issue-filter-group">
           <p className="issue-filter-label">Catégorie</p>
           {(['all', 'bug', 'code_smell', 'vulnerability', 'security_hotspot', 'secret', 'dependency', 'code', 'ioc', 'unknown'] as IssueTypeFilter[]).map((t) => (
-            <button key={t} type="button" aria-pressed={issueTypeFilter === t} className={`issue-filter-btn${issueTypeFilter === t ? ' active' : ''}`} onClick={() => setIssueTypeFilter(t)}>
+            <button key={t} type="button" aria-pressed={issueTypeFilter === t} className={`issue-filter-btn${issueTypeFilter === t ? ' active' : ''}`} onClick={() => updateFilters({ category: t })}>
               {t === 'all' ? 'Toutes' : findingCategoryLabel(t)}
             </button>
           ))}
@@ -195,7 +204,7 @@ export default function Issues({
               type="button"
               aria-pressed={issueSeverityFilter === sev}
               className={`issue-filter-btn${issueSeverityFilter === sev ? ' active' : ''}`}
-              onClick={() => setIssueSeverityFilter(sev)}
+              onClick={() => updateFilters({ severity: sev })}
             >
               {sev === 'all' ? 'All severities' : sev.charAt(0).toUpperCase() + sev.slice(1)}
             </button>
@@ -204,25 +213,20 @@ export default function Issues({
 
         <div className="issue-filter-group">
           <p className="issue-filter-label">Rule</p>
-          <input aria-label="Filter by rule" placeholder="Filter by rule…" value={issueRuleFilter} onChange={(e) => setIssueRuleFilter(e.target.value)} />
+          <input aria-label="Filter by rule" placeholder="Filter by rule…" value={issueRuleFilter} onChange={(e) => updateFilters({ rule: e.target.value })} />
         </div>
 
         <div className="issue-filter-group">
           <p className="issue-filter-label">File</p>
-          <input aria-label="Filter by file path" placeholder="Filter by file path…" value={issueFileFilter} onChange={(e) => setIssueFileFilter(e.target.value)} />
+          <input aria-label="Filter by file path" placeholder="Filter by file path…" value={issueFileFilter} onChange={(e) => updateFilters({ file: e.target.value })} />
         </div>
 
         <button
           type="button"
           style={{ marginTop: '0.75rem', width: '100%' }}
           onClick={() => {
-            setIssueSeverityFilter('all');
-            setIssueTypeFilter('all');
-            setIssueRuleFilter('');
-            setIssueFileFilter('');
-            setMine(false);
-            setState('');
-            setTeam({ project: selectedProject, id: '', cursor: '' });
+            onFiltersChange({ severity: 'all', category: 'all', rule: '', file: '', mine: false, state: '', team: '' });
+            setTeamPage({ project: selectedProject, cursor: '' });
           }}
         >
           Reset filters
@@ -244,17 +248,36 @@ export default function Issues({
           )}
         </div>
         <header className="issues-toolbar">
-          <h2 style={{ margin: 0 }}>
-            Issues{' '}
-            <InfoHint>
-              Problèmes détectés dans l’analyse sélectionnée. Les compteurs et la liste portent uniquement sur ses findings détaillés ; un résumé par fichier ne crée aucune issue artificielle. Le lien
-              de code ouvre le commit exact dans le dépôt.
-            </InfoHint>
-          </h2>
-          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            {filteredIssueDetails.length} sur cette page · issue{filteredIssueDetails.length !== 1 ? 's' : ''}
-            {allIssueDetails.length > 0 && filteredIssueDetails.length < allIssueDetails.length ? ` (filtered from ${allIssueDetails.length})` : ''}
-          </p>
+          <div className="issues-toolbar-summary">
+            <h2>
+              Issues{' '}
+              <InfoHint>
+                Problèmes détectés dans l’analyse sélectionnée. Les compteurs et la liste portent uniquement sur ses findings détaillés ; un résumé par fichier ne crée aucune issue artificielle. Le lien
+                de code ouvre le commit exact dans le dépôt.
+              </InfoHint>
+            </h2>
+            <p>
+              {filteredIssueDetails.length} sur cette page · issue{filteredIssueDetails.length !== 1 ? 's' : ''}
+              {allIssueDetails.length > 0 && filteredIssueDetails.length < allIssueDetails.length ? ` (filtered from ${allIssueDetails.length})` : ''}
+            </p>
+          </div>
+          <div className="issues-export-actions" aria-label="Exporter les issues filtrées">
+            <button
+              type="button"
+              className="primary"
+              disabled={!selectedAnalysisId}
+              onClick={() => void downloadExport(`${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings/export/pdf?${exportQuery}`, `${selectedProject}-${selectedAnalysisId}-issues.pdf`)}
+            >
+              ↓ Export PDF
+            </button>
+            <button
+              type="button"
+              disabled={!selectedAnalysisId}
+              onClick={() => void downloadExport(`${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings/export/csv?${exportQuery}`, `${selectedProject}-${selectedAnalysisId}-issues.csv`)}
+            >
+              ↓ Export CSV
+            </button>
+          </div>
         </header>
 
         {issuesLoading ? (

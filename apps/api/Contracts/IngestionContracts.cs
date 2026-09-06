@@ -48,6 +48,7 @@ public sealed partial record ProfileDefinition
 public sealed record ProfileRule(string Tool, string RuleId, string Category);
 public sealed record ProfileCondition(string Metric, string Operator, double Threshold, string Scope = "global");
 public sealed record ProfileAssignment(string ProfileId, string ProfileVersion, string Enforcement = "informative");
+public sealed record RuleActivationRequest(string Tool, string ToolVersion, string RuleId, bool Enabled, string ExpectedProfileId, string ExpectedProfileVersion);
 public sealed record ExceptionRequest(string Tool, string RuleId, string? Path, string Reason, DateTime ExpiresAt);
 
 public static class IngestionValidation

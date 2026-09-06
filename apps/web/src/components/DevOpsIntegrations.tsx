@@ -231,10 +231,10 @@ export default function DevOpsIntegrations({ authToken }: { authToken?: string }
           }}
         >
           <header className="config-modal-header">
-            <h3 id="config-dialog-title">{editingAzureDevOpsConfigId ? 'Edit the configuration' : 'Create a configuration'}</h3>
-            <button type="button" disabled={savingAzureDevOpsConfig} onClick={() => setDevOpsConfigModalOpen(false)}>
-              Cancel
-            </button>
+            <div>
+              <span className="section-kicker">Azure DevOps organization</span>
+              <h3 id="config-dialog-title">{editingAzureDevOpsConfigId ? 'Edit configuration' : 'Create configuration'}</h3>
+            </div>
           </header>
           {error && (
             <p className="feedback error" role="alert">
@@ -273,8 +273,11 @@ export default function DevOpsIntegrations({ authToken }: { authToken?: string }
                   placeholder={editingAzureDevOpsConfigId ? 'Leave blank to keep current PAT' : 'Paste Azure DevOps PAT'}
                   autoComplete="off"
                 />
+                <span className="field-help">
+                  Required for Azure DevOps REST operations. Use a dedicated, least-privilege token; pipeline authentication remains separate.
+                </span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label className="integration-option">
                 <input
                   type="checkbox"
                   checked={azureDevOpsConfigForm.quality_gate_enabled}
@@ -285,9 +288,12 @@ export default function DevOpsIntegrations({ authToken }: { authToken?: string }
                     }))
                   }
                 />
-                Enable PR decoration &amp; quality gate reporting
+                <span>
+                  <strong>PR decoration &amp; quality gate reporting</strong>
+                  <small>Publish the gate status and its analysis link on pull requests.</small>
+                </span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label className="integration-option">
                 <input
                   type="checkbox"
                   checked={azureDevOpsConfigForm.repo_import_enabled}
@@ -298,11 +304,14 @@ export default function DevOpsIntegrations({ authToken }: { authToken?: string }
                     }))
                   }
                 />
-                Enable repository import
+                <span>
+                  <strong>Repository import</strong>
+                  <small>Allow CodeInsights to discover repositories in this organization.</small>
+                </span>
               </label>
             </div>
             <div className="action-row" style={{ marginTop: '1rem' }}>
-              <button type="button" onClick={() => void saveAzureDevOpsConfig()} disabled={savingAzureDevOpsConfig}>
+              <button className="primary" type="button" onClick={() => void saveAzureDevOpsConfig()} disabled={savingAzureDevOpsConfig}>
                 {savingAzureDevOpsConfig ? 'Saving...' : 'Save configuration'}
               </button>
               <button type="button" disabled={savingAzureDevOpsConfig} onClick={() => setDevOpsConfigModalOpen(false)}>

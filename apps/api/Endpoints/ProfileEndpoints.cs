@@ -3,6 +3,8 @@ using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Data;
 using CodeInsights.Api.Services;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using System.Data;
 using System.Text.Json;
 
 namespace CodeInsights.Api.Endpoints;
@@ -96,6 +98,48 @@ public static class ProfileEndpoints
             audit.Log(user.Email, user.Role, "profile.assign", "project", resourceLabel: key, details: body);
             await db.SaveChangesAsync(ct); return Results.Ok(body);
         });
+        routes.MapPost("/projects/{key}/rule-activation", async (string key, HttpContext context, AuthService auth, AppDbContext db, AuditService audit, CancellationToken ct) =>
+        {
+            var user = await auth.RequireAsync(context, "admin", ct); await auth.AssertProjectAccessAsync(user, key, "analysis:write", ct);
+            var body = await ApiJson.ReadAsync<RuleActivationRequest>(context, ct);
+            if (string.IsNullOrWhiteSpace(body.Tool) || string.IsNullOrWhiteSpace(body.ToolVersion) || string.IsNullOrWhiteSpace(body.RuleId)
+                || string.IsNullOrWhiteSpace(body.ExpectedProfileId) || string.IsNullOrWhiteSpace(body.ExpectedProfileVersion))
+                throw new ApiException(422, "Rule activation requires producer, version, rule and expected profile assignment");
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var policy = await db.Set<IngestionProjectPolicy>().FromSqlInterpolated(
+                $"SELECT * FROM ingestion_project_policies WHERE project_key = {key} FOR UPDATE").SingleOrDefaultAsync(ct)
+                ?? throw new ApiException(404, "No profile assigned");
+            if (policy.ProfileId != body.ExpectedProfileId || policy.ProfileVersion != body.ExpectedProfileVersion)
+                throw new ApiException(409, "Profile assignment changed; reload before updating the rule");
+            var current = await ResolveAsync(db, policy.ProfileId, policy.ProfileVersion, ct);
+            var identity = new DisabledRule(body.Tool, body.ToolVersion, body.RuleId);
+            if (!current.RuleCatalog.Any(rule => rule.Tool == body.Tool && rule.ToolVersion == body.ToolVersion && rule.RuleId == body.RuleId)
+                || !ExecutableProfiles.CanManage(current, identity))
+                throw new ApiException(422, "Rule is absent from the catalogue or its analyzer configuration cannot be transformed reliably");
+            var wasDisabled = current.DisabledRules.Contains(identity);
+            if (wasDisabled == !body.Enabled)
+                return Results.Ok(RuleActivationResponse(key, current, current, body, policy.Enforcement));
+            var disabled = body.Enabled
+                ? current.DisabledRules.Where(rule => rule != identity).ToArray()
+                : [.. current.DisabledRules, identity];
+            var version = await NextRuleVersionAsync(db, current.ProfileId, current.Version, ct);
+            var updated = current with { Version = version, DisabledRules = disabled };
+            Validate(updated);
+            db.Add(new ProfileVersion { ProfileId = updated.ProfileId, Version = updated.Version, Definition = JsonSerializer.Serialize(updated, ApiJson.Options) });
+            policy.ProfileVersion = updated.Version;
+            audit.Log(user.Email, user.Role, body.Enabled ? "profile.rule.enable" : "profile.rule.disable", "project", resourceLabel: key,
+                details: new { body.Tool, body.ToolVersion, body.RuleId, previous_version = current.Version, profile_version = updated.Version });
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            catch (Exception exception) when (exception is DbUpdateException or PostgresException { SqlState: "40001" or "23505" })
+            {
+                throw new ApiException(409, "Profile assignment changed; reload before updating the rule");
+            }
+            return Results.Ok(RuleActivationResponse(key, current, updated, body, policy.Enforcement));
+        });
         routes.MapGet("/projects/{key}/exceptions", async (string key, HttpContext context, AuthService auth, AppDbContext db, CancellationToken ct) =>
         {
             var user = await auth.RequireAsync(context, ct: ct); await auth.AssertProjectAccessAsync(user, key, ct: ct);
@@ -113,6 +157,38 @@ public static class ProfileEndpoints
         });
         return app;
     }
+
+    private static object RuleActivationResponse(string projectKey, ProfileDefinition previous, ProfileDefinition current, RuleActivationRequest request, string enforcement) => new
+    {
+        project_key = projectKey,
+        profile_id = current.ProfileId,
+        previous_version = previous.Version,
+        profile_version = current.Version,
+        enforcement,
+        tool = request.Tool,
+        tool_version = request.ToolVersion,
+        rule_id = request.RuleId,
+        enabled = request.Enabled,
+        status = request.Enabled ? "enabled" : "disabled",
+        changes = ExecutableProfiles.Diff(previous, current),
+        historical_verdicts_changed = false,
+        future_evaluation = "uses_new_profile_and_requires_matching_effective_configuration"
+    };
+
+    private static async Task<string> NextRuleVersionAsync(AppDbContext db, string profileId, string currentVersion, CancellationToken ct)
+    {
+        const string marker = "-rules.";
+        var markerIndex = currentVersion.LastIndexOf(marker, StringComparison.Ordinal);
+        var baseVersion = markerIndex > 0 ? currentVersion[..markerIndex] : currentVersion;
+        var prefix = baseVersion + marker;
+        var versions = await db.Set<ProfileVersion>().Where(row => row.ProfileId == profileId && row.Version.StartsWith(prefix))
+            .Select(row => row.Version).ToListAsync(ct);
+        var next = versions.Select(version => int.TryParse(version.AsSpan(prefix.Length), out var value) ? value : 0).DefaultIfEmpty().Max() + 1;
+        var result = prefix + next;
+        if (result.Length > 50) throw new ApiException(422, "Profile version is too long to create a rule activation revision");
+        return result;
+    }
+
     public static void Validate(ProfileDefinition profile)
     {
         ExecutableProfiles.Validate(profile);

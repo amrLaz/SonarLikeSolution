@@ -1,84 +1,89 @@
+import { useState } from 'react';
 import InfoHint from './InfoHint';
-import { METRIC_FIELDS } from './AnalysisEvidence';
+import { METRIC_FIELDS, type MetricKey } from './AnalysisEvidence';
 import { comparableVersions, formatMetric, metricPoint } from '../metric-display';
 import type { AnalysisRecord } from '../types';
 
-export default function MetricsHistory({ history, project, branch }: { history: AnalysisRecord[]; project: string; branch: string }) {
+type MetricGroup = {
+  id: 'scores' | 'percentages' | 'findings';
+  label: string;
+  unit: string;
+  maximum?: number;
+  metrics: readonly MetricKey[];
+};
+
+const GROUPS: readonly MetricGroup[] = [
+  { id: 'scores', label: 'Scores', unit: '/100', maximum: 100, metrics: ['security_score', 'maintainability_score', 'reliability_score'] },
+  { id: 'percentages', label: 'Percentages', unit: '%', maximum: 100, metrics: ['coverage', 'duplication'] },
+  { id: 'findings', label: 'Findings', unit: '', metrics: ['vulnerabilities', 'security_hotspots', 'code_smells', 'bugs', 'dependency_vulnerabilities'] },
+];
+
+const LINE_COLORS = ['var(--primary)', 'var(--primary-dark)', 'var(--severity-low)', 'var(--text-primary)', 'var(--text-secondary)'] as const;
+
+export default function MetricsHistory({ history }: { history: AnalysisRecord[] }) {
+  const [selectedGroup, setSelectedGroup] = useState<MetricGroup['id']>('scores');
   const analyses = [...history].sort((left, right) => left.created_at.localeCompare(right.created_at));
   if (!analyses.length) return <p className="empty-state">Aucune analyse disponible pour cette branche.</p>;
+
+  const group = GROUPS.find(({ id }) => id === selectedGroup) ?? GROUPS[0];
+  const maximum = group.maximum ?? Math.max(1, ...group.metrics.flatMap((key) => analyses.map((analysis) => analysis.metrics[key])).filter(isFiniteNumber));
+
   return (
     <section className="metrics-history" aria-labelledby="metrics-history-title">
       <h3 id="metrics-history-title">
         Évolution des métriques{' '}
-        <InfoHint>Chaque métrique garde sa propre échelle pour ne pas mélanger pourcentages, scores et nombres d’issues. Une donnée absente ou un changement de version interrompt sa courbe.</InfoHint>
+        <InfoHint>Les métriques qui partagent la même unité et la même échelle sont regroupées. Une donnée absente ou un changement de version interrompt sa courbe.</InfoHint>
       </h3>
-      <div className="charts-grid">
-        {METRIC_FIELDS.map(([key, label, unit]) => {
-          const values = analyses.map((analysis) => analysis.metrics[key]);
-          const maximum = unit ? 100 : Math.max(1, ...values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value)));
-          const points = values.map((value, index) => metricPoint(value, index, values.length, maximum));
-          return (
-            <article className="metric-trend" key={key}>
-              <header>
-                <strong>{label}</strong>
-                <span>
-                  0–{maximum}
-                  {unit === '%' ? '%' : ''}
-                </span>
-              </header>
-              {points.some(Boolean) ? (
-                <svg viewBox="0 0 360 120" className="trend-chart" role="img" aria-label={`Évolution ${label}. Valeurs exactes dans le tableau.`}>
-                  {points.map(
-                    (point, index) =>
-                      point && (
-                        <g key={index}>
-                          {index > 0 && points[index - 1] && comparableVersions(analyses[index - 1], analyses[index]) && (
-                            <line x1={points[index - 1]!.x} y1={points[index - 1]!.y} x2={point.x} y2={point.y} stroke="var(--primary)" strokeWidth="2" />
-                          )}
-                          <circle cx={point.x} cy={point.y} r="3" fill="var(--primary)" />
-                        </g>
-                      ),
-                  )}
-                </svg>
-              ) : (
-                <p className="empty-state">Non disponible</p>
-              )}
-            </article>
-          );
-        })}
+      <div className="metric-history-tabs" role="tablist" aria-label="Groupe de métriques">
+        {GROUPS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`metric-tab-${id}`}
+            aria-controls={`metric-panel-${id}`}
+            aria-selected={selectedGroup === id}
+            className={selectedGroup === id ? 'active' : ''}
+            onClick={() => setSelectedGroup(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <details>
-        <summary>Valeurs exactes</summary>
-        <div className="table-wrap" tabIndex={0} role="region" aria-label="Valeurs des métriques dans le temps">
-          <table>
-            <caption>
-              {project} · {branch}
-            </caption>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Commit</th>
-                {METRIC_FIELDS.map(([key, label]) => (
-                  <th key={key}>{label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {analyses.map((analysis) => (
-                <tr key={analysis.analysis_id}>
-                  <th scope="row">{new Date(analysis.created_at).toLocaleString()}</th>
-                  <td>
-                    <code>{analysis.commit_sha || 'Non disponible'}</code>
-                  </td>
-                  {METRIC_FIELDS.map(([key, , unit]) => (
-                    <td key={key}>{formatMetric(analysis.metrics[key], unit)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="metric-history-panel" role="tabpanel" id={`metric-panel-${group.id}`} aria-labelledby={`metric-tab-${group.id}`}>
+        <div className="metric-history-scale" aria-hidden="true">
+          <span>{maximum}{group.unit === '%' ? '%' : group.unit}</span>
+          <span>0{group.unit === '%' ? '%' : ''}</span>
         </div>
-      </details>
+        <svg viewBox="0 0 360 150" className="trend-chart grouped-trend-chart" role="img" aria-label={`Évolution groupée : ${group.label}.`}>
+          {[10, 75, 140].map((y) => <line key={y} x1="8" y1={y} x2="352" y2={y} className="chart-grid-line" />)}
+          {group.metrics.map((key, metricIndex) => {
+            const [, label, unit] = METRIC_FIELDS.find(([field]) => field === key)!;
+            const points = analyses.map((analysis, index) => metricPoint(analysis.metrics[key], index, analyses.length, maximum));
+            const color = LINE_COLORS[metricIndex % LINE_COLORS.length];
+            return points.map((point, index) => point && (
+              <g key={`${key}:${analyses[index].analysis_id}`}>
+                {index > 0 && points[index - 1] && comparableVersions(analyses[index - 1], analyses[index]) && (
+                  <line x1={points[index - 1]!.x} y1={points[index - 1]!.y} x2={point.x} y2={point.y} stroke={color} strokeWidth="2" />
+                )}
+                <circle cx={point.x} cy={point.y} r="3.5" fill={color}>
+                  <title>{label} · {formatMetric(analyses[index].metrics[key], unit)} · {new Date(analyses[index].created_at).toLocaleString()}</title>
+                </circle>
+              </g>
+            ));
+          })}
+        </svg>
+        <ul className="metric-history-legend" aria-label="Légende">
+          {group.metrics.map((key, index) => {
+            const [, label] = METRIC_FIELDS.find(([field]) => field === key)!;
+            return <li key={key}><span style={{ backgroundColor: LINE_COLORS[index % LINE_COLORS.length] }} />{label}</li>;
+          })}
+        </ul>
+      </div>
     </section>
   );
+}
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }

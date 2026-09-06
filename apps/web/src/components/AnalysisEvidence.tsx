@@ -14,9 +14,15 @@ export const METRIC_FIELDS = [
   ["dependency_vulnerabilities", "SCA Dep. Vulns", ""]
 ] as const;
 
-export function MetricGrid({ metrics }: { metrics: AnalysisMetrics }) {
+export type MetricKey = (typeof METRIC_FIELDS)[number][0];
+
+export function MetricGrid({ metrics, onMetricClick }: { metrics: AnalysisMetrics; onMetricClick?: (metric: MetricKey) => void }) {
   return <dl className="metric-grid">{METRIC_FIELDS.map(([key, label, unit]) => (
-    <div className={`metric-card${typeof metrics[key] === "number" && Number.isFinite(metrics[key]) ? "" : " is-unavailable"}`} key={key}><dt>{label}</dt><dd>{formatMetric(metrics[key], unit)}</dd></div>
+    <div className={`metric-card${typeof metrics[key] === "number" && Number.isFinite(metrics[key]) ? "" : " is-unavailable"}`} key={key}>
+      <dt>{label}</dt>
+      <dd>{formatMetric(metrics[key], unit)}</dd>
+      {onMetricClick && <button type="button" className="metric-card-link" onClick={() => onMetricClick(key)} aria-label={`Voir les issues liées à ${label}`} />}
+    </div>
   ))}</dl>;
 }
 

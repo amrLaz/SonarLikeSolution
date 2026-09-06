@@ -266,6 +266,8 @@ export type DashboardSummary = {
 
 export type RuleCard = {
   key?: string;
+  tool: string;
+  tool_version?: string | null;
   rule_id: string;
   title: string;
   category: string;
@@ -275,7 +277,9 @@ export type RuleCard = {
   file_count: number;
   project_count: number;
   projects: string[];
-  status: 'active' | 'suppressed';
+  profile_id?: string | null;
+  profile_version?: string | null;
+  status: 'enabled' | 'disabled' | 'unmanaged';
 };
 
 export type GateLibraryItem = QualityGate & {

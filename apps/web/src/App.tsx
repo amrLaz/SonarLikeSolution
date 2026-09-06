@@ -1,5 +1,5 @@
 import AnalysisProfiles from './components/AnalysisProfiles';
-import IngestionDetails, { NewCode } from './components/IngestionDetails';
+import { NewCode } from './components/IngestionDetails';
 import AuthProviderSettings from './components/AuthProviderSettings';
 import { useWorkspaceData } from './useWorkspaceData';
 import Issues from './components/Issues';
@@ -18,13 +18,13 @@ import { apiFetch as request, apiJson, sessionEvents } from './api';
 import InfoHint from './components/InfoHint';
 import MainNavigation from './components/MainNavigation';
 import { createSessionQueryClient } from './query-client';
+import { defaultIssueFilters, parseWorkspaceUrl, workspaceSearch, type IssueFilters, type WorkspaceUrlState } from './navigation-state';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 const LOCAL_STORAGE_GATE_LIBRARY_KEY = 'sast-quality-gates-v1';
 const LOCAL_STORAGE_SESSION_KEY = 'sast-platform-session-v1';
-const LOCAL_STORAGE_NAV_KEY = 'sast-nav-v1';
 
-import type { ScopeMode, AppTab, AdminPrimaryTab, AdminSection, ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary, IssueSeverityFilter } from './types';
+import type { ScopeMode, AppTab, AdminPrimaryTab, AdminSection, ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary, IssueSeverityFilter, IssueTypeFilter } from './types';
 
 const TABS: Array<{ id: AppTab; label: string }> = [
   { id: 'projects', label: 'Projects' },
@@ -119,40 +119,21 @@ function SessionApp(props: SessionProps) {
 }
 
 function Workspace({ initialUser, onSessionChange }: SessionProps) {
-  const [activeTab, setActiveTab] = useState<AppTab>(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? '{}');
-      return TABS.some((tab) => tab.id === saved.tab) ? saved.tab : 'projects';
-    } catch {
-      return 'projects';
-    }
-  });
-  const [activeAdminTab, setActiveAdminTab] = useState<AdminPrimaryTab>(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? '{}');
-      return (saved.adminTab as AdminPrimaryTab) ?? 'configuration';
-    } catch {
-      return 'configuration';
-    }
-  });
-  const [activeAdminSection, setActiveAdminSection] = useState<AdminSection>(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(LOCAL_STORAGE_NAV_KEY) ?? '{}');
-      return (saved.adminSection as AdminSection) ?? 'general-settings';
-    } catch {
-      return 'general-settings';
-    }
-  });
-  const [scopeMode, setScopeMode] = useState<ScopeMode>('overall');
+  const initialUrlState = useRef(parseWorkspaceUrl(window.location.search)).current;
+  const initialUrlHasTab = useRef(new URLSearchParams(window.location.search).has('tab')).current;
+  const [activeTab, setActiveTab] = useState<AppTab>(initialUrlState.tab);
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminPrimaryTab>('configuration');
+  const [activeAdminSection, setActiveAdminSection] = useState<AdminSection>('general-settings');
+  const [scopeMode, setScopeMode] = useState<ScopeMode>(initialUrlState.scope);
   const independentScope = activeTab === 'administration';
-  const [projectSearch, setProjectSearch] = useState('');
-  const [selectedProject, setSelectedProject] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('');
-  const [selectedAnalysisId, setSelectedAnalysisId] = useState('');
-  const [issueSeverity, setIssueSeverity] = useState<IssueSeverityFilter>(() => {
-    const value = new URLSearchParams(window.location.search).get('severity') as IssueSeverityFilter | null;
-    return value && ['all', 'blocker', 'high', 'medium', 'low', 'info'].includes(value) ? value : 'all';
-  });
+  const [projectSearch, setProjectSearch] = useState(initialUrlState.projectSearch);
+  const [selectedProject, setSelectedProject] = useState(initialUrlState.project);
+  const [selectedBranch, setSelectedBranch] = useState(initialUrlState.branch);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState(initialUrlState.analysis);
+  const [issueFilters, setIssueFilters] = useState<IssueFilters>(initialUrlState.issues);
+  const [ruleFilters, setRuleFilters] = useState(initialUrlState.rules);
+  const [selectedGateId, setSelectedGateId] = useState(initialUrlState.gate);
+  const [selectedRuleId, setSelectedRuleId] = useState(initialUrlState.selectedRule);
   const [actionError, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'project' | 'branch'; project: string; branch?: string } | null>(null);
@@ -194,7 +175,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
 
   const queryClient = useQueryClient();
   const signedIn = !!sessionUser?.token;
-  const [linkedAnalysisId] = useState(() => new URLSearchParams(window.location.search).get('analysis_id') ?? '');
+  const [linkedAnalysisId, setLinkedAnalysisId] = useState(initialUrlState.analysis);
   const linkedAnalysis = useQuery({
     queryKey: ['analysis-link', linkedAnalysisId],
     enabled: signedIn && !!linkedAnalysisId,
@@ -207,8 +188,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     setSelectedProject(linkedAnalysis.data.project_key);
     setSelectedBranch(linkedAnalysis.data.branch);
     setSelectedAnalysisId(linkedAnalysis.data.analysis_id);
-    setActiveTab('issues');
-    window.history.replaceState({}, '', window.location.pathname);
+    if (!initialUrlHasTab) setActiveTab('issues');
   }, [linkedAnalysis.data]);
   const [branchPage, setBranchPage] = useState({ project: '', cursor: '' });
   const branchCursor = branchPage.project === selectedProject ? branchPage.cursor : '';
@@ -317,6 +297,21 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     return summaries.find((summary) => summary.projectKey === selectedProject) ?? null;
   }, [selectedProject, summaries]);
 
+  useEffect(() => {
+    if (selectedProject && summaryQuery.isSuccess && (selectedSummaryQuery.isError || (selectedSummaryQuery.isSuccess && !selectedSummary))) {
+      setSelectedProject('');
+      setSelectedBranch('');
+      setSelectedAnalysisId('');
+    }
+  }, [selectedProject, selectedSummary, summaryQuery.isSuccess, selectedSummaryQuery.isSuccess, selectedSummaryQuery.isError]);
+
+  useEffect(() => {
+    if (selectedBranch && branchesQuery.isSuccess && selectedBranchQuery.isSuccess && selectedSummary && !selectedSummary.branches.some((branch) => branch.name === selectedBranch)) {
+      setSelectedBranch('');
+      setSelectedAnalysisId('');
+    }
+  }, [selectedBranch, selectedSummary, branchesQuery.isSuccess, selectedBranchQuery.isSuccess]);
+
   // Handle Entra OIDC callback params and pre-fetch Entra provider status for sign-in page
   useEffect(() => {
     window.localStorage.removeItem(LOCAL_STORAGE_GATE_LIBRARY_KEY);
@@ -359,6 +354,46 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const workspaceUrlState = useMemo<WorkspaceUrlState>(
+    () => ({
+      tab: activeTab,
+      scope: scopeMode,
+      project: selectedProject,
+      branch: selectedBranch,
+      analysis: selectedAnalysisId,
+      projectSearch,
+      gate: selectedGateId,
+      selectedRule: selectedRuleId,
+      issues: issueFilters,
+      rules: ruleFilters,
+    }),
+    [activeTab, scopeMode, selectedProject, selectedBranch, selectedAnalysisId, projectSearch, selectedGateId, selectedRuleId, issueFilters, ruleFilters],
+  );
+  const pushWorkspaceState = (next: WorkspaceUrlState) => window.history.pushState({}, '', `${window.location.pathname}${workspaceSearch(next)}`);
+
+  useEffect(() => {
+    window.history.replaceState({}, '', `${window.location.pathname}${workspaceSearch(workspaceUrlState)}`);
+  }, [workspaceUrlState]);
+
+  useEffect(() => {
+    const restoreWorkspace = () => {
+      const restored = parseWorkspaceUrl(window.location.search);
+      setActiveTab(restored.tab);
+      setScopeMode(restored.scope);
+      setSelectedProject(restored.project);
+      setSelectedBranch(restored.branch);
+      setSelectedAnalysisId(restored.analysis);
+      setLinkedAnalysisId(restored.analysis);
+      setProjectSearch(restored.projectSearch);
+      setSelectedGateId(restored.gate);
+      setSelectedRuleId(restored.selectedRule);
+      setIssueFilters(restored.issues);
+      setRuleFilters(restored.rules);
+    };
+    window.addEventListener('popstate', restoreWorkspace);
+    return () => window.removeEventListener('popstate', restoreWorkspace);
   }, []);
 
   // Auto-initialize selected branch when project changes
@@ -405,10 +440,6 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       setError(normalizeErrorMessage(err));
     }
   };
-
-  useEffect(() => {
-    window.localStorage.setItem(LOCAL_STORAGE_NAV_KEY, JSON.stringify({ tab: activeTab, adminTab: activeAdminTab, adminSection: activeAdminSection }));
-  }, [activeTab, activeAdminTab, activeAdminSection]);
 
   useEffect(() => {
     if (!meQuery.isPending && !canAccessAdministration && activeTab === 'administration') {
@@ -572,7 +603,6 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
 
   const confirmSignOut = () => {
     window.localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY);
-    window.localStorage.removeItem(LOCAL_STORAGE_NAV_KEY);
     setActiveTab('projects');
     onSessionChange(null);
     setSignInForm({ email: '', password: '', remember_me: true });
@@ -689,7 +719,14 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         <div className="brand-area">
           <div className="logo">CodeInsights</div>
         </div>
-        <MainNavigation tabs={visibleTabs} activeTab={activeTab} onSelect={setActiveTab} />
+        <MainNavigation
+          tabs={visibleTabs}
+          activeTab={activeTab}
+          onSelect={(tab) => {
+            pushWorkspaceState({ ...workspaceUrlState, tab });
+            setActiveTab(tab);
+          }}
+        />
         <div className="status-area">
           {sessionUser && (
             <>
@@ -729,10 +766,26 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       {!independentScope && (
         <section className="global-tools">
           <div className="scope-toggle">
-            <button type="button" aria-pressed={scopeMode === 'overall'} className={scopeMode === 'overall' ? 'active' : ''} onClick={() => setScopeMode('overall')}>
+            <button
+              type="button"
+              aria-pressed={scopeMode === 'overall'}
+              className={scopeMode === 'overall' ? 'active' : ''}
+              onClick={() => {
+                pushWorkspaceState({ ...workspaceUrlState, scope: 'overall' });
+                setScopeMode('overall');
+              }}
+            >
               Overall
             </button>
-            <button type="button" aria-pressed={scopeMode === 'new-code'} className={scopeMode === 'new-code' ? 'active' : ''} onClick={() => setScopeMode('new-code')}>
+            <button
+              type="button"
+              aria-pressed={scopeMode === 'new-code'}
+              className={scopeMode === 'new-code' ? 'active' : ''}
+              onClick={() => {
+                pushWorkspaceState({ ...workspaceUrlState, scope: 'new-code' });
+                setScopeMode('new-code');
+              }}
+            >
               New Code
             </button>
           </div>
@@ -822,28 +875,31 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           selectedSummary={selectedSummary}
           selectedProject={selectedProject}
           selectedBranch={selectedBranch}
-          setSelectedProject={setSelectedProject}
-          setSelectedBranch={setSelectedBranch}
+          projectSearch={projectSearch}
+          setSelectedProject={(project) => {
+            pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+            setSelectedProject(project);
+          }}
+          setSelectedBranch={(branch) => {
+            if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
+            setSelectedBranch(branch);
+          }}
           setProjectSearch={setProjectSearch}
           loading={loading}
           error={error}
-          downloadExport={downloadExport}
-          onOpenIssues={(summary, severity = 'all') => {
+          onOpenIssues={(summary, severity: IssueSeverityFilter = 'all', category: IssueTypeFilter = 'all') => {
+            const nextIssues = { ...defaultIssueFilters, severity, category };
+            pushWorkspaceState({ ...workspaceUrlState, tab: 'issues', project: summary.projectKey, branch: summary.latest.branch, analysis: summary.latest.analysis_id, issues: nextIssues });
             setSelectedProject(summary.projectKey);
             setSelectedBranch(summary.latest.branch);
             setSelectedAnalysisId(summary.latest.analysis_id);
-            setIssueSeverity(severity);
+            setIssueFilters(nextIssues);
             setActiveTab('issues');
-            const params = new URLSearchParams({ tab: 'issues', analysis_id: summary.latest.analysis_id });
-            if (severity !== 'all') params.set('severity', severity);
-            window.history.pushState({}, '', `${window.location.pathname}?${params}`);
           }}
         />
       )}
-      {activeTab === 'projects' && selectedProject && <IngestionDetails project={selectedProject} analysisId={selectedAnalysisId} token={sessionUser?.token} />}
       {activeTab === 'issues' && scopeMode === 'overall' && (
         <Issues
-          key={`${selectedAnalysisId}:${issueSeverity}`}
           authToken={sessionUser?.token}
           isAdmin={canAccessAdministration}
           selectedProject={selectedProject}
@@ -851,27 +907,48 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           selectedAnalysisId={selectedAnalysisId}
           selectedSummary={selectedSummary}
           summaries={summaries}
-          setSelectedProject={setSelectedProject}
-          setSelectedBranch={setSelectedBranch}
-          setSelectedAnalysisId={setSelectedAnalysisId}
+          setSelectedProject={(project) => {
+            pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+            setSelectedProject(project);
+          }}
+          setSelectedBranch={(branch) => {
+            if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
+            setSelectedBranch(branch);
+          }}
+          setSelectedAnalysisId={(analysis) => {
+            pushWorkspaceState({ ...workspaceUrlState, analysis });
+            setSelectedAnalysisId(analysis);
+          }}
           projectMeta={projectMeta}
-          initialSeverity={issueSeverity}
+          filters={issueFilters}
+          onFiltersChange={setIssueFilters}
+          downloadExport={downloadExport}
         />
       )}
 
-      {activeTab === 'rules' && <AnalysisProfiles key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />}
       {activeTab === 'rules' && (
-        <Rules
-          apiBase={API_BASE}
-          authToken={sessionUser?.token}
-          selectedProject={selectedProject}
-          onProjectChange={(project) => {
-            setSelectedProject(project);
-            setSelectedBranch('');
-          }}
-          summaries={summaries}
-          canSuppressRules={false}
-        />
+        <>
+          <Rules
+            apiBase={API_BASE}
+            authToken={sessionUser?.token}
+            selectedProject={selectedProject}
+            onProjectChange={(project) => {
+              pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+              setSelectedProject(project);
+              setSelectedBranch('');
+            }}
+            summaries={summaries}
+            canManageRules={canAccessAdministration}
+            filters={ruleFilters}
+            onFiltersChange={setRuleFilters}
+            selectedRuleId={selectedRuleId}
+            onSelectedRuleChange={setSelectedRuleId}
+          />
+          <details className="advanced-rules-panel profile-administration">
+            <summary>Advanced profile administration</summary>
+            <AnalysisProfiles key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />
+          </details>
+        </>
       )}
 
       {activeTab === 'quality-gates' && (
@@ -894,6 +971,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
               canAccessAdministration={canAccessAdministration && !gatesQuery.isError && !assignmentsQuery.isError}
               apiBase={API_BASE}
               apiFetch={apiFetch}
+              selectedGateId={selectedGateId}
+              onSelectedGateChange={setSelectedGateId}
             />
           )}
         </>

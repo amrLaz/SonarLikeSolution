@@ -274,6 +274,24 @@ internal static class CollaborationChecks
                     && page[0].GetProperty("finding_id").GetString() == findingId,
                 "analysis findings join durable assignment"
             );
+            using (var csvRequest = new HttpRequestMessage(HttpMethod.Get,
+                $"/api/v1/insights/analyses/{second.AnalysisId}/findings/export/csv?mine=true&state=confirmed&category=bug"))
+            {
+                csvRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var csvResponse = await client.SendAsync(csvRequest);
+                var csv = await csvResponse.Content.ReadAsStringAsync();
+                Check(csvResponse.IsSuccessStatusCode && csv.Contains(findingId) && csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length == 2,
+                    "filtered issues CSV exports all and only active-filter results");
+            }
+            using (var pdfRequest = new HttpRequestMessage(HttpMethod.Get,
+                $"/api/v1/insights/analyses/{second.AnalysisId}/findings/export/pdf?mine=true&state=confirmed"))
+            {
+                pdfRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var pdfResponse = await client.SendAsync(pdfRequest);
+                var pdf = await pdfResponse.Content.ReadAsByteArrayAsync();
+                Check(pdfResponse.IsSuccessStatusCode && System.Text.Encoding.ASCII.GetString(pdf, 0, 5) == "%PDF-",
+                    "filtered issues PDF uses the findings authorization and filters");
+            }
             await Call(
                 "GET",
                 $"/api/v1/collaboration/findings?project_key={project}",

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Data;
 
@@ -13,7 +14,8 @@ public static class ExecutableProfiles
     private static bool Https(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.UserInfo.Length == 0;
     public static void Validate(ProfileDefinition profile)
     {
-        if (profile.RuleCatalog is null || profile.AnalyzerConfigurations is null || profile.RuleCatalog.Length > 10000 || profile.AnalyzerConfigurations.Length > 100)
+        if (profile.RuleCatalog is null || profile.AnalyzerConfigurations is null || profile.DisabledRules is null || profile.RuleCatalog.Length > 10000 || profile.AnalyzerConfigurations.Length > 100
+            || profile.DisabledRules.Length > 10000)
             throw new ApiException(422, "Invalid rule catalogue or analyzer configurations");
         foreach (var rule in profile.RuleCatalog)
             if (rule is null || !Identifier(rule.Tool, 100) || !Identifier(rule.ToolVersion, 100) || !Identifier(rule.RuleId) || !Identifier(rule.Language, 100)
@@ -35,6 +37,14 @@ public static class ExecutableProfiles
         }
         if (profile.AnalyzerConfigurations.Select(x => x.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != profile.AnalyzerConfigurations.Length)
             throw new ApiException(422, "Configuration export paths must be unique on Windows and Linux");
+        if (profile.DisabledRules.Any(rule => rule is null || !Identifier(rule.Tool, 100) || !Identifier(rule.ToolVersion, 100) || !Identifier(rule.RuleId))
+            || profile.DisabledRules.Select(rule => (rule.Tool, rule.ToolVersion, rule.RuleId)).Distinct().Count() != profile.DisabledRules.Length)
+            throw new ApiException(422, "Disabled rules require a unique producer, version and rule identity");
+        foreach (var rule in profile.DisabledRules)
+        {
+            if (!profile.RuleCatalog.Any(item => Matches(item, rule)) || !CanManage(profile, rule))
+                throw new ApiException(422, "A disabled rule must exist in the catalogue and in a supported analyzer configuration");
+        }
     }
 
     private static void ValidateNative(AnalyzerConfiguration config)
@@ -68,7 +78,9 @@ public static class ExecutableProfiles
     {
         var files = profile.AnalyzerConfigurations.Select(config =>
         {
-            var content = config.Format == "eslint-flat-json" ? "module.exports = " + config.Content + ";\n" : config.Content;
+            var disabled = profile.DisabledRules.Where(rule => rule.Tool == config.Tool && rule.ToolVersion == config.ToolVersion).ToArray();
+            var native = disabled.Length == 0 ? config.Content : Disable(config, disabled);
+            var content = config.Format == "eslint-flat-json" ? "module.exports = " + native + ";\n" : native;
             return new ExportedConfiguration(config.Tool, config.ToolVersion, config.Format, config.Path, content, Hash(content));
         }).OrderBy(file => file.Path, StringComparer.Ordinal).ToArray();
         return new(profile.ProfileId, profile.Version, Fingerprint(files.Select(file => new EffectiveConfiguration(file.Tool, file.ToolVersion, file.Path, file.Sha256))), files);
@@ -100,6 +112,54 @@ public static class ExecutableProfiles
         .Select(file => $"{file.Tool}\n{file.ToolVersion}\n{file.Path}\n{file.Sha256.ToLowerInvariant()}\n")));
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     public static string RuleKey(CatalogueRule rule) => JsonSerializer.Serialize(new[] { rule.Tool, rule.ToolVersion, rule.RuleId });
+    public static string RuleKey(DisabledRule rule) => JsonSerializer.Serialize(new[] { rule.Tool, rule.ToolVersion, rule.RuleId });
+
+    public static bool CanManage(ProfileDefinition profile, DisabledRule rule)
+    {
+        foreach (var config in profile.AnalyzerConfigurations.Where(config => config.Tool == rule.Tool && config.ToolVersion == rule.ToolVersion))
+        {
+            if (config.Format == "editorconfig" && SafeEditorConfigRule(rule.RuleId)) return true;
+            var root = JsonNode.Parse(config.Content);
+            if (config.Format == "eslint-flat-json" && root is JsonArray eslint && eslint.OfType<JsonObject>()
+                    .Any(item => item["rules"] is JsonObject rules && rules.ContainsKey(rule.RuleId))) return true;
+            if (config.Format == "semgrep-json" && root is JsonObject semgrep && semgrep["rules"] is JsonArray rulesArray
+                && rulesArray.OfType<JsonObject>().Any(item => item["id"]?.GetValue<string>() == rule.RuleId)) return true;
+        }
+        return false;
+    }
+
+    private static bool Matches(CatalogueRule catalogue, DisabledRule disabled) => catalogue.Tool == disabled.Tool
+        && catalogue.ToolVersion == disabled.ToolVersion && catalogue.RuleId == disabled.RuleId;
+
+    private static bool SafeEditorConfigRule(string value) => value.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+
+    private static string Disable(AnalyzerConfiguration config, DisabledRule[] disabled)
+    {
+        if (config.Format == "editorconfig")
+        {
+            var suffix = new StringBuilder(config.Content.TrimEnd()).AppendLine().AppendLine()
+                .AppendLine("# CodeInsights disabled rules").AppendLine("[*.{cs,vb}]");
+            foreach (var rule in disabled.OrderBy(rule => rule.RuleId, StringComparer.Ordinal))
+                suffix.Append("dotnet_diagnostic.").Append(rule.RuleId).AppendLine(".severity = none");
+            return suffix.ToString();
+        }
+        var root = JsonNode.Parse(config.Content) ?? throw new ApiException(422, "Invalid analyzer configuration");
+        if (config.Format == "eslint-flat-json" && root is JsonArray eslint)
+        {
+            foreach (var item in eslint.OfType<JsonObject>())
+                if (item["rules"] is JsonObject rules)
+                    foreach (var rule in disabled.Where(rule => rules.ContainsKey(rule.RuleId))) rules[rule.RuleId] = "off";
+            return root.ToJsonString();
+        }
+        if (config.Format == "semgrep-json" && root is JsonObject semgrep && semgrep["rules"] is JsonArray semgrepRules)
+        {
+            var identities = disabled.Select(rule => rule.RuleId).ToHashSet(StringComparer.Ordinal);
+            for (var index = semgrepRules.Count - 1; index >= 0; index--)
+                if (semgrepRules[index] is JsonObject item && item["id"] is JsonValue id && identities.Contains(id.GetValue<string>())) semgrepRules.RemoveAt(index);
+            return root.ToJsonString();
+        }
+        throw new ApiException(422, "Rule activation is supported only for editorconfig, semgrep-json and eslint-flat-json configurations");
+    }
 
     public static object EstimateRemediation(ProfileDefinition profile, IEnumerable<FindingOccurrence> findings, IngestionManifest manifest)
     {
@@ -124,6 +184,8 @@ public static class ExecutableProfiles
         var right = after.RuleCatalog.ToDictionary(RuleKey);
         return new { from_version = before.Version, to_version = after.Version, added_rules = right.Keys.Except(left.Keys).ToArray(), removed_rules = left.Keys.Except(right.Keys).ToArray(),
             changed_rules = right.Keys.Intersect(left.Keys).Where(key => JsonSerializer.Serialize(left[key], ApiJson.Options) != JsonSerializer.Serialize(right[key], ApiJson.Options)).ToArray(),
+            enabled_rules = before.DisabledRules.Select(RuleKey).Except(after.DisabledRules.Select(RuleKey)).ToArray(),
+            disabled_rules = after.DisabledRules.Select(RuleKey).Except(before.DisabledRules.Select(RuleKey)).ToArray(),
             before_configuration_hash = Export(before).ConfigurationHash, after_configuration_hash = Export(after).ConfigurationHash,
             before_conditions = before.Conditions, after_conditions = after.Conditions, before_required_tools = before.RequiredTools, after_required_tools = after.RequiredTools };
     }

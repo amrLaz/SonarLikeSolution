@@ -1,10 +1,8 @@
 import InfoHint from './InfoHint';
-import type { AnalysisRecord, IssueSeverityFilter, ProjectSummary } from '../types';
+import type { AnalysisRecord, IssueSeverityFilter, IssueTypeFilter, ProjectSummary } from '../types';
 import { analysisGateClass, analysisGateLabel } from '../metric-display';
-import AnalysisEvidence, { MetricGrid } from './AnalysisEvidence';
+import { MetricGrid, type MetricKey } from './AnalysisEvidence';
 import MetricsHistory from './MetricsHistory';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 
 type ProjectsProps = {
   summaries: ProjectSummary[];
@@ -12,22 +10,27 @@ type ProjectsProps = {
   selectedSummary: ProjectSummary | null;
   selectedProject: string;
   selectedBranch: string;
+  projectSearch: string;
   setSelectedProject: (project: string) => void;
   setSelectedBranch: (branch: string) => void;
   setProjectSearch: (search: string) => void;
   loading: boolean;
   error?: string | null;
-  downloadExport: (url: string, filename: string) => Promise<void>;
-  onOpenIssues: (summary: ProjectSummary, severity?: IssueSeverityFilter) => void;
+  onOpenIssues: (summary: ProjectSummary, severity?: IssueSeverityFilter, category?: IssueTypeFilter) => void;
 };
 
-const severities: Array<[IssueSeverityFilter, string]> = [
-  ['blocker', 'Blocker'],
-  ['high', 'High'],
-  ['medium', 'Medium'],
-  ['low', 'Low'],
-  ['info', 'Info'],
-];
+const metricIssueCategory: Record<MetricKey, IssueTypeFilter> = {
+  security_score: 'vulnerability',
+  maintainability_score: 'code_smell',
+  reliability_score: 'bug',
+  coverage: 'code',
+  duplication: 'code',
+  vulnerabilities: 'vulnerability',
+  security_hotspots: 'security_hotspot',
+  code_smells: 'code_smell',
+  bugs: 'bug',
+  dependency_vulnerabilities: 'dependency',
+};
 
 export default function Projects({
   summaries,
@@ -35,12 +38,12 @@ export default function Projects({
   selectedSummary,
   selectedProject,
   selectedBranch,
+  projectSearch,
   setSelectedProject,
   setSelectedBranch,
   setProjectSearch,
   loading,
   error,
-  downloadExport,
   onOpenIssues,
 }: ProjectsProps) {
   return (
@@ -53,6 +56,10 @@ export default function Projects({
         <p>Passed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === 'pass').length}</p>
         <p>Failed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === 'fail').length}</p>
         <p>Unknown: {filteredSummaries.filter((item) => item.latest.completeness == null || item.latest.quality_gate === 'unknown').length}</p>
+        <label className="project-search-filter">
+          Search projects
+          <input type="search" value={projectSearch} placeholder="Project name" onChange={(event) => setProjectSearch(event.target.value)} />
+        </label>
         <div className="action-row">
           <button
             type="button"
@@ -63,9 +70,6 @@ export default function Projects({
             }}
           >
             All projects
-          </button>
-          <button type="button" onClick={() => setProjectSearch('api')}>
-            Focus API
           </button>
         </div>
       </aside>
@@ -215,106 +219,11 @@ export default function Projects({
                           </ul>
                         </div>
                       )}
-                      <MetricGrid metrics={detailedBranch.latest.metrics} />
-                      <div className="issue-severity-links" aria-label="Issues de la dernière analyse par criticité">
-                        <button type="button" onClick={() => onOpenIssues(selectedSummary)}>
-                          Voir toutes les issues
-                        </button>
-                        {severities.map(([severity, label]) => (
-                          <button type="button" className={`severity-link ${severity}`} key={severity} onClick={() => onOpenIssues(selectedSummary, severity)}>
-                            {label} <strong>{selectedSummary.issueCounts[severity] ?? 0}</strong>
-                          </button>
-                        ))}
-                      </div>
-                      <MetricsHistory history={selectedProjectAnalyses(selectedSummary.history, activeBranch)} project={selectedProject} branch={activeBranch ?? ''} />
-                      <AnalysisEvidence analysis={detailedBranch.latest} />
-                      <div style={{ marginTop: '16px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void downloadExport(
-                              `${API_BASE}/v1/analyses/${detailedBranch.latest.analysis_id}/export/pdf`,
-                              `${detailedBranch.latest.project_key}-${detailedBranch.latest.analysis_id}.pdf`,
-                            )
-                          }
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 16px',
-                            backgroundColor: 'var(--primary)',
-                            color: 'var(--bg-lighter)',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                          }}
-                        >
-                          ↓ Export PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void downloadExport(
-                              `${API_BASE}/v1/analyses/${detailedBranch.latest.analysis_id}/export/csv`,
-                              `${detailedBranch.latest.project_key}-${detailedBranch.latest.analysis_id}.csv`,
-                            )
-                          }
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 16px',
-                            backgroundColor: 'var(--bg-lighter)',
-                            color: 'var(--primary)',
-                            border: '1.5px solid var(--primary)',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                          }}
-                        >
-                          ↓ Export CSV (latest)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void downloadExport(`${API_BASE}/v1/analyses/export/csv?project_key=${encodeURIComponent(selectedProject)}`, `${selectedProject}-history.csv`)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 16px',
-                            backgroundColor: 'var(--bg-lighter)',
-                            color: 'var(--text-secondary)',
-                            border: '1.5px solid var(--border)',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                          }}
-                        >
-                          ↓ Export all history (CSV)
-                        </button>
-                      </div>
+                      <MetricGrid metrics={detailedBranch.latest.metrics} onMetricClick={(metric) => onOpenIssues(selectedSummary, 'all', metricIssueCategory[metric])} />
+                      <MetricsHistory history={selectedProjectAnalyses(selectedSummary.history, activeBranch)} />
                     </div>
                   )}
 
-                  <h4 style={{ marginTop: '24px', marginBottom: '12px' }}>All branches</h4>
-                  {branches.map((branch) => (
-                    <article className={`branch-card ${selectedBranch === branch.name ? 'selected' : ''}`} key={branch.name}>
-                      <div className="analysis-context">
-                        <button type="button" aria-pressed={selectedBranch === branch.name} onClick={() => setSelectedBranch(branch.name)}>
-                          {branch.name}
-                        </button>
-                        <span className={`status-pill ${analysisGateClass(branch.latest.quality_gate, branch.latest.completeness)}`}>
-                          {analysisGateLabel(branch.latest.quality_gate, branch.latest.completeness)}
-                        </span>
-                        <span>Analysis: {branch.latest.status}</span>
-                        <span>
-                          {branch.count} analyses · {new Date(branch.latest.created_at).toLocaleString()}
-                        </span>
-                        <code>{branch.latest.commit_sha || 'Non disponible'}</code>
-                      </div>
-                      <MetricGrid metrics={branch.latest.metrics} />
-                    </article>
-                  ))}
                 </>
               );
             })()}
@@ -330,9 +239,9 @@ export default function Projects({
             <div className="project-overview-grid">
               {filteredSummaries.map((summary) => (
                 <article key={summary.projectKey} className="project-overview-card">
-                  <button type="button" className="project-open-issues" onClick={() => onOpenIssues(summary)}>
+                  <button type="button" className="project-open-issues" onClick={() => setSelectedProject(summary.projectKey)}>
                     <strong>{summary.projectKey}</strong>
-                    <span>Voir les issues →</span>
+                    <span>Open metrics →</span>
                   </button>
                   <span>Analysis history</span>
                   <span className="project-overview-counts">
@@ -340,13 +249,7 @@ export default function Projects({
                     <span>Failed: {summary.failCount}</span>
                     <span>Unknown: {summary.unknownCount}</span>
                   </span>
-                  <span className="issue-severity-links" aria-label={`Issues de ${summary.projectKey} par criticité`}>
-                    {severities.map(([severity, label]) => (
-                      <button type="button" className={`severity-link ${severity}`} key={severity} onClick={() => onOpenIssues(summary, severity)}>
-                        {label} <strong>{summary.issueCounts[severity] ?? 0}</strong>
-                      </button>
-                    ))}
-                  </span>
+                  <MetricGrid metrics={summary.latest.metrics} onMetricClick={(metric) => onOpenIssues(summary, 'all', metricIssueCategory[metric])} />
                   <span>Last: {new Date(summary.latest.created_at).toLocaleDateString()}</span>
                 </article>
               ))}

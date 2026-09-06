@@ -54,6 +54,7 @@ public static class InsightEndpoints
         routes.MapGet("/branches", BranchesAsync);
         routes.MapGet("/rules", RulesAsync);
         routes.MapGet("/analyses/{id}/findings", FindingsAsync);
+        routes.MapGet("/analyses/{id}/findings/export/{format}", FindingsExportAsync);
         routes.MapGet("/analyses/{id}/components", ComponentsAsync);
         routes.MapGet(
             "/analyses/{id}/comparison",
@@ -86,6 +87,9 @@ public static class InsightEndpoints
     )
     {
         var analyses = await VisibleAsync(context, db, auth, ct);
+        var projectKey = context.Request.Query["project_key"].ToString();
+        if (projectKey.Length > 0)
+            analyses = analyses.Where(analysis => analysis.ProjectKey == projectKey);
         var ids = analyses
             .Where(x =>
                 !analyses.Any(y =>
@@ -120,6 +124,10 @@ public static class InsightEndpoints
         var search = context.Request.Query["search"].ToString().ToLowerInvariant();
         var category = context.Request.Query["category"].ToString();
         var severity = context.Request.Query["severity"].ToString().ToLowerInvariant();
+        var language = context.Request.Query["language"].ToString();
+        var requestedStatus = context.Request.Query["status"].ToString().ToLowerInvariant();
+        if (requestedStatus.Length > 0 && requestedStatus is not ("all" or "enabled" or "disabled" or "unmanaged"))
+            throw new ApiException(422, "status must be enabled, disabled or unmanaged");
         if (search.Length > 0)
             query = query.Where(x =>
                 x.RuleId.ToLower().Contains(search) || x.Tool.ToLower().Contains(search)
@@ -128,8 +136,12 @@ public static class InsightEndpoints
             query = query.Where(x => x.Category == category);
         if (severity.Length > 0 && severity != "all")
             query = query.Where(x => x.Severity.ToLower() == severity);
-        var cursor = NumericCursor(context.Request);
-        var size = PageSize(context.Request);
+        ProfileDefinition? profile = null;
+        if (projectKey.Length > 0)
+        {
+            var policy = await db.Set<IngestionProjectPolicy>().AsNoTracking().SingleOrDefaultAsync(item => item.ProjectKey == projectKey, ct);
+            if (policy is not null) profile = await ProfileEndpoints.ResolveAsync(db, policy.ProfileId, policy.ProfileVersion, ct);
+        }
         var rows = await query
             .GroupBy(x => new
             {
@@ -152,32 +164,52 @@ public static class InsightEndpoints
                     .Count(),
                 Projects = g.Select(x => x.AnalysisId).Distinct().Count(),
             })
-            .Where(x => x.Id > cursor)
             .OrderBy(x => x.Id)
-            .Take(size + 1)
             .ToListAsync(ct);
-        if (rows.Count > size)
+        var enriched = rows.Select(row =>
         {
-            rows.RemoveAt(size);
-            Continuation(context, rows[^1].Id.ToString());
+            var catalogue = profile?.RuleCatalog.Where(rule => rule.Tool == row.Tool && rule.RuleId == row.RuleId).ToArray() ?? [];
+            var catalogueRule = catalogue.Length == 1 ? catalogue[0] : null;
+            var identity = catalogueRule is null ? null : new DisabledRule(catalogueRule.Tool, catalogueRule.ToolVersion, catalogueRule.RuleId);
+            var managed = identity is not null && ExecutableProfiles.CanManage(profile!, identity);
+            var status = !managed ? "unmanaged" : profile!.DisabledRules.Contains(identity!) ? "disabled" : "enabled";
+            return new RuleInsight(row.Id, row.Tool, catalogueRule?.ToolVersion, row.RuleId, row.Category, row.Severity,
+                catalogueRule?.Language ?? "Non disponible", row.Occurrences, row.Files, row.Projects, status, profile?.ProfileId, profile?.Version);
+        });
+        if (language.Length > 0 && language != "all") enriched = enriched.Where(row => row.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
+        if (requestedStatus.Length > 0 && requestedStatus != "all") enriched = enriched.Where(row => row.Status == requestedStatus);
+        var cursor = NumericCursor(context.Request);
+        var size = PageSize(context.Request);
+        var page = enriched.Where(row => row.Id > cursor).Take(size + 1).ToList();
+        if (page.Count > size)
+        {
+            page.RemoveAt(size);
+            Continuation(context, page[^1].Id.ToString());
         }
         return Results.Ok(
-            rows.Select(x => new
+            page.Select(x => new
             {
                 key = x.Id.ToString(),
+                tool = x.Tool,
+                tool_version = x.ToolVersion,
                 rule_id = x.RuleId,
                 title = $"{x.Tool} · {x.RuleId}",
                 category = x.Category,
                 severity = x.Severity,
-                language = "Non disponible",
+                language = x.Language,
                 occurrences = x.Occurrences,
                 file_count = x.Files,
                 project_count = x.Projects,
                 projects = Array.Empty<string>(),
-                status = "active",
+                status = x.Status,
+                profile_id = x.ProfileId,
+                profile_version = x.ProfileVersion,
             })
         );
     }
+
+    private sealed record RuleInsight(long Id, string Tool, string? ToolVersion, string RuleId, string Category, string Severity,
+        string Language, int Occurrences, int Files, int Projects, string Status, string? ProfileId, string? ProfileVersion);
 
     private static async Task<IngestionRecord?> LatestAsync(
         string id,
@@ -213,53 +245,7 @@ public static class InsightEndpoints
         CancellationToken ct
     )
     {
-        var ingestion = await LatestAsync(id, context, db, auth, ct);
-        if (
-            ingestion?.DetailsPurged == true
-            || await db.Set<AnalysisRecord>()
-                .AnyAsync(x => x.AnalysisId == id && x.DetailsPurged, ct)
-        )
-            throw new ApiException(410, "Analysis details were purged");
-        var query = db.Set<FindingOccurrence>()
-            .AsNoTracking()
-            .Where(x => x.AnalysisId == id && (ingestion == null || x.IngestionId == ingestion.Id));
-        var category = context.Request.Query["category"].ToString();
-        var severity = context.Request.Query["severity"].ToString();
-        var rule = context.Request.Query["rule"].ToString();
-        var path = context.Request.Query["path"].ToString();
-        if (category.Length > 0 && category != "all")
-            query = query.Where(x => x.Category == category);
-        if (severity.Length > 0 && severity != "all")
-        {
-            var values = severity switch
-            {
-                "blocker" => new[] { "critical", "error", "blocker" },
-                "medium" => new[] { "warning", "medium" },
-                "low" => new[] { "low", "convention" },
-                _ => new[] { severity },
-            };
-            query = query.Where(x => values.Contains(x.Severity.ToLower()));
-        }
-        if (rule.Length > 0)
-            query = query.Where(x => x.RuleId.ToLower().Contains(rule.ToLower()));
-        if (path.Length > 0)
-            query = query.Where(x => x.Path != null && x.Path.ToLower().Contains(path.ToLower()));
-        var mine = context.Request.Query["mine"] == "true";
-        var team = context.Request.Query["team_id"].ToString();
-        var state = context.Request.Query["state"].ToString();
-        if (mine || team.Length > 0 || state.Length > 0 && state != "all")
-        {
-            var actor = await auth.RequireAsync(context, "user", ct);
-            var findings = CollaborationEndpoints.FilterState(
-                db.Set<DurableFinding>().AsNoTracking(),
-                state
-            );
-            if (mine)
-                findings = findings.Where(x => x.AssigneeUserId == actor.Sub);
-            if (team.Length > 0)
-                findings = findings.Where(x => x.TeamId == team);
-            query = query.Where(x => findings.Any(f => f.Id == x.FindingId));
-        }
+        var (ingestion, query) = await FilteredFindingsAsync(id, context, db, auth, ct);
         var cursor = NumericCursor(context.Request);
         var size = PageSize(context.Request);
         var rows = await query
@@ -382,6 +368,68 @@ public static class InsightEndpoints
                 };
             })
         );
+    }
+
+    private static async Task<(IngestionRecord? Ingestion, IQueryable<FindingOccurrence> Query)> FilteredFindingsAsync(
+        string id, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
+    {
+        var ingestion = await LatestAsync(id, context, db, auth, ct);
+        if (ingestion?.DetailsPurged == true || await db.Set<AnalysisRecord>().AnyAsync(x => x.AnalysisId == id && x.DetailsPurged, ct))
+            throw new ApiException(410, "Analysis details were purged");
+        var query = db.Set<FindingOccurrence>().AsNoTracking()
+            .Where(x => x.AnalysisId == id && (ingestion == null || x.IngestionId == ingestion.Id));
+        var category = context.Request.Query["category"].ToString();
+        var severity = context.Request.Query["severity"].ToString();
+        var rule = context.Request.Query["rule"].ToString();
+        var path = context.Request.Query["path"].ToString();
+        if (category.Length > 0 && category != "all")
+            query = query.Where(x => x.Category == category);
+        if (severity.Length > 0 && severity != "all")
+        {
+            var values = severity switch
+            {
+                "blocker" => new[] { "critical", "error", "blocker" },
+                "medium" => new[] { "warning", "medium" },
+                "low" => new[] { "low", "convention" },
+                _ => new[] { severity },
+            };
+            query = query.Where(x => values.Contains(x.Severity.ToLower()));
+        }
+        if (rule.Length > 0)
+            query = query.Where(x => x.RuleId.ToLower().Contains(rule.ToLower()));
+        if (path.Length > 0)
+            query = query.Where(x => x.Path != null && x.Path.ToLower().Contains(path.ToLower()));
+        var mine = context.Request.Query["mine"] == "true";
+        var team = context.Request.Query["team_id"].ToString();
+        var state = context.Request.Query["state"].ToString();
+        if (mine || team.Length > 0 || state.Length > 0 && state != "all")
+        {
+            var actor = await auth.RequireAsync(context, "user", ct);
+            var findings = CollaborationEndpoints.FilterState(
+                db.Set<DurableFinding>().AsNoTracking(),
+                state
+            );
+            if (mine)
+                findings = findings.Where(x => x.AssigneeUserId == actor.Sub);
+            if (team.Length > 0)
+                findings = findings.Where(x => x.TeamId == team);
+            query = query.Where(x => findings.Any(f => f.Id == x.FindingId));
+        }
+        return (ingestion, query);
+    }
+
+    private static async Task<IResult> FindingsExportAsync(
+        string id, string format, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
+    {
+        if (format is not ("csv" or "pdf")) throw new ApiException(404, "Unsupported issues export format");
+        var (ingestion, query) = await FilteredFindingsAsync(id, context, db, auth, ct);
+        var rows = await query.OrderBy(finding => finding.Id).ToListAsync(ct);
+        var analysis = await db.Set<AnalysisRecord>().AsNoTracking().SingleAsync(item => item.AnalysisId == id, ct);
+        var manifest = ingestion is null ? null : JsonSerializer.Deserialize<IngestionManifest>(ingestion.Manifest, ApiJson.Options);
+        var prefix = id[..Math.Min(id.Length, 8)];
+        return format == "csv"
+            ? Results.File(ExportService.FindingsCsv(rows, manifest), "text/csv", $"issues-{prefix}.csv")
+            : Results.File(ExportService.FindingsPdf(analysis, rows, manifest), "application/pdf", $"issues-{prefix}.pdf");
     }
 
     private static async Task<IResult> ComponentsAsync(

@@ -1,7 +1,7 @@
 # TODO
 
 - [ ] Mise en favori des projets par utilisateur
-- [x] Affichage de l'évolution de toutes les métriques dans le dashboard projet et suppression de la vue Evolution. Chaque métrique conserve une échelle honnête ; le tableau exact reste disponible.
+- [x] Affichage de l'évolution de toutes les métriques dans le dashboard projet et suppression de la vue Evolution. Les métriques de même repère partagent une courbe ; les autres groupes utilisent des onglets.
 - [ ] Définir une agrégation honnête pour une courbe « tous les projets » : les compteurs peuvent être additionnés, mais les scores et pourcentages nécessitent une pondération serveur explicite.
 
 - [x] Simplifier la navigation à Projects, Issues, Rules, Quality Gates et Administration.
@@ -11,11 +11,11 @@
 - [x] Supprimer les routes, services, tables et migrations des vues retirées ; conserver une migration initiale unique tant que le produit n'est pas en production.
 
 - [ ] Définir les branches par regex à tracker et historiser
-- [ ] Revoir l'UX/UI de la vue Quality Gate
-- [ ] corriger la vue Rules
-  - [ ] le scroll vers le bas fais péter l'affichage
-  - [ ] Comment activer et désactiver les règles
-- [ ] La navigation et les filtres doivent persister dans l'URL
+- [x] Revoir l'UX/UI de la vue Quality Gate
+- [x] corriger la vue Rules
+  - [x] supprimer le scroll imbriqué et conserver un seul défilement de page
+  - [x] activer et désactiver les règles prises en charge par une nouvelle version de profil
+- [x] La navigation et les filtres métier persistent dans l'URL
 - [ ] Décoration des PR avec les résultats de l'analyse et les échecs du Quality Gate. C'est une fonctionnalité activable depuis la vue d'administration.
 - [ ] Sur les issues, donner une estimation de temps nécessaire pour les résoudre.
 - [ ] Mode sombre activable par utilisateur

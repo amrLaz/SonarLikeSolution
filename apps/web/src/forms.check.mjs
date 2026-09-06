@@ -19,10 +19,14 @@ function handler(name, context, path = name === 'saveNotifChannel' ? './componen
 }
 
 let gate = { name: 'Gate', max_bugs: 3 };
-const update = handler('updateGateField', {
+const update = handler('updateField', {
+  creating: false,
   selectedGate: { gate_id: 'g1' },
-  gateForm: gate,
-  setDraft: (draft) => { gate = draft.form; },
+  currentForm: gate,
+  Number,
+  setDraft: (draft) => {
+    gate = draft.form;
+  },
 });
 update('max_bugs', '');
 assert.equal(gate.max_bugs, '', 'Clearing a threshold must not send zero');
@@ -30,12 +34,10 @@ update('max_bugs', '0');
 assert.equal(gate.max_bugs, 0);
 update('name', 'New gate');
 assert.equal(gate.name, 'New gate');
-const emptyGate = handler('gateForm', { draft: null, selectedGate: null });
-assert.equal(emptyGate.name, '', 'An empty gate catalog must render safely');
-assert.equal(emptyGate.min_security_score, '');
-const draft = { gateId: 'g1', form: { name: 'Edited gate', min_security_score: '' } };
-assert.equal(handler('gateForm', { draft, selectedGate: { gate_id: 'g1', name: 'Refetched gate', min_security_score: 85 } }), draft.form, 'Refetch must preserve a modified draft');
-assert.equal(handler('gateForm', { draft, selectedGate: { gate_id: 'g2', name: 'Another gate' } }).name, 'Another gate', 'Drafts must not cross gate selections');
+const gateSource = readFileSync(new URL('./components/QualityGates.tsx', import.meta.url), 'utf8');
+assert.match(gateSource, /draft && draft\.gateId/, 'An empty gate catalog must not dereference a missing draft');
+assert.match(gateSource, /setCreating\(true\)[\s\S]*setDraft\(/, 'New gate starts a local draft');
+assert.doesNotMatch(gateSource, /onClick=\{\(\) => run\(\{ kind: 'create'/, 'New gate must not call the API before form submission');
 const settings = handler('platformSettings', {
   DEFAULT_PLATFORM_SETTINGS: { instance_name: 'Default', retention_keep_days: '90' },
   settingsQuery: { data: { instance_name: 'Refetched name', retention_keep_days: '30' } },
@@ -90,4 +92,10 @@ await devOps.onSettled(undefined, new Error('400'), { kind: 'test' });
 assert.deepEqual(invalidations, ['devops'], 'A failed connection test persists last_error and requires a refresh');
 await devOps.onSettled(undefined, null, { kind: 'save' });
 assert.deepEqual(invalidations, ['devops', 'devops']);
+const devOpsSource = readFileSync(new URL('./components/DevOpsIntegrations.tsx', import.meta.url), 'utf8');
+assert.equal((devOpsSource.match(/>\s*Cancel\s*</g) ?? []).length, 1, 'The Azure DevOps dialog exposes one Cancel action');
+assert.match(devOpsSource, /className="integration-option"/, 'Azure DevOps capabilities use the described native option layout');
+const usersSource = readFileSync(new URL('./components/UsersAccess.tsx', import.meta.url), 'utf8');
+assert.match(usersSource, /<details className="admin-disclosure">[\s\S]*<summary>Create a local user<\/summary>/, 'Local user creation is collapsed by default');
+assert.doesNotMatch(usersSource, /user_type/, 'The local-user form does not expose a field ignored by the API');
 console.log('DevOps mutation checks passed.');

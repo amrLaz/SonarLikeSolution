@@ -2,7 +2,7 @@ import InfoHint from './InfoHint';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch as authenticatedFetch, apiJson } from '../api';
-import type { LocalUserRole, LocalUserType, PlatformUser, ProjectCatalogItem, OrganizationCatalogItem } from '../types';
+import type { LocalUserRole, PlatformUser, ProjectCatalogItem, OrganizationCatalogItem } from '../types';
 
 export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase: string; authToken?: string }) {
   const queryClient = useQueryClient();
@@ -28,7 +28,6 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
     full_name: '',
     email: '',
     password: '',
-    user_type: 'internal' as LocalUserType,
     access_role: 'default' as LocalUserRole,
   });
 
@@ -89,7 +88,7 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
       });
     },
     onSuccess: async () => {
-      setNewLocalUser({ full_name: '', email: '', password: '', user_type: 'internal', access_role: 'default' });
+      setNewLocalUser({ full_name: '', email: '', password: '', access_role: 'default' });
       setAdminMessage('User created.');
       await loadPlatformUsers();
     },
@@ -205,9 +204,12 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
         <div className="iam-grid">
           <div className="auth-card iam-card">
             <h3>
-              Local Users <InfoHint>Manage local identities, user type, and access role.</InfoHint>
+              Users <InfoHint>Manage identities, access roles, and local fallback credentials.</InfoHint>
             </h3>
-            <div className="form-grid compact">
+            <details className="admin-disclosure">
+              <summary>Create a local user</summary>
+              <p className="field-help">Use local accounts only when Entra authentication is not appropriate.</p>
+              <div className="form-grid compact">
               <label>
                 Full name
                 <input value={newLocalUser.full_name} onChange={(event) => setNewLocalUser((current) => ({ ...current, full_name: event.target.value }))} placeholder="Jane Doe" />
@@ -226,23 +228,6 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
                 />
               </label>
               <label>
-                User type
-                <select
-                  value={newLocalUser.user_type}
-                  onChange={(event) =>
-                    setNewLocalUser((current) => ({
-                      ...current,
-                      user_type: event.target.value as LocalUserType,
-                    }))
-                  }
-                >
-                  <option value="internal">Internal</option>
-                  <option value="contractor">Contractor</option>
-                  <option value="service-account">Service account</option>
-                  <option value="auditor">Auditor</option>
-                </select>
-              </label>
-              <label>
                 Access role
                 <select
                   value={newLocalUser.access_role}
@@ -258,14 +243,17 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
                   <option value="default">Default user</option>
                 </select>
               </label>
-            </div>
-            <div className="action-row">
-              <button type="button" onClick={addLocalUser}>
+              </div>
+              <div className="action-row">
+              <button className="primary" type="button" onClick={addLocalUser}>
                 Add local user
               </button>
-            </div>
+              </div>
+            </details>
 
-            <div className="form-grid compact" style={{ marginTop: '0.75rem' }}>
+            <details className="admin-disclosure">
+              <summary>Reset a local password</summary>
+              <div className="form-grid compact">
               <label>
                 User to update
                 <select value={passwordForm.user_id} onChange={(event) => setPasswordForm((current) => ({ ...current, user_id: event.target.value }))}>
@@ -288,12 +276,13 @@ export default function UsersAccess({ apiBase: API_BASE, authToken }: { apiBase:
                   placeholder="Set or reset password"
                 />
               </label>
-            </div>
-            <div className="action-row">
+              </div>
+              <div className="action-row">
               <button type="button" onClick={updateUserPassword}>
                 Set/Reset password
               </button>
-            </div>
+              </div>
+            </details>
 
             <div className="table-wrap">
               {usersLoading && <p style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>Loading users…</p>}

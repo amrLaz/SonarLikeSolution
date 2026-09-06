@@ -508,6 +508,12 @@
   },
   {
     "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/profiles/projects/{key}/rule-activation"
+  },
+  {
+    "methods": [
       "GET"
     ],
     "path": "/api/v1/insights/summary"
@@ -529,6 +535,12 @@
       "GET"
     ],
     "path": "/api/v1/insights/analyses/{id}/findings"
+  },
+  {
+    "methods": [
+      "GET"
+    ],
+    "path": "/api/v1/insights/analyses/{id}/findings/export/{format}"
   },
   {
     "methods": [
