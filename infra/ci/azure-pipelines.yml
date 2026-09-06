@@ -62,7 +62,13 @@ steps:
         terraform plan -lock-timeout=5m -input=false -no-color -var-file=variables/production.tfvars "${replace[@]}" -out=tfplan
         terraform show -json tfplan | jq -e --arg recreate "$RECREATE_DATABASE" '
           [.resource_changes[]? | select(.change.actions | index("delete")) | .address]
-          | all(. == "azurerm_postgresql_flexible_server_database.app" and $recreate == "true")' >/dev/null
+          | all(
+              (. == "azurerm_postgresql_flexible_server_database.app" and $recreate == "true")
+              or . == "azurerm_key_vault_secret.azure_openai_api_key"
+              or . == "azurerm_key_vault_secret.azure_openai_api_version"
+              or . == "azurerm_key_vault_secret.azure_openai_deployment"
+              or . == "azurerm_key_vault_secret.azure_openai_endpoint"
+            )' >/dev/null
         if [ "$APPLY" = true ]; then
           terraform apply -lock-timeout=5m -input=false -no-color tfplan
         fi

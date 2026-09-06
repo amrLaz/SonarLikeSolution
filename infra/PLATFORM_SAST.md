@@ -13,7 +13,7 @@ Le backend Terraform est le blob `sast-platform-production.tfstate` du conteneur
 
 ## Pipelines
 
-- [CodeInsights Infrastructure — 963](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=963) utilise [ci/azure-pipelines.yml](ci/azure-pipelines.yml). Il valide Terraform et produit un plan. Le paramètre `apply=true` applique ce plan sauvegardé. `recreateDatabase=true` force uniquement le remplacement de la base applicative et détruit son contenu : cette option exige une autorisation explicite de perte des données. Tout autre remplacement destructif arrête le pipeline avant application.
+- [CodeInsights Infrastructure — 963](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=963) utilise [ci/azure-pipelines.yml](ci/azure-pipelines.yml). Il valide Terraform et produit un plan. Le paramètre `apply=true` applique ce plan sauvegardé. `recreateDatabase=true` force uniquement le remplacement de la base applicative et détruit son contenu : cette option exige une autorisation explicite de perte des données. Le garde-fou autorise aussi le retrait ponctuel des quatre secrets Azure OpenAI supprimés avec le backend correspondant ; toute autre suppression arrête la pipeline avant application.
 - [CodeInsights Application — 969](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=969) utilise [.azuredevops/deploy-apps.yml](../.azuredevops/deploy-apps.yml). Il vérifie .NET contre PostgreSQL isolé, construit React et l'API, publie l'image dans ACR, configure App Service et vérifie HTTPS, les deux routes de santé et la page React.
 
 Les deux définitions ciblent `Up.France.CodeInsights`, branche `master`, et utilisent la connexion de service `Subscription Fabrik`. Exécuter l'infrastructure avant l'application lorsqu'une release change la configuration requise. Les triggers Terraform ne lancent qu'un plan ; l'application se déploie pour les changements applicatifs de `master`.
@@ -30,7 +30,7 @@ Le provider utilise Entra (`storage_use_azuread=true`) ; le rôle Blob de
 l'identité de déploiement est initialisé avant le plan complet si nécessaire.
 Les preuves et limites figurent dans la [livraison P3](../docs/p3-deployment.md).
 
-Le groupe de variables `CodeInsights.Infrastructure` contient les valeurs secrètes PostgreSQL, bootstrap administrateur, signature JWT et Azure OpenAI. Terraform écrit les secrets JWT et bootstrap dans Key Vault, référencés par l'API. Ne jamais afficher ou versionner leur contenu. Les plans et l'état contiennent des valeurs sensibles même quand les sorties sont masquées.
+Le groupe de variables `CodeInsights.Infrastructure` contient les valeurs secrètes PostgreSQL, bootstrap administrateur et signature JWT. Terraform écrit les secrets JWT et bootstrap dans Key Vault, référencés par l'API. Les anciens secrets Azure OpenAI sont retirés avec `v0.5.0`, puisque l'application ne maintient plus cette intégration. Ne jamais afficher ou versionner leur contenu. Les plans et l'état contiennent des valeurs sensibles même quand les sorties sont masquées.
 
 L'identité système de l'application reçoit `AcrPull` et `Key Vault Secrets User`. Le principal de la connexion Terraform gère le coffre. La connexion PostgreSQL utilise un mot de passe ; la règle `AllowAzureServices` autorise les adresses Azure. Une isolation réseau privée et une identité base dédiée restent des évolutions à concevoir.
 

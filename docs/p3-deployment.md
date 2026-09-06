@@ -6,10 +6,12 @@ description: Déploiement des capacités P3 par les pipelines existants, migrati
 # Livraison Azure P3
 
 La livraison utilise `CodeInsights Infrastructure` (963), puis
-`CodeInsights Application` (969). La base existante est conservée :
-`apply=true`, `recreateDatabase=false`. Les migrations P3 ajoutent les preuves,
-les instantanés de qualité, les périmètres versionnés et les correspondances Git.
-Elles n'effacent aucune analyse ou décision historique.
+`CodeInsights Application` (969). Jusqu'à `v0.4.0`, la base existante était
+conservée avec des migrations additives. Pour `v0.5.0`, le produit n'étant pas
+encore exploité, la base applicative est recréée une seule fois avec
+`apply=true`, `recreateDatabase=true` afin d'installer la migration initiale
+nettoyée sans conserver les tables des vues retirées. Cette opération efface les
+données de validation antérieures, pas une base métier en service.
 
 Le compte de rapports interdit les clés partagées. Le provider Terraform utilise
 `storage_use_azuread=true` et l'identité de déploiement reçoit le rôle
