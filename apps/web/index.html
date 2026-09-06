@@ -12,7 +12,21 @@
     <title>CodeInsights</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="startup-splash" class="startup-splash" role="status" aria-live="polite" aria-atomic="true">
+      <div class="startup-splash__content">
+        <div class="startup-splash__identity">
+          <span class="startup-splash__mark" aria-hidden="true">
+            <img src="/app-icon.svg" alt="" width="72" height="72" />
+          </span>
+          <span>
+            <strong class="startup-splash__product">CodeInsights</strong>
+            <span class="startup-splash__status">Initializing analysis workspace</span>
+          </span>
+        </div>
+        <span class="startup-splash__track" aria-hidden="true"><span></span></span>
+      </div>
+    </div>
+    <div id="root" inert aria-hidden="true"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

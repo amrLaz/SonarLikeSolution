@@ -789,6 +789,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         </section>
       )}
 
+      <div key={activeTab} className="workspace-view">
       {!independentScope && scopeMode === 'new-code' && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} repoProvider={projectMeta[selectedProject]?.repoProvider} repoUrl={projectMeta[selectedProject]?.repoUrl} />}
       {!independentScope && loading && (
         <p className="feedback" role="status">
@@ -1216,6 +1217,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           </div>
         </section>
       )}
+      </div>
 
       {showDeleteModal && deleteTarget && (
         <dialog

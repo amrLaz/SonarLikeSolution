@@ -2,15 +2,15 @@
 
 - [ ] Mise en favori des projets par utilisateur
 - [x] Affichage de l'évolution de toutes les métriques dans le dashboard projet et suppression de la vue Evolution. Les métriques de même repère partagent une courbe ; les autres groupes utilisent des onglets.
-- [ ] Définir une agrégation honnête pour une courbe « tous les projets » : les compteurs peuvent être additionnés, mais les scores et pourcentages nécessitent une pondération serveur explicite.
 
+- [x] Ajouter un splash screen futuriste à l'application pour améliorer l'expérience utilisateur au démarrage.
+- [x] Ajouter des animations subtiles pour les transitions entre les vues afin d'améliorer l'expérience utilisateur.
 - [x] Simplifier la navigation à Projects, Issues, Rules, Quality Gates et Administration.
 - [x] Ouvrir Issues depuis un projet ou une criticité du dashboard avec le filtre correspondant.
 - [x] Depuis une issue, ouvrir le code au commit analysé et la définition externe connue de la règle.
 - [x] Distinguer visuellement les cartes Issues par criticité sans dépendre uniquement de la couleur.
 - [x] Supprimer les routes, services, tables et migrations des vues retirées ; conserver une migration initiale unique tant que le produit n'est pas en production.
 
-- [ ] Définir les branches par regex à tracker et historiser
 - [x] Revoir l'UX/UI de la vue Quality Gate
 - [x] corriger la vue Rules
   - [x] supprimer le scroll imbriqué et conserver un seul défilement de page
