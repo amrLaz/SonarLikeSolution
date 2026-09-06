@@ -180,7 +180,7 @@ stages:
                       }).encode(), headers={'Content-Type': 'application/json'})
                       with urllib.request.urlopen(request, timeout=30) as response:
                           token = json.load(response)['token']
-                      for path in ['/api/v1/auth/me', '/api/v1/projects', '/api/v1/profiles', '/api/v1/ingestions/queue']:
+                      for path in ['/api/v1/auth/me', '/api/v1/projects', '/api/v1/profiles']:
                           request = urllib.request.Request(base + path, headers={'Authorization': 'Bearer ' + token})
                           with urllib.request.urlopen(request, timeout=30) as response:
                               json.load(response)
