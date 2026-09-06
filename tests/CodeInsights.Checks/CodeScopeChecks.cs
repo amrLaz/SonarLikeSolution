@@ -286,7 +286,7 @@ internal static class CodeScopeChecks
         Check(exported.GetProperty("files")[0].GetProperty("content").GetString()!.Contains("\"no-eval\":\"off\""), "project export applies disabled rule");
         var ruleAnalysis = new AnalysisRecord
         {
-            AnalysisId = Guid.NewGuid().ToString(), ProjectKey = key, Branch = "main", CommitSha = "abcdef123456",
+            AnalysisId = Guid.NewGuid().ToString(), ProjectKey = key, Branch = scope.ReferenceBranch, CommitSha = "abcdef123456",
             CreatedAt = ApiJson.Iso(DateTime.UtcNow), Status = "completed"
         };
         db.Add(ruleAnalysis);
