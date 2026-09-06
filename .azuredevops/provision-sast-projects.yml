@@ -102,6 +102,42 @@ steps:
             )
             print(f"Project registered: {key}")
 
+        users = call("/api/v1/auth/users", token=session)
+        analyst = next(
+            (
+                user
+                for user in users
+                if user["email"].lower() == "heni.fazzani.ext@up.coop"
+            ),
+            None,
+        )
+        if analyst:
+            organization_ids = sorted(
+                grant["scope_id"]
+                for grant in analyst["grants"]
+                if grant["scope_type"] == "organization"
+            )
+            project_keys = sorted(
+                {
+                    *(key for key, _ in projects),
+                    *(
+                        grant["scope_id"]
+                        for grant in analyst["grants"]
+                        if grant["scope_type"] == "project"
+                    ),
+                }
+            )
+            call(
+                f"/api/v1/auth/users/{analyst['user_id']}/grants",
+                method="PUT",
+                token=session,
+                payload={
+                    "organization_ids": organization_ids,
+                    "project_keys": project_keys,
+                },
+            )
+            print("Analyst access granted without removing existing grants")
+
         generated = call(
             "/api/v1/platform/token/generate",
             method="POST",

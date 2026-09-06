@@ -1,8 +1,3 @@
----
-title: Up.France.CodeInsights
-description: Application de consolidation des analyses de code et trajectoire vers un hub multi-rapports sur Azure.
----
-
 # Up.France.CodeInsights
 
 [![Application](https://dev.azure.com/up-group/c1dd9043-ad8d-467e-9cf6-646b6381ef0f/_apis/build/status/969?branchName=master&label=Application)](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=969)
