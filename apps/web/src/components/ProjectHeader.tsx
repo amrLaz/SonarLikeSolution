@@ -146,7 +146,7 @@ export default function ProjectHeader({
               <a className="commit-sha repository-reference" href={commitUrl} target="_blank" rel="noreferrer" title={selectedBranchData.commit_sha}>
                 {selectedBranchData.commit_sha.substring(0, 7)} ↗
               </a>
-            ) : <span className="commit-sha">Commit non disponible</span>}
+            ) : <span className="commit-sha" title={selectedBranchData.commit_sha}>{selectedBranchData.commit_sha?.substring(0, 7) || "Commit non disponible"}</span>}
             {pullRequestUrl && <a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">PR #{selectedBranchData.pr_id} ↗</a>}
             <span className="analysis-date">
               {new Date(selectedBranchData.created_at).toLocaleString()}

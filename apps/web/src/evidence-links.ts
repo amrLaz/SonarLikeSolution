@@ -12,9 +12,15 @@ type RepositoryProvider = 'github' | 'azure-devops' | 'other';
 
 function repositoryUrl(provider: RepositoryProvider, value: string | null | undefined): URL | null {
   if (provider === 'other') return null;
-  const safe = evidenceLink(value);
-  if (!safe) return null;
-  const url = new URL(safe);
+  let url: URL;
+  try {
+    url = new URL(value ?? '');
+  } catch {
+    return null;
+  }
+  const azureHost = url.hostname === 'dev.azure.com' || url.hostname.endsWith('.visualstudio.com');
+  if (provider === 'azure-devops' && url.protocol === 'https:' && azureHost && !url.password) url.username = '';
+  else if (!evidenceLink(url.href)) return null;
   url.search = '';
   url.hash = '';
   url.pathname = url.pathname.replace(/\/$/, '').replace(/\.git$/i, '');
