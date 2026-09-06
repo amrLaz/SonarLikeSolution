@@ -149,4 +149,6 @@ La navigation utilisateur est limitée à **Projects**, **Issues**, **Rules** et
 
 Depuis Projects, le nom d'un projet ouvre son détail. Ses cartes de métriques ouvrent les issues de la dernière analyse avec la catégorie correspondante. Le détail projet regroupe les courbes de même repère dans un graphique unique ; des onglets accessibles sélectionnent Scores, Percentages ou Findings. Les cartes de branches, les valeurs exactes et les preuves techniques ne sont pas répétées sous ce graphique.
 
+Déploiement v0.6.2 confirmé : pipeline Azure DevOps 276116 réussie depuis le tag v0.6.2 (commit 530c468). La production sert `index-CcH4zjmm.js` et `index-BNivBL2e.css` ; les sondes publiques répondent en HTTP 200. Dans le navigateur intégré, une carte métrique ouvre Issues avec ses filtres dans l'URL, le rechargement restaure ce parcours et le graphique groupé expose les trois onglets attendus.
+
 Issues réunit la localisation au commit analysé, le lien vers le code source, les preuves, l'assignation et la décision de revue. La définition d'une règle est consultée depuis un référentiel externe déclaré par le rapport ou reconnu à partir de son identifiant ; son contenu n'est pas copié dans la base.

@@ -55,6 +55,13 @@ L'acceptation organisationnelle des branch policies et la campagne de charge
 restent distinctes de ces checks fonctionnels. Aucun envoi externe n'est utilisé
 par les scénarios locaux.
 
+## Vérification Azure v0.6.2
+
+- [Application 276116](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276116) : succès le 6 septembre 2026 depuis le tag `v0.6.2`, source `530c4684c35bdb8cd7a68b7614f8447039312e31`.
+- La production sert les bundles React `index-CcH4zjmm.js` et `index-BNivBL2e.css` ; le footer authentifié affiche `CodeInsights · v0.6.2`.
+- Les sondes indépendantes `/api/v1/health`, `/healthz` et la page React répondent en HTTP 200 après le redémarrage.
+- Le navigateur intégré confirme la navigation d'une carte métrique vers Issues avec projet, branche, analyse et catégorie dans l'URL, puis leur restauration après rechargement. Le détail projet affiche un graphique groupé unique avec les onglets Scores, Percentages et Findings ; les raccourcis de sévérité et `Focus API` ne sont plus présents.
+
 ## Vérification Azure v0.5.0
 
 - [Infrastructure 276106](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276106) : succès le 6 septembre 2026 avec `apply=true` et `recreateDatabase=true`. Le garde-fou a limité les suppressions à la base applicative et aux quatre secrets Azure OpenAI retirés du produit.
