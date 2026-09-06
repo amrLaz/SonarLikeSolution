@@ -41,6 +41,7 @@ stages:
         steps:
           - checkout: self
             fetchDepth: 1
+            fetchTags: true
 
           - task: UseDotNet@2
             displayName: "Install .NET 10 SDK"
@@ -109,11 +110,14 @@ stages:
                   --username 00000000-0000-0000-0000-000000000000 \
                   --password-stdin
 
-                docker build --target web-builder -t codeinsights-web-checks -f Dockerfile .
+                APP_VERSION=$(git describe --tags --exact-match HEAD 2>/dev/null || printf 'build-%s-%s' "$BUILD_BUILDID" "$(git rev-parse --short HEAD)")
+                echo "Application version: $APP_VERSION"
+                docker build --build-arg "APP_VERSION=$APP_VERSION" --target web-builder -t codeinsights-web-checks -f Dockerfile .
                 docker run --rm codeinsights-web-checks npx tsc --noEmit --noUnusedLocals
                 docker run --rm codeinsights-web-checks sh -c 'for check in src/*.check.mjs; do node "$check" || exit 1; done'
 
                 docker build \
+                  --build-arg "APP_VERSION=$APP_VERSION" \
                   -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)" \
                   -t "$(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest" \
                   -f Dockerfile \

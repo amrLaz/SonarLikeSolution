@@ -1,6 +1,5 @@
 import type { FindingCategory } from './metric-display';
 
-export type ApiConnectionState = "connected" | "disconnected" | "checking";
 export type ScopeMode = "overall" | "new-code";
 export type AppTab = "projects" | "issues" | "vulnerabilities" | "rules" | "quality-gates" | "evolution" | "collaboration" | "portfolio" | "administration";
 export type AdminPrimaryTab = "configuration" | "security" | "projects";

@@ -1,3 +1,4 @@
+import InfoHint from './InfoHint';
 import type { AnalysisRecord, ProjectSummary } from '../types';
 import { analysisGateClass, analysisGateLabel } from '../metric-display';
 import AnalysisEvidence, { MetricGrid } from './AnalysisEvidence';
@@ -21,8 +22,7 @@ type ProjectsProps = {
 export default function Projects({ summaries, filteredSummaries, selectedSummary, selectedProject, selectedBranch, setSelectedProject, setSelectedBranch, setProjectSearch, loading, error, downloadExport }: ProjectsProps) {
   return (<section className="content-grid">
     <aside className="left-filters">
-      <h3>Filters</h3>
-      <p className="project-count-scope">Dernière analyse par projet de cette page et projet sélectionné, toutes branches.</p>
+      <h3>Filters <InfoHint>Dernière analyse par projet de cette page et projet sélectionné, toutes branches.</InfoHint></h3>
       <p>Projects: {filteredSummaries.length}</p>
       <p>Passed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === "pass").length}</p>
       <p>Failed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === "fail").length}</p>

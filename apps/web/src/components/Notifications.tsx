@@ -1,3 +1,4 @@
+import InfoHint from './InfoHint';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiJson } from '../api';
@@ -91,8 +92,9 @@ export default function Notifications({ authToken }: { authToken?: string }) {
   const toggleNotifChannel = (id: string, enabled: boolean) => channelMutation.mutate({ id, action: 'toggle', enabled });
   return (
     <>
-      <h2>Notifications</h2>
-      <p>Send alerts when a quality gate fails (or recovers). Supports generic webhooks (Teams, Slack, Power Automate…) and SMTP email.</p>
+      <h2>
+        Notifications <InfoHint>Send alerts when a quality gate fails (or recovers). Supports generic webhooks (Teams, Slack, Power Automate…) and SMTP email.</InfoHint>
+      </h2>
 
       {notifMessage && (
         <p className="feedback success" role="status">

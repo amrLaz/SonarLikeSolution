@@ -33,9 +33,11 @@ PKGJSON
 RUN npm install
 
 COPY apps/web/src/        ./src/
+COPY apps/web/public/     ./public/
 COPY apps/web/index.html  apps/web/vite.config.ts  apps/web/tsconfig.json  ./
 
-RUN npm run build
+ARG APP_VERSION=dev
+RUN VITE_APP_VERSION="$APP_VERSION" npm run build
 
 
 # ── Stage 2 : publish .NET API ────────────────────────────────────────────────

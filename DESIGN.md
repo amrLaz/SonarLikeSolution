@@ -6,7 +6,7 @@ Référence obligatoire pour toute modification d'interface dans ce dépôt, y c
 
 Interface de gouvernance **claire, technique et légèrement futuriste**, destinée aux développeurs et aux équipes qualité/sécurité. Le caractère technique vient de la composition, des contours précis et des références monospace. Priorités : lisibilité des résultats, contexte explicite, actions accessibles et densité utile.
 
-- Afficher le nom produit CodeInsights, conserver la marque Upcoop, les libellés de navigation et les parcours existants, sauf demande explicite de changement.
+- Afficher uniquement CodeInsights dans l'appbar ; la société Upcoop figure dans le copyright du footer. Conserver les libellés de navigation et les parcours existants.
 - Thème exclusivement clair, y compris lorsque le système d'exploitation préfère un thème sombre. Ne pas introduire de dark mode automatique ou de section inversée.
 - Pas de néon, glow, glassmorphism fort, gradients flashy, animation permanente ou décoration de type terminal fictif.
 - Réglages de référence : variation visuelle **4/10**, mouvement **2/10**, densité **6/10**. Ne pas transformer les écrans métier en landing pages.
@@ -44,15 +44,19 @@ Le bleu est l'accent de navigation et d'action ; vert, ambre et rouge sont rése
 
 ## Typographie, rythme et composition
 
-- Le nom produit CodeInsights reste visible à toutes les largeurs. Sur les écrans d'authentification, il conserve les 28 px existants ; dans le bandeau mobile, il se place sous la marque Upcoop.
+- Le nom produit CodeInsights reste visible à toutes les largeurs. Sur les écrans d'authentification, il conserve les 28 px existants ; dans le bandeau mobile, il partage la première ligne avec l'avatar et la déconnexion.
 
 - Réutiliser la police système sans serif définie sur `body`. Aucune nouvelle police externe ni dépendance typographique.
 - Employer `--font-mono` (`ui-monospace`, Cascadia Code, Consolas, monospace) et les chiffres tabulaires pour mesures, commits, règles et références de code. Les messages « Non disponible » restent en police de lecture.
 - Titres de page : échelle actuelle `clamp(1.4rem, 2vw, 1.85rem)`. Texte des contrôles et listes : généralement 13–14 px ; métadonnées : 12–13 px. Ne pas appliquer une taille de hero aux écrans métier.
 - Réutiliser le rythme existant : gaps de 0,5 / 0,75 / 1 / 1,5 / 2 rem ; padding de surface de 1 à 1,5 rem ; marge de page de 2 rem sur grand écran, 1 rem sur mobile.
 - Bordures fines de 1 px ; rayons de 4–6 px pour petits contrôles et badges, 8 px pour cartes, 10 px pour dialogues. Éviter les cartes imbriquées et les bordures décoratives répétées.
-- Conserver l'ordre : navigation/session/connexion API → titre et contexte projet/branche → périmètre et actions → verdict, état technique, commit/date → mesures et détails.
+- Conserver l'ordre : navigation/session → titre et contexte projet/branche → périmètre et actions → verdict, état technique, commit/date → mesures et détails.
 - Utiliser CSS Grid, `minmax(0, 1fr)` et `min-width: 0` pour les colonnes rétractables. Le cadre principal reste borné à 1440 px. Les noms de projet, branches et chemins longs doivent se replier sans élargir la page.
+
+## Icône de l'application
+
+L'icône de CodeInsights reprend le bouclier associant code et validation créé pour le Quality Hub : bleu `#005eb8`, texte sombre `#172a41` et blanc, sans dégradé ni ombre. [favicon.svg](apps/web/public/favicon.svg) est la source compacte ; [app-icon.svg](apps/web/public/app-icon.svg) fournit le fond plein et la zone de sécurité des icônes installables. Les PNG et l'ICO sont leurs déclinaisons ; toute évolution doit partir des SVG puis régénérer les formats dérivés.
 
 ## Composants et interactions
 
@@ -60,7 +64,7 @@ Les écrans métier de `apps/web/src/components/` possèdent leur présentation,
 
 | Besoin | Règle |
 | --- | --- |
-| Navigation | Réutiliser `.main-tabs` / `.main-tab`, état actif explicite et `aria-current`. Sur petit écran, défilement local de la navigation. |
+| Navigation | Réutiliser `.main-tabs` / `.main-tab`, état actif explicite et `aria-current`. Les onglets qui ne tiennent pas sont accessibles via les trois points verticaux et un menu natif ; aucune scrollbar sur la navigation principale. |
 | Actions | Boutons HTML natifs ; `.primary` pour l'action principale, contrôles neutres pour les actions secondaires, traitement danger uniquement pour une action destructive. |
 | Formulaire | Libellé associé à chaque champ, état désactivé ou lecture seule visible, retour d'erreur explicite. Préférer `<select>` aux menus personnalisés. |
 | Mesures | Réutiliser `.metric-grid` / `.metric-card` et les helpers de présentation. Conserver dimensions distinctes, unité visible et absence de donnée explicite. |
@@ -91,6 +95,15 @@ Les transitions servent au retour d'interaction : **durée de référence de 150
 2. Conserver React, CSS natif et les dépendances actuelles. Ne pas ajouter un autre design system, une bibliothèque d'icônes ou d'animation pour une variation esthétique.
 3. Modifier les règles CSS concernées plutôt qu'empiler des overrides ou utiliser `!important` pour masquer un conflit. Les styles dynamiques restent limités aux valeurs dépendantes des données.
 4. Appliquer les mêmes conventions aux nouveaux écrans et aux états d'erreur/chargement. Une ancienne divergence du code n'autorise pas à la reproduire.
-5. Pour une modification UI, vérifier 390, 768 et 1440 px, les noms longs, clavier/focus, états vides/erreurs et réduction du mouvement. Aucun débordement horizontal global ; le défilement local des tableaux/navigation est autorisé.
+5. Pour une modification UI, vérifier 390, 768 et 1440 px, les noms longs, clavier/focus, états vides/erreurs et réduction du mouvement. Aucun débordement horizontal global ; le défilement local des tableaux est autorisé ; la navigation utilise son menu de débordement.
 6. Exécuter les validations frontend pertinentes décrites dans [Interface](docs/interface.md) et consigner les limites de validation. Ne pas annoncer un contrôle navigateur non effectué.
 7. Mettre à jour `docs/` avec le comportement modifié. Toute évolution explicite du design system doit également mettre à jour ce fichier et les styles partagés dans le même changement.
+
+## Appbar, aides et footer
+
+- Appbar compacte : nom CodeInsights unique, avatar initiales (la session ne fournit pas de photo), nom complet accessible au survol et au focus, déconnexion par bouton icône nommé. Aucun badge API ni rôle technique à côté du nom.
+- Remplacer les descriptions introductives par un badge information utile, accessible au survol, au focus et au toucher, refermable avec Échap. Conserver visibles erreurs, avertissements métier, mesures absentes et périmètres nécessaires à leur interprétation.
+- Tous les champs natifs, y compris sans attribut type et les dates/heures, utilisent les tokens des formulaires. Les cases à cocher et radios gardent leur forme native.
+- Footer dans le flux, repoussé en bas des pages courtes : copyright Upcoop, année courante et version injectée au build Docker depuis le tag Git. Il ne recouvre jamais les contenus.
+
+Le badge information reste toujours à droite du titre ou du texte existant auquel il se rapporte, sur la même ligne. Regrouper les aides d'une section au même endroit ; ne pas créer des libellés ou lignes de texte uniquement pour porter un badge. Les sous-titres redondants, notamment « All projects » sous le titre principal, sont supprimés.

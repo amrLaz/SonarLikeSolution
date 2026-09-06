@@ -1,3 +1,4 @@
+import InfoHint from './InfoHint';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, apiJson } from '../api';
@@ -32,18 +33,22 @@ export default function CiTokens({ authToken }: { authToken?: string }) {
     queryFn: ({ signal }) => apiJson<PlatformTokenHistoryItem[]>(`${API_BASE}/v1/platform/token/history`, authToken, { signal }),
   });
   const platformTokenHistory = tokenHistoryQuery.data ?? [];
-  const invalidateTokens = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['tokens'] }),
-    queryClient.invalidateQueries({ queryKey: ['audit'] }),
-  ]);
+  const invalidateTokens = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['tokens'] }), queryClient.invalidateQueries({ queryKey: ['audit'] })]);
   const generateMutation = useMutation({
     gcTime: 0,
     mutationFn: async (mode: 'new' | 'rotate') => {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (mode === 'rotate') headers['X-Current-Platform-Token'] = platformTokenInput.trim();
       const result = await apiJson<{ token: string }>(`${API_BASE}/v1/platform/token/generate`, authToken, {
-        method: 'POST', headers,
-        body: JSON.stringify({ token_name: platformTokenName.trim(), ttl_days: platformTokenTtlDays, require_current_token: mode === 'rotate', project_keys: platformTokenProjectKeys, scopes: CI_TOKEN_SCOPES }),
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          token_name: platformTokenName.trim(),
+          ttl_days: platformTokenTtlDays,
+          require_current_token: mode === 'rotate',
+          project_keys: platformTokenProjectKeys,
+          scopes: CI_TOKEN_SCOPES,
+        }),
       });
       if (typeof result.token !== 'string' || !result.token) throw new Error('Token generation returned an invalid response.');
       return result.token;
@@ -61,16 +66,26 @@ export default function CiTokens({ authToken }: { authToken?: string }) {
   const revokingPlatformTokenId = revokeMutation.isPending ? revokeMutation.variables : null;
   const generatedPlatformToken = generateMutation.data;
   const platformTokenError = validationError ?? generateMutation.error?.message ?? revokeMutation.error?.message;
-  const readError = [projectsQuery, tokenStatusQuery, tokenHistoryQuery].find(query => query.isError)?.error?.message;
+  const readError = [projectsQuery, tokenStatusQuery, tokenHistoryQuery].find((query) => query.isError)?.error?.message;
   const generatePlatformToken = (mode: 'new' | 'rotate') => {
     if (generatingPlatformToken || revokeMutation.isPending) return;
     setValidationError(null);
-    if (!platformTokenProjectKeys.length) { setValidationError('Select at least one project for this token.'); return; }
-    if (!platformTokenName.trim()) { setValidationError('Token name is required.'); return; }
-    if (!Number.isInteger(platformTokenTtlDays) || Number(platformTokenTtlDays) < 1 || Number(platformTokenTtlDays) > 3650) {
-      setValidationError('Expiration must be a whole number between 1 and 3650 days.'); return;
+    if (!platformTokenProjectKeys.length) {
+      setValidationError('Select at least one project for this token.');
+      return;
     }
-    if (mode === 'rotate' && !platformTokenInput.trim()) { setValidationError('Current token is required to rotate.'); return; }
+    if (!platformTokenName.trim()) {
+      setValidationError('Token name is required.');
+      return;
+    }
+    if (!Number.isInteger(platformTokenTtlDays) || Number(platformTokenTtlDays) < 1 || Number(platformTokenTtlDays) > 3650) {
+      setValidationError('Expiration must be a whole number between 1 and 3650 days.');
+      return;
+    }
+    if (mode === 'rotate' && !platformTokenInput.trim()) {
+      setValidationError('Current token is required to rotate.');
+      return;
+    }
     if (mode === 'new' && !window.confirm('Generate this independent CI/CD token for the selected projects?')) return;
     revokeMutation.reset();
     generateMutation.mutate(mode);
@@ -81,155 +96,169 @@ export default function CiTokens({ authToken }: { authToken?: string }) {
     setValidationError(null);
     revokeMutation.mutate(tokenId);
   };
-  return (<>
-    <h2>PAT Management</h2>
-    {readError && <p className="feedback error" role="alert">{readError}</p>}
-    {revokeMutation.isSuccess && <p className="feedback success" role="status">CI/CD token revoked.</p>}
-    <p>
-      Used by Azure Pipelines or GitHub Actions to authenticate against this platform.
-      {platformTokenConfigured === true && " A token is currently active."}
-      {platformTokenConfigured === false && " No token configured — generate one to enable CI authentication."}
-    </p>
+  return (
+    <>
+      <h2>
+        PAT Management <InfoHint>Used by Azure Pipelines or GitHub Actions to authenticate against this platform.</InfoHint>
+      </h2>
+      {readError && (
+        <p className="feedback error" role="alert">
+          {readError}
+        </p>
+      )}
+      {revokeMutation.isSuccess && (
+        <p className="feedback success" role="status">
+          CI/CD token revoked.
+        </p>
+      )}
+      <p>
+        {platformTokenConfigured === true && ' A token is currently active.'}
+        {platformTokenConfigured === false && ' No token configured — generate one to enable CI authentication.'}
+      </p>
 
-    <div className="auth-card">
-      <div className="form-grid compact">
-        <label>
-          Token name
-          <input
-            value={platformTokenName}
-            onChange={(event) => setPlatformTokenName(event.target.value)}
-            placeholder="Azure DevOps CI token"
-          />
-        </label>
-        <label>
-          Expiration (days)
-          <input
-            type="number"
-            min={1}
-            max={3650}
-            value={platformTokenTtlDays}
-            onChange={(event) => {
-              const parsed = event.target.value === '' ? '' : Number(event.target.value);
-              setPlatformTokenTtlDays(parsed === '' || Number.isFinite(parsed) ? parsed : '');
-            }}
-          />
-        </label>
-        <label>
-          Authorized projects (required)
-          <select
-            multiple
-            size={Math.min(8, Math.max(3, projectCatalog.length))}
-            value={platformTokenProjectKeys}
-            disabled={accessCatalogLoading}
-            onChange={(event) => setPlatformTokenProjectKeys(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}
-          >
-            {projectCatalog.map((project) => (
-              <option key={project.id} value={project.key}>{project.name} ({project.key})</option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span className="issue-filter-label">Fixed scopes</span>
-          <p className="scope-note"><code>{CI_TOKEN_SCOPES.join(" · ")}</code></p>
-        </div>
-        {platformTokenConfigured && (
+      <div className="auth-card">
+        <div className="form-grid compact">
           <label>
-            Current token (requis pour rotation)
+            Token name
+            <input value={platformTokenName} onChange={(event) => setPlatformTokenName(event.target.value)} placeholder="Azure DevOps CI token" />
+          </label>
+          <label>
+            Expiration (days)
             <input
-              type="password"
-              value={platformTokenInput}
-              onChange={(event) => setPlatformTokenInput(event.target.value)}
-              placeholder="Coller le token actuel pour rotation sécurisée"
-              autoComplete="off"
+              type="number"
+              min={1}
+              max={3650}
+              value={platformTokenTtlDays}
+              onChange={(event) => {
+                const parsed = event.target.value === '' ? '' : Number(event.target.value);
+                setPlatformTokenTtlDays(parsed === '' || Number.isFinite(parsed) ? parsed : '');
+              }}
             />
           </label>
+          <label>
+            Authorized projects (required)
+            <select
+              multiple
+              size={Math.min(8, Math.max(3, projectCatalog.length))}
+              value={platformTokenProjectKeys}
+              disabled={accessCatalogLoading}
+              onChange={(event) => setPlatformTokenProjectKeys(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}
+            >
+              {projectCatalog.map((project) => (
+                <option key={project.id} value={project.key}>
+                  {project.name} ({project.key})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <span className="issue-filter-label">Fixed scopes</span>
+            <p className="scope-note">
+              <code>{CI_TOKEN_SCOPES.join(' · ')}</code>
+            </p>
+          </div>
+          {platformTokenConfigured && (
+            <label>
+              Current token (requis pour rotation)
+              <input
+                type="password"
+                value={platformTokenInput}
+                onChange={(event) => setPlatformTokenInput(event.target.value)}
+                placeholder="Coller le token actuel pour rotation sécurisée"
+                autoComplete="off"
+              />
+            </label>
+          )}
+        </div>
+
+        {platformTokenExpiresAt && (
+          <p style={{ fontSize: '0.85rem', color: platformTokenExpired ? 'var(--danger)' : 'var(--text-secondary)', margin: '0.5rem 0 0' }}>
+            {platformTokenExpired ? '⚠ Expiré le' : 'Expire le'} {new Date(platformTokenExpiresAt).toLocaleString()}
+          </p>
         )}
       </div>
 
-      {platformTokenExpiresAt && (
-        <p style={{ fontSize: "0.85rem", color: platformTokenExpired ? "var(--danger)" : "var(--text-secondary)", margin: "0.5rem 0 0" }}>
-          {platformTokenExpired ? "⚠ Expiré le" : "Expire le"} {new Date(platformTokenExpiresAt).toLocaleString()}
-        </p>
-      )}
-    </div>
-
-    <div className="action-row">
-      <button
-        type="button"
-        onClick={() => void generatePlatformToken("new")}
-        disabled={generatingPlatformToken || revokeMutation.isPending || platformTokenProjectKeys.length === 0 || accessCatalogLoading}
-      >
-        {generatingPlatformToken ? "Generating..." : "New token"}
-      </button>
-      {platformTokenConfigured && (
+      <div className="action-row">
         <button
           type="button"
-          onClick={() => void generatePlatformToken("rotate")}
+          onClick={() => void generatePlatformToken('new')}
           disabled={generatingPlatformToken || revokeMutation.isPending || platformTokenProjectKeys.length === 0 || accessCatalogLoading}
         >
-          {generatingPlatformToken ? "Rotating..." : "Rotate token"}
+          {generatingPlatformToken ? 'Generating...' : 'New token'}
         </button>
-      )}
-    </div>
-
-    {platformTokenError && (
-      <p className="feedback error" role="alert">
-        {platformTokenError}
-      </p>
-    )}
-
-    {generatedPlatformToken && (
-      <div className="auth-card" style={{ marginTop: "1rem", background: "var(--bg-light)" }}>
-        <h4 style={{ marginBottom: "0.5rem" }}>Token generated — copy it now, it won't be shown again</h4>
-        <code style={{
-          display: "block",
-          padding: "0.75rem",
-          background: "var(--bg-lighter)",
-          borderRadius: "4px",
-          wordBreak: "break-all",
-          fontSize: "0.85rem",
-          letterSpacing: "0.04em"
-        }}>
-          {generatedPlatformToken}
-        </code>
-        <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", opacity: 0.7 }}>
-          Set <strong>PLATFORM_API_TOKEN</strong> to this value in your Azure DevOps pipeline variables (as a secret).
-        </p>
+        {platformTokenConfigured && (
+          <button
+            type="button"
+            onClick={() => void generatePlatformToken('rotate')}
+            disabled={generatingPlatformToken || revokeMutation.isPending || platformTokenProjectKeys.length === 0 || accessCatalogLoading}
+          >
+            {generatingPlatformToken ? 'Rotating...' : 'Rotate token'}
+          </button>
+        )}
       </div>
-    )}
 
-    <div className="auth-card" style={{ marginTop: "1rem" }}>
-      <h4 style={{ marginBottom: "0.75rem" }}>Token history</h4>
-      {tokenHistoryQuery.isPending ? <p role="status">Loading token history…</p> : tokenHistoryQuery.isError ? null : platformTokenHistory.length === 0 ? (
-        <p style={{ margin: 0, opacity: 0.7 }}>No tokens generated yet.</p>
-      ) : (
-        <div className="token-history-list">
-          {platformTokenHistory.map((item) => (
-            <article key={item.token_id} className="token-history-item">
-              <div>
-                <strong>{item.token_name}</strong>
-                <p>
-                  Preview: {item.token_preview}
-                  {item.is_current ? " • current" : ""}
-                  {item.revoked ? " • revoked" : ""}
-                </p>
-                <p>Projects: {item.project_keys.length > 0 ? item.project_keys.join(", ") : "None"}</p>
-                <p>Scopes: {item.scopes.length > 0 ? item.scopes.join(", ") : "None"}</p>
-              </div>
-              <div>
-                <p>Created: {new Date(item.created_at).toLocaleString()}</p>
-                <p>Expires: {item.expires_at ? new Date(item.expires_at).toLocaleString() : "Never"}</p>
-                {!item.revoked && (
-                  <button type="button" className="danger" onClick={() => void revokePlatformToken(item.token_id)} disabled={revokeMutation.isPending || generatingPlatformToken}>
-                    {revokingPlatformTokenId === item.token_id ? "Revoking..." : "Revoke"}
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+      {platformTokenError && (
+        <p className="feedback error" role="alert">
+          {platformTokenError}
+        </p>
+      )}
+
+      {generatedPlatformToken && (
+        <div className="auth-card" style={{ marginTop: '1rem', background: 'var(--bg-light)' }}>
+          <h4 style={{ marginBottom: '0.5rem' }}>Token generated — copy it now, it won't be shown again</h4>
+          <code
+            style={{
+              display: 'block',
+              padding: '0.75rem',
+              background: 'var(--bg-lighter)',
+              borderRadius: '4px',
+              wordBreak: 'break-all',
+              fontSize: '0.85rem',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {generatedPlatformToken}
+          </code>
+          <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', opacity: 0.7 }}>
+            Set <strong>PLATFORM_API_TOKEN</strong> to this value in your Azure DevOps pipeline variables (as a secret).
+          </p>
         </div>
       )}
-    </div>
-  </>);
-}
 
+      <div className="auth-card" style={{ marginTop: '1rem' }}>
+        <h4 style={{ marginBottom: '0.75rem' }}>Token history</h4>
+        {tokenHistoryQuery.isPending ? (
+          <p role="status">Loading token history…</p>
+        ) : tokenHistoryQuery.isError ? null : platformTokenHistory.length === 0 ? (
+          <p style={{ margin: 0, opacity: 0.7 }}>No tokens generated yet.</p>
+        ) : (
+          <div className="token-history-list">
+            {platformTokenHistory.map((item) => (
+              <article key={item.token_id} className="token-history-item">
+                <div>
+                  <strong>{item.token_name}</strong>
+                  <p>
+                    Preview: {item.token_preview}
+                    {item.is_current ? ' • current' : ''}
+                    {item.revoked ? ' • revoked' : ''}
+                  </p>
+                  <p>Projects: {item.project_keys.length > 0 ? item.project_keys.join(', ') : 'None'}</p>
+                  <p>Scopes: {item.scopes.length > 0 ? item.scopes.join(', ') : 'None'}</p>
+                </div>
+                <div>
+                  <p>Created: {new Date(item.created_at).toLocaleString()}</p>
+                  <p>Expires: {item.expires_at ? new Date(item.expires_at).toLocaleString() : 'Never'}</p>
+                  {!item.revoked && (
+                    <button type="button" className="danger" onClick={() => void revokePlatformToken(item.token_id)} disabled={revokeMutation.isPending || generatingPlatformToken}>
+                      {revokingPlatformTokenId === item.token_id ? 'Revoking...' : 'Revoke'}
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

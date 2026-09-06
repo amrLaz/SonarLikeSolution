@@ -9,17 +9,35 @@ async function load(name) {
   });
   return import(`data:text/javascript;base64,${Buffer.from(outputText.replace("'@tanstack/react-query'", JSON.stringify(import.meta.resolve('@tanstack/react-query')))).toString('base64')}`);
 }
-const { apiFetch, apiJson, apiPage } = await load('./api.ts');
+const { apiFetch, apiJson, apiPage, sessionEvents } = await load('./api.ts');
 const { createSessionQueryClient } = await load('./query-client.ts');
 const originalFetch = globalThis.fetch;
 const clients = [];
 try {
+  const expiredTokens = [];
+  sessionEvents.addEventListener('expired', (event) => expiredTokens.push(event.detail));
   for (const status of [401, 403, 422, 500]) {
     let success = false;
     globalThis.fetch = async () => new Response(JSON.stringify({ detail: 'Refused' }), { status });
-    await assert.rejects(apiFetch('/write', 'test-only', { method: 'DELETE' }).then(() => { success = true; }), /Refused/);
+    await assert.rejects(
+      apiFetch('/write', 'test-only', { method: 'DELETE' }).then(() => {
+        success = true;
+      }),
+      /Refused/,
+    );
     assert.equal(success, false);
   }
+  assert.deepEqual(expiredTokens, ['test-only'], 'Only authenticated 401 responses expire a session');
+  globalThis.fetch = async () => new Response('not JSON', { status: 401 });
+  await assert.rejects(apiFetch('/private', 'expired-token'), /401/);
+  assert.deepEqual(expiredTokens, ['test-only', 'expired-token'], 'Non-JSON 401 must also expire a session');
+  await assert.rejects(apiFetch('/login'), /401/);
+  assert.equal(expiredTokens.length, 2, 'Anonymous failures must not clear a session');
+  globalThis.fetch = async () => {
+    throw new TypeError('Network error');
+  };
+  await assert.rejects(apiFetch('/private', 'valid-token'), /Network error/);
+  assert.equal(expiredTokens.length, 2, 'Network failures must preserve the session');
   globalThis.fetch = async () => new Response('bad gateway', { status: 502 });
   await assert.rejects(apiFetch('/write'), /502/);
   globalThis.fetch = async (_url, init) => {
@@ -34,14 +52,20 @@ try {
   globalThis.fetch = async () => Response.json([]);
   assert.deepEqual(await apiPage('/read'), { items: [], next: null });
 
-  const a = createSessionQueryClient(), b = createSessionQueryClient();
+  const a = createSessionQueryClient(),
+    b = createSessionQueryClient();
   clients.push(a, b);
   let release;
   let signal;
-  const oldRead = a.fetchQuery({ queryKey: ['analyses'], queryFn: context => {
-    signal = context.signal;
-    return new Promise(resolve => { release = resolve; });
-  } });
+  const oldRead = a.fetchQuery({
+    queryKey: ['analyses'],
+    queryFn: (context) => {
+      signal = context.signal;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    },
+  });
   const cancelled = assert.rejects(oldRead);
   await a.cancelQueries();
   await cancelled;
@@ -52,7 +76,8 @@ try {
   assert.equal(a.getQueryData(['analyses']), undefined);
 
   const observer = new InfiniteQueryObserver(b, {
-    queryKey: ['audit', { actor: 'A' }], initialPageParam: 0,
+    queryKey: ['audit', { actor: 'A' }],
+    initialPageParam: 0,
     queryFn: async ({ pageParam }) => ({ entries: [`A-${pageParam}`] }),
     getNextPageParam: (_page, pages) => pages.length,
   });
@@ -60,8 +85,10 @@ try {
   await observer.refetch();
   await observer.fetchNextPage();
   observer.setOptions({
-    queryKey: ['audit', { actor: 'B' }], initialPageParam: 0,
-    queryFn: async () => ({ entries: ['B-0'] }), getNextPageParam: () => undefined,
+    queryKey: ['audit', { actor: 'B' }],
+    initialPageParam: 0,
+    queryFn: async () => ({ entries: ['B-0'] }),
+    getNextPageParam: () => undefined,
   });
   await observer.refetch();
   assert.deepEqual(observer.getCurrentResult().data.pages, [{ entries: ['B-0'] }]);
@@ -71,5 +98,5 @@ try {
   console.log('HTTP, session cancellation and paginated cache checks passed.');
 } finally {
   globalThis.fetch = originalFetch;
-  clients.forEach(client => client.clear());
+  clients.forEach((client) => client.clear());
 }

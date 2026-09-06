@@ -15,6 +15,10 @@ L'en-tête sépare marque, navigation, session et connexion API. Le titre de l'�
 
 Les formulaires, listes, filtres, états vides et erreurs suivent les mêmes styles. Sur petit écran, les grilles se replient et les navigations/tableaux larges défilent dans leur propre zone. Les sélections de branche sont natives, les cartes projets et titres de règles sont activables au clavier. Un lien d'évitement mène au contenu. Les dialogues utilisent `showModal()` pour rendre le fond inerte ; Échap ferme le dialogue hors sauvegarde/suppression en cours et restitue le focus au bouton d'ouverture.
 
+Le navigateur utilise le titre et le nom d'application « CodeInsights », une favicon SVG avec repli ICO, une icône Apple Touch et un manifest avec icônes 192×192 et 512×512 compatibles `maskable`. Les fichiers de `apps/web/public` sont copiés dans le build Vite par le Dockerfile. Aucun fonctionnement hors ligne n'est annoncé.
+
+Les sept assets originaux de la tâche « Ajouter favicon et assets SPA » ont été récupérés depuis l'image locale `quality-hub:web-assets-check` ; les six fichiers graphiques sont conservés à l'identique, seuls les noms du manifest sont adaptés à CodeInsights.
+
 ## Données serveur et formulaires
 
 Le frontend utilise React/React DOM **19.2.8**, TanStack Query **5.102.8**, TypeScript et Vite. Les types React **19.2.18** et React DOM **19.2.7** sont déclarés avec ces dépendances dans le [Dockerfile](../Dockerfile). Le manifeste reste généré pendant le build ; l'installation utilise encore `npm install`, sans lockfile consommé par ce stage.
@@ -105,7 +109,7 @@ Validation P1 locale : typage TypeScript avec `--noUnusedLocals` et les quatre c
 
 ## Vérification reproductible
 
-Le nom produit affiché est **CodeInsights** : titre du navigateur, écrans de connexion et de déconnexion, bandeau principal et nom d'instance par défaut. La marque Upcoop reste dans le bandeau. Le nom reste visible sur mobile sous la marque ; le texte de connexion mesure 28 px. Le dépôt et le dossier se nomment `Up.France.CodeInsights`.
+Le nom produit affiché est **CodeInsights** : titre du navigateur, écrans de connexion et de déconnexion, bandeau principal et nom d'instance par défaut. La société Upcoop figure dans le copyright du footer. Le nom reste visible sur mobile ; le texte de connexion mesure 28 px. Le dépôt et le dossier se nomment `Up.France.CodeInsights`.
 
 Depuis la racine du dépôt, utiliser la recette frontend existante (le manifeste npm reste défini dans le Dockerfile) :
 
@@ -131,3 +135,17 @@ La recette ci-dessus construit uniquement le frontend : elle ne démarre pas l'A
 Pour valider le raccordement à l'API .NET, lancer les checks HTTP décrits dans [validation.md](validation.md), puis vérifier login local, analyses, détail des findings, administration et téléchargements dans le navigateur intégré. Relever séparément la compilation, les probes API, les checks HTTP et les parcours navigateur ; cette procédure ne signifie pas que toutes ces étapes ont déjà été exécutées sur la version en cours.
 
 La validation navigateur locale utilise des réponses de test isolées, sans identité ni données de production : les sept onglets aux largeurs 390, 768 et 1440 px, noms longs, filtres sans résultat, mesures absentes et zéro, verdict inconnu, historique avec ruptures, rôles `admin`/`regular`/`default`, connexion au clavier, dialogues, erreurs de chargement et absence d'analyses. La réduction des animations est contrôlée par émulation de la préférence navigateur. Les essais frontend ne valident pas l'autorisation serveur ni une intégration Azure réelle.
+
+## Session et interface — v0.4.0
+
+Une réponse HTTP 401 à une requête authentifiée efface la session persistée et remonte un arbre de connexion avec un cache neuf ; les lectures de l'ancienne session sont annulées. Un 401 tardif d'une autre identité est ignoré. Les 403, erreurs réseau et erreurs serveur restent des erreurs de consultation sans déconnexion. Un échec de connexion anonyme ne déclenche pas ce mécanisme.
+
+L'appbar affiche CodeInsights, les initiales utilisateur avec le nom complet (sans rôle default) au survol, et une icône de déconnexion nommée. La session actuelle ne fournit pas de photo. Le badge API est supprimé. Les descriptions introductives deviennent des badges information accessibles au clavier et au toucher ; les erreurs et limites des résultats restent explicites. Le texte technique de pagination des projets et branches est supprimé, en conservant les boutons de continuation.
+
+Le footer affiche © année courante Upcoop et la version Vite injectée par Docker à partir du tag Git exact ; voir [Exploitation](exploitation.md). Il reste en bas d'une page courte et suit le contenu d'une page longue. Les champs sans type explicite et les dates/heures suivent désormais les mêmes tokens que les autres champs.
+
+Les badges sont placés à droite du titre ou texte associé, y compris sur mobile. Les aides d'une même section sont regroupées et le contexte « All projects » redondant sous le titre est retiré.
+
+L'Administration n'affiche pas les contrôles globaux Overall / New Code / Refresh ni le contexte d'analyse. La navigation principale ne défile pas : les onglets qui dépassent la largeur disponible sont accessibles par un bouton à trois points verticaux et un menu.
+
+Validation locale v0.4.0 (6 septembre 2026) : compilation .NET Release sans avertissement, build Docker complet, typage TypeScript strict et tous les checks Node réussis, dont les nouveaux checks de concurrence de session, de badge information et de calcul du débordement de navigation. Navigateur intégré avec API simulée isolée : retour à Sign In sur 401, maintien de session et erreur visible sur 403, appbar et champs natifs, badges au clavier/Échap, menu ⋮ et absence de débordement global à 390/768/1440 px, absence des contrôles d'analyse dans Administration. Les probes de production restent à vérifier après déploiement.
