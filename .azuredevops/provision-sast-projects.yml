@@ -153,6 +153,14 @@ steps:
             None,
         )
         if analyst:
+            if analyst["role"] != "admin" or not analyst["is_active"]:
+                call(
+                    f"/api/v1/auth/users/{analyst['user_id']}",
+                    method="PUT",
+                    token=session,
+                    payload={"role": "admin", "is_active": True},
+                )
+                print("Pilot administrator role restored")
             organization_ids = sorted(
                 grant["scope_id"]
                 for grant in analyst["grants"]
@@ -177,7 +185,7 @@ steps:
                     "project_keys": project_keys,
                 },
             )
-            print("Analyst access granted without removing existing grants")
+            print("Pilot project access restored without removing existing grants")
 
         generated = call(
             "/api/v1/platform/token/generate",

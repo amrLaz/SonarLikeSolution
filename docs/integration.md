@@ -68,8 +68,10 @@ profil `platform-sast` version `1`, génère un jeton limité à `analysis:read`
 Vault `codeinsights-ci-token`. Ce dernier scope permet au stage `v1.1.7`
 d'enregistrer le lien vers le dépôt et la pipeline avant l'analyse. La valeur
 n'est ni affichée ni versionnée. Les pipelines consommatrices y accèdent via le
-groupe Key Vault `CodeInsights.Analysis`. Le compte Entra du pilote reçoit un
-accès en lecture aux trois projets sans suppression de ses attributions existantes.
+groupe Key Vault `CodeInsights.Analysis`. Le compte Entra du pilote retrouve son
+rôle administrateur et un accès aux trois projets sans suppression de ses
+attributions existantes. Cette remise en état n'est appliquée qu'après sa première
+reconnexion Entra, lorsque son identité existe de nouveau dans la base.
 Lors du premier passage, la valeur Entra est fournie uniquement comme variable
 secrète de queue `CodeInsightsEntraClientSecret` ; la connexion de service la
 place dans Key Vault pour les exécutions suivantes. Elle ne doit jamais être
