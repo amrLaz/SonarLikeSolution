@@ -111,7 +111,7 @@ steps:
                 "ttl_days": 3650,
                 "require_current_token": False,
                 "project_keys": [key for key, _ in projects],
-                "scopes": ["analysis:read", "analysis:write"],
+                "scopes": ["analysis:read", "analysis:write", "integration:write"],
             },
         )
         descriptor = os.open(
