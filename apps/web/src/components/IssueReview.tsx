@@ -41,12 +41,14 @@ export function FindingReview({
   projectKey,
   authToken,
   isAdmin,
+  branchUrl,
 }: {
   findingId?: string | null;
   occurrenceId?: number;
   projectKey: string;
   authToken?: string;
   isAdmin: boolean;
+  branchUrl?: string | null;
 }) {
   const client = useQueryClient();
   const [adoptedId, setAdoptedId] = useState('');
@@ -78,12 +80,12 @@ export function FindingReview({
           {(finding.error ?? adopt.error)?.message}
         </p>
       )}
-      {finding.data && <IssueEditor key={`${finding.data.id}-${finding.data.version}`} finding={finding.data} projectKey={projectKey} authToken={authToken} isAdmin={isAdmin} />}
+      {finding.data && <IssueEditor key={`${finding.data.id}-${finding.data.version}`} finding={finding.data} projectKey={projectKey} authToken={authToken} isAdmin={isAdmin} branchUrl={branchUrl} />}
     </section>
   );
 }
 
-function IssueEditor({ finding, projectKey, authToken, isAdmin }: { finding: Finding; projectKey: string; authToken?: string; isAdmin: boolean }) {
+function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { finding: Finding; projectKey: string; authToken?: string; isAdmin: boolean; branchUrl?: string | null }) {
   const prefix = useId();
   const client = useQueryClient();
   const [comment, setComment] = useState('');
@@ -136,7 +138,7 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin }: { finding: Fin
     <>
       <h3>Traitement</h3>
       <p>
-        <strong>{FINDING_STATES[finding.effective_state] ?? finding.effective_state}</strong> · {finding.branch} · vu le {new Date(finding.last_seen_at).toLocaleString()}
+        <strong>{FINDING_STATES[finding.effective_state] ?? finding.effective_state}</strong> · {branchUrl ? <a href={branchUrl} target="_blank" rel="noreferrer">{finding.branch} ↗</a> : finding.branch} · vu le {new Date(finding.last_seen_at).toLocaleString()}
       </p>
       {finding.state !== finding.effective_state && <p role="status">L’exception a expiré : l’issue est de nouveau ouverte.</p>}
       {[teams.error, people.error, decisions.error, save.error].filter(Boolean).map((error, index) => (

@@ -755,12 +755,6 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           <h1>{visibleTabs.find((tab) => tab.id === activeTab)?.label}</h1>
           <InfoHint label="À propos de cette vue">{TAB_HELP[activeTab]}</InfoHint>
         </div>
-        {!independentScope && selectedProject && (
-          <div className="workspace-context">
-            <span>{selectedProject}</span>
-            {selectedProject && selectedBranch && <code>{selectedBranch}</code>}
-          </div>
-        )}
       </header>
 
       {!independentScope && (
@@ -795,7 +789,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         </section>
       )}
 
-      {!independentScope && scopeMode === 'new-code' && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} />}
+      {!independentScope && scopeMode === 'new-code' && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} repoProvider={projectMeta[selectedProject]?.repoProvider} repoUrl={projectMeta[selectedProject]?.repoUrl} />}
       {!independentScope && loading && (
         <p className="feedback" role="status">
           Loading analysis data…
@@ -853,9 +847,8 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
         </div>
       )}
-      {selectedProject && ['projects', 'issues'].includes(activeTab) && (
+      {selectedProject && ['projects', 'issues'].includes(activeTab) && (historyCursor || analysesQuery.data?.next) && (
         <div className="action-row" aria-label="Analysis history pages">
-          <span>Historique : {analyses.length} analyses sur cette page (50 par page ; un lien direct peut ajouter son analyse).</span>
           {historyCursor && (
             <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>
               Première page
@@ -887,6 +880,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           setProjectSearch={setProjectSearch}
           loading={loading}
           error={error}
+          projectMeta={projectMeta}
           onOpenIssues={(summary, severity: IssueSeverityFilter = 'all', category: IssueTypeFilter = 'all') => {
             const nextIssues = { ...defaultIssueFilters, severity, category };
             pushWorkspaceState({ ...workspaceUrlState, tab: 'issues', project: summary.projectKey, branch: summary.latest.branch, analysis: summary.latest.analysis_id, issues: nextIssues });

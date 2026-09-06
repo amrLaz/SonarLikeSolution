@@ -47,10 +47,6 @@
 }
 .branch-selector-button {
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  text-align: left;
 }
 .branch-name,
 .branch-option-name {

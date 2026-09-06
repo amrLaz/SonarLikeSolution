@@ -134,6 +134,7 @@ export type AnalysisRecord = {
   project_key: string;
   commit_sha: string;
   branch: string;
+  pr_id?: string | null;
   ci_provider: 'azure-devops' | 'github-actions' | 'local';
   status: 'queued' | 'running' | 'completed' | 'failed';
   quality_gate: 'pass' | 'fail' | 'unknown';

@@ -2,6 +2,7 @@ import InfoHint from './InfoHint';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiJson, apiPage } from '../api';
+import { repositoryCommitLink } from '../evidence-links';
 
 type Comparison = {
   state: string;
@@ -31,12 +32,14 @@ type Component = {
 };
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 
-export function NewCode({ analysisId, token }: { analysisId: string; token?: string }) {
+export function NewCode({ analysisId, token, repoProvider = 'other', repoUrl }: { analysisId: string; token?: string; repoProvider?: 'github' | 'azure-devops' | 'other'; repoUrl?: string }) {
   const query = useQuery({
     queryKey: ['comparison', analysisId],
     enabled: !!analysisId,
     queryFn: ({ signal }) => apiJson<Comparison>(`${API}/v1/insights/analyses/${encodeURIComponent(analysisId)}/comparison`, token, { signal }),
   });
+  const baseUrl = repositoryCommitLink(repoProvider, repoUrl, query.data?.base_sha);
+  const headUrl = repositoryCommitLink(repoProvider, repoUrl, query.data?.head_sha);
   return (
     <section className="panel comparison-panel">
       <h2>
@@ -55,7 +58,9 @@ export function NewCode({ analysisId, token }: { analysisId: string; token?: str
           <p className="scope-note">
             Baseline : <code>{query.data.baseline_id ?? 'Non disponible'}</code>
             <br />
-            <code>{query.data.base_sha ?? 'Non disponible'}</code> → <code>{query.data.head_sha ?? 'Non disponible'}</code>
+            {baseUrl ? <a className="repository-reference" href={baseUrl} target="_blank" rel="noreferrer"><code>{query.data.base_sha}</code> ↗</a> : <code>{query.data.base_sha ?? 'Non disponible'}</code>}
+            {' → '}
+            {headUrl ? <a className="repository-reference" href={headUrl} target="_blank" rel="noreferrer"><code>{query.data.head_sha}</code> ↗</a> : <code>{query.data.head_sha ?? 'Non disponible'}</code>}
           </p>
           <dl className="metric-grid">
             {(

@@ -8,6 +8,44 @@ export function evidenceLink(value: string | null | undefined): string | null {
   }
 }
 
+type RepositoryProvider = 'github' | 'azure-devops' | 'other';
+
+function repositoryUrl(provider: RepositoryProvider, value: string | null | undefined): URL | null {
+  if (provider === 'other') return null;
+  const safe = evidenceLink(value);
+  if (!safe) return null;
+  const url = new URL(safe);
+  url.search = '';
+  url.hash = '';
+  url.pathname = url.pathname.replace(/\/$/, '').replace(/\.git$/i, '');
+  return url;
+}
+
+export function repositoryCommitLink(provider: RepositoryProvider, repoUrl: string | null | undefined, commit: string | null | undefined): string | null {
+  const repo = repositoryUrl(provider, repoUrl);
+  const sha = commit?.trim() ?? '';
+  if (!repo || !/^[a-f0-9]{6,64}$/i.test(sha)) return null;
+  repo.pathname += `/commit/${sha}`;
+  return repo.href;
+}
+
+export function repositoryBranchLink(provider: RepositoryProvider, repoUrl: string | null | undefined, branch: string | null | undefined): string | null {
+  const repo = repositoryUrl(provider, repoUrl);
+  const name = branch?.trim() ?? '';
+  if (!repo || !name || name.length > 255 || Array.from(name).some((character) => character.charCodeAt(0) < 32)) return null;
+  if (provider === 'azure-devops') repo.searchParams.set('version', `GB${name}`);
+  else repo.pathname += `/tree/${name.split('/').map(encodeURIComponent).join('/')}`;
+  return repo.href;
+}
+
+export function repositoryPullRequestLink(provider: RepositoryProvider, repoUrl: string | null | undefined, pullRequest: string | null | undefined): string | null {
+  const repo = repositoryUrl(provider, repoUrl);
+  const id = pullRequest?.trim() ?? '';
+  if (!repo || !/^\d+$/.test(id)) return null;
+  repo.pathname += provider === 'azure-devops' ? `/pullrequest/${id}` : `/pull/${id}`;
+  return repo.href;
+}
+
 export function ruleDefinitionLink(tool: string, ruleId: string): string | null {
   const rule = ruleId.trim();
   const upper = rule.toUpperCase();

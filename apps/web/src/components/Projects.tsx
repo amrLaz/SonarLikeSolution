@@ -1,6 +1,7 @@
 import InfoHint from './InfoHint';
-import type { AnalysisRecord, IssueSeverityFilter, IssueTypeFilter, ProjectSummary } from '../types';
+import type { AnalysisRecord, IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import { analysisGateClass, analysisGateLabel } from '../metric-display';
+import { repositoryBranchLink, repositoryCommitLink, repositoryPullRequestLink } from '../evidence-links';
 import { MetricGrid, type MetricKey } from './AnalysisEvidence';
 import MetricsHistory from './MetricsHistory';
 
@@ -16,6 +17,7 @@ type ProjectsProps = {
   setProjectSearch: (search: string) => void;
   loading: boolean;
   error?: string | null;
+  projectMeta: Record<string, ProjectMeta>;
   onOpenIssues: (summary: ProjectSummary, severity?: IssueSeverityFilter, category?: IssueTypeFilter) => void;
 };
 
@@ -44,6 +46,7 @@ export default function Projects({
   setProjectSearch,
   loading,
   error,
+  projectMeta,
   onOpenIssues,
 }: ProjectsProps) {
   return (
@@ -117,27 +120,16 @@ export default function Projects({
                 }
                 const branches = selectedSummary.branches?.map((branch) => branch.name).sort() ?? Array.from(branchMap.keys()).sort();
                 const activeBranch = selectedBranch || (branches.length > 0 ? branches[0] : '');
+                const repository = projectMeta[selectedSummary.projectKey];
+                const branchUrl = repositoryBranchLink(repository?.repoProvider ?? 'other', repository?.repoUrl, activeBranch);
 
                 return (
-                  <select
-                    id="dashboard-branch"
-                    value={activeBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '4px',
-                      border: '1px solid var(--border)',
-                      fontSize: '14px',
-                      width: '100%',
-                      backgroundColor: 'var(--bg-lighter)',
-                    }}
-                  >
-                    {branches.map((branch) => (
-                      <option key={branch} value={branch}>
-                        {branch}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="reference-select">
+                    <select id="dashboard-branch" value={activeBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+                      {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                    </select>
+                    {branchUrl && <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${activeBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">↗</a>}
+                  </div>
                 );
               })()
             ) : (
@@ -184,6 +176,9 @@ export default function Projects({
 
               const activeBranch = selectedBranch || (branches.length > 0 ? branches[0].name : null);
               const detailedBranch = branches.find((b) => b.name === activeBranch);
+              const repository = projectMeta[selectedSummary.projectKey];
+              const commitUrl = repositoryCommitLink(repository?.repoProvider ?? 'other', repository?.repoUrl, detailedBranch?.latest.commit_sha);
+              const pullRequestUrl = repositoryPullRequestLink(repository?.repoProvider ?? 'other', repository?.repoUrl, detailedBranch?.latest.pr_id);
 
               return branches.length === 0 ? (
                 <p style={{ opacity: 0.7 }}>No branches found for this project</p>
@@ -203,8 +198,10 @@ export default function Projects({
                           <strong>Analysis:</strong> {detailedBranch.latest.status}
                         </p>
                         <p>
-                          <strong>Commit:</strong> <code>{detailedBranch.latest.commit_sha || 'Non disponible'}</code>
+                          <strong>Commit:</strong>{' '}
+                          {commitUrl ? <a className="repository-reference" href={commitUrl} target="_blank" rel="noreferrer"><code>{detailedBranch.latest.commit_sha}</code> ↗</a> : <code>{detailedBranch.latest.commit_sha || 'Non disponible'}</code>}
                         </p>
+                        {pullRequestUrl && <p><strong>PR:</strong>{' '}<a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">#{detailedBranch.latest.pr_id} ↗</a></p>}
                         <p>
                           <strong>Last:</strong> {new Date(detailedBranch.latest.created_at).toLocaleString()}
                         </p>

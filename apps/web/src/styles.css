@@ -614,12 +614,29 @@ button:disabled,
 }
 
 .issue-filter-group select,
-.issue-filter-group input {
+.issue-filter-group input:not([type='checkbox']) {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 13px;
+}
+
+.collaboration-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.collaboration-checkbox input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .issue-filter-btn {
@@ -1765,14 +1782,7 @@ button:disabled,
   letter-spacing: -0.035em;
   line-height: 1.25;
 }
-.workspace-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  overflow-wrap: anywhere;
-}
-.workspace-header p,
-.workspace-context {
+.workspace-header p {
   margin-top: 0.4rem;
   color: var(--text-secondary);
   font-size: 13px;
@@ -1953,10 +1963,18 @@ pre {
   padding: 1.25rem;
 }
 .metric-card:has(.metric-card-link) {
-  transition: background-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
 }
-.metric-card:has(.metric-card-link):hover {
+.metric-card:has(.metric-card-link):hover,
+.metric-card:has(.metric-card-link:focus-visible) {
   background: var(--primary-light);
+  box-shadow: inset 0 0 0 2px var(--primary);
+  z-index: 1;
+}
+.metric-card:has(.metric-card-link):hover dt,
+.metric-card:has(.metric-card-link:focus-visible) dt {
+  color: var(--primary-dark);
 }
 .metric-card-link {
   position: absolute;
@@ -1967,6 +1985,7 @@ pre {
   border: 0;
   border-radius: 0;
   background: transparent;
+  cursor: pointer;
 }
 .metric-card-link:hover {
   background: transparent;
@@ -2084,6 +2103,32 @@ pre {
 .project-context-selectors select {
   width: 100%;
   min-width: 0;
+}
+.reference-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.reference-select > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-lighter);
+  text-decoration: none;
+}
+.reference-select > a:hover,
+.repository-reference:hover,
+.issue-revision a:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+.repository-reference,
+.issue-revision a {
+  font-weight: 600;
 }
 .project-overview {
   padding: 1.5rem;

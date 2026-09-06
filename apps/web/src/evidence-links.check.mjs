@@ -15,6 +15,14 @@ assert.equal(exports.ruleDefinitionLink('dotnet', 'CA2000'), 'https://learn.micr
 assert.equal(exports.ruleDefinitionLink('scanner', 'CWE-79'), 'https://cwe.mitre.org/data/definitions/79.html');
 assert.equal(exports.ruleDefinitionLink('scanner', 'CVE-2026-12345'), 'https://nvd.nist.gov/vuln/detail/CVE-2026-12345');
 assert.equal(exports.ruleDefinitionLink('unknown', 'custom-rule'), null);
+assert.equal(exports.repositoryCommitLink('azure-devops', 'https://dev.azure.com/up-group/project/_git/repo', 'abc1234'), 'https://dev.azure.com/up-group/project/_git/repo/commit/abc1234');
+assert.equal(exports.repositoryBranchLink('azure-devops', 'https://dev.azure.com/up-group/project/_git/repo', 'feature/a b'), 'https://dev.azure.com/up-group/project/_git/repo?version=GBfeature%2Fa+b');
+assert.equal(exports.repositoryPullRequestLink('azure-devops', 'https://dev.azure.com/up-group/project/_git/repo', '42'), 'https://dev.azure.com/up-group/project/_git/repo/pullrequest/42');
+assert.equal(exports.repositoryCommitLink('github', 'https://github.com/up/repo.git', 'abcdef1'), 'https://github.com/up/repo/commit/abcdef1');
+assert.equal(exports.repositoryBranchLink('github', 'https://github.com/up/repo.git', 'feature/link'), 'https://github.com/up/repo/tree/feature/link');
+for (const unsafe of ['javascript:alert(1)', 'https://user:secret@example.com/repo']) assert.equal(exports.repositoryCommitLink('azure-devops', unsafe, 'abcdef1'), null);
+assert.equal(exports.repositoryCommitLink('other', 'https://example.com/repo', 'abcdef1'), null);
+assert.equal(exports.repositoryPullRequestLink('azure-devops', 'https://dev.azure.com/up/p/_git/r', '../42'), null);
 const nativeRequire = createRequire(import.meta.url);
 function load(relativePath) {
   const exports = {};

@@ -6,7 +6,7 @@ import { findingCategory, findingCategoryLabel } from '../metric-display';
 import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
 import { FindingReview, FINDING_STATES, type Team } from './IssueReview';
-import { evidenceLink, ruleDefinitionLink } from '../evidence-links';
+import { evidenceLink, repositoryBranchLink, repositoryCommitLink, ruleDefinitionLink } from '../evidence-links';
 import type { IssueFilters } from '../navigation-state';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 type Props = {
@@ -59,6 +59,7 @@ export default function Issues({
   selectedAnalysisId,
   selectedSummary,
   summaries,
+  projectMeta,
   setSelectedProject,
   setSelectedBranch,
   setSelectedAnalysisId,
@@ -101,6 +102,8 @@ export default function Issues({
   const issuesLoading = issuesQuery.isLoading;
   const issuesError = issuesQuery.error?.message ?? null;
   const selectedAnalysis = selectedSummary?.history.find((item) => item.analysis_id === selectedAnalysisId);
+  const repository = projectMeta[selectedProject];
+  const branchUrl = repositoryBranchLink(repository?.repoProvider ?? 'other', repository?.repoUrl, selectedAnalysis?.branch);
   const filteredIssueDetails = useMemo(
     () =>
       (issuesQuery.data?.items ?? []).map((issue) => ({
@@ -141,6 +144,8 @@ export default function Issues({
           selectedBranch={selectedBranch}
           selectedAnalysisId={selectedAnalysisId}
           onAnalysisChange={setSelectedAnalysisId}
+          repoProvider={repository?.repoProvider}
+          repoUrl={repository?.repoUrl}
         />
       </div>
 
@@ -312,6 +317,8 @@ export default function Issues({
               const isExpanded = expandedIssueId === issue.id;
 
               const definitionUrl = issue.documentation_url ?? ruleDefinitionLink(issue.tool, issue.rule);
+              const issueBranchUrl = repositoryBranchLink(repository?.repoProvider ?? 'other', repository?.repoUrl, issue.branch);
+              const issueCommitUrl = repositoryCommitLink(repository?.repoProvider ?? 'other', repository?.repoUrl, issue.commit_sha);
               return (
                 <article key={issue.id} className={`issue-card ${sevClass}${isExpanded ? ' expanded' : ''}`}>
                   <div className="issue-card-header">
@@ -325,9 +332,11 @@ export default function Issues({
                           {findingCategoryLabel(issue.category)} · {issue.tool} · {issue.rule}
                         </span>
                         <span className="issue-sep">·</span>
-                        <code>
-                          {issue.branch} @ {issue.commit_sha.slice(0, 7) || 'Non disponible'}
-                        </code>
+                        <span className="issue-revision">
+                          {issueBranchUrl ? <a href={issueBranchUrl} target="_blank" rel="noreferrer"><code>{issue.branch}</code></a> : <code>{issue.branch}</code>}
+                          {' @ '}
+                          {issueCommitUrl ? <a href={issueCommitUrl} target="_blank" rel="noreferrer"><code>{issue.commit_sha.slice(0, 7)}</code></a> : <code>{issue.commit_sha.slice(0, 7) || 'Non disponible'}</code>}
+                        </span>
                         <span className="issue-sep">·</span>
                         {issue.source_url ? (
                           <a href={issue.source_url} target="_blank" rel="noreferrer" className="issue-file-link" title={issue.file_path}>
@@ -441,6 +450,7 @@ export default function Issues({
                         projectKey={selectedProject}
                         authToken={authToken}
                         isAdmin={isAdmin}
+                        branchUrl={branchUrl}
                       />
                     </div>
                   )}

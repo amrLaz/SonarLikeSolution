@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { AnalysisRecord, ProjectSummary } from "../types";
 import { analysisGateClass, analysisGateLabel } from "../metric-display";
+import { repositoryBranchLink, repositoryCommitLink, repositoryPullRequestLink } from "../evidence-links";
 import "./ProjectHeader.css";
 
 interface ProjectHeaderProps {
@@ -13,6 +14,8 @@ interface ProjectHeaderProps {
   onAnalysisChange?: (analysisId: string) => void;
   hideProjectSelector?: boolean;
   scopeUnavailable?: boolean;
+  repoProvider?: 'github' | 'azure-devops' | 'other';
+  repoUrl?: string;
 }
 
 export default function ProjectHeader({
@@ -24,7 +27,9 @@ export default function ProjectHeader({
   selectedAnalysisId,
   onAnalysisChange,
   hideProjectSelector = false,
-  scopeUnavailable = false
+  scopeUnavailable = false,
+  repoProvider = 'other',
+  repoUrl,
 }: ProjectHeaderProps) {
 
   // Extract unique branches from project history
@@ -62,6 +67,9 @@ export default function ProjectHeader({
     if (!selectedSummary || !selectedBranch) return null;
     return branchAnalyses.find((analysis) => analysis.analysis_id === selectedAnalysisId) ?? branchAnalyses[0] ?? null;
   }, [branchAnalyses, selectedAnalysisId, selectedBranch, selectedSummary]);
+  const branchUrl = repositoryBranchLink(repoProvider, repoUrl, selectedBranch);
+  const commitUrl = repositoryCommitLink(repoProvider, repoUrl, selectedBranchData?.commit_sha);
+  const pullRequestUrl = repositoryPullRequestLink(repoProvider, repoUrl, selectedBranchData?.pr_id);
 
   return (
     <div className="project-header">
@@ -97,16 +105,12 @@ export default function ProjectHeader({
           {selectedSummary && availableBranches.length > 0 && (
             <div className="branch-selector-group">
               <label htmlFor="branch-selector">Branch</label>
-              <select
-                id="branch-selector"
-                className="branch-selector-button"
-                value={selectedBranch}
-                onChange={(event) => onBranchChange(event.target.value)}
-              >
-                {availableBranches.map((branch) => (
-                  <option key={branch} value={branch}>{branch}</option>
-                ))}
-              </select>
+              <div className="reference-select">
+                <select id="branch-selector" className="branch-selector-button" value={selectedBranch} onChange={(event) => onBranchChange(event.target.value)}>
+                  {availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                </select>
+                {branchUrl && <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${selectedBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">↗</a>}
+              </div>
             </div>
           )}
 
@@ -138,9 +142,12 @@ export default function ProjectHeader({
             <span className={`analysis-status status-${selectedBranchData.status}`}>
               Analysis: {({ queued: "Queued", running: "Running", completed: "Completed", failed: "Technical failure" })[selectedBranchData.status] ?? "Unknown"}
             </span>
-            <span className="commit-sha" title={selectedBranchData.commit_sha}>
-              {selectedBranchData.commit_sha?.substring(0, 7) || "Commit non disponible"}
-            </span>
+            {commitUrl ? (
+              <a className="commit-sha repository-reference" href={commitUrl} target="_blank" rel="noreferrer" title={selectedBranchData.commit_sha}>
+                {selectedBranchData.commit_sha.substring(0, 7)} ↗
+              </a>
+            ) : <span className="commit-sha">Commit non disponible</span>}
+            {pullRequestUrl && <a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">PR #{selectedBranchData.pr_id} ↗</a>}
             <span className="analysis-date">
               {new Date(selectedBranchData.created_at).toLocaleString()}
             </span>
