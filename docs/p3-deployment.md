@@ -55,7 +55,15 @@ L'acceptation organisationnelle des branch policies et la campagne de charge
 restent distinctes de ces checks fonctionnels. Aucun envoi externe n'est utilisé
 par les scénarios locaux.
 
-## Vérification Azure
+## Vérification Azure v0.5.0
+
+- [Infrastructure 276106](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276106) : succès le 6 septembre 2026 avec `apply=true` et `recreateDatabase=true`. Le garde-fou a limité les suppressions à la base applicative et aux quatre secrets Azure OpenAI retirés du produit.
+- [Application 276107](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276107) : succès depuis le tag `v0.5.0`, source `9f4f5dc2883379047c06c2b4b53f9b983ab8cf5f`.
+- Image active : `upgroup.azurecr.io/sast-platform:276107` ; bundle React `index-BGZtOsOu.js`, contenant la version `v0.5.0`.
+- Les sondes `/api/v1/health` et `/healthz`, la page React, le login administrateur et les lectures authentifiées `auth/me`, `projects`, `profiles` et `ingestions/queue` ont réussi.
+- Le navigateur intégré ouvre la page de connexion de la nouvelle version. La recréation de la base invalide volontairement les anciennes sessions et configurations stockées ; aucune donnée de validation antérieure n'est conservée.
+
+## Vérification Azure v0.4.0
 
 - [Application 276085](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276085) :
   succès le 5 septembre 2026 à 21:17 UTC, source
