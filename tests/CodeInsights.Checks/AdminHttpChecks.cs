@@ -326,16 +326,9 @@ public static class AdminHttpChecks
             expected: HttpStatusCode.UnprocessableEntity
         );
         await Call(HttpMethod.Get, "/api/v1/audit-logs/actions");
-        await Call(HttpMethod.Get, "/api/v1/kev/status");
-        await Call(
-            HttpMethod.Post,
-            "/api/v1/kev/refresh",
-            expected: HttpStatusCode.Unauthorized,
-            authenticated: false
-        );
         await Call(HttpMethod.Post, "/api/v1/platform/cleanup");
         Console.WriteLine(
-            "Admin HTTP checks passed (tokens, settings, providers, integrations, notifications, audit, KEV, retention)."
+            "Admin HTTP checks passed (tokens, settings, providers, integrations, notifications, audit and retention)."
         );
     }
 

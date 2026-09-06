@@ -45,7 +45,7 @@ if (branchFixture.body.projects.length) {
   const project = branchFixture.body.projects[0];
   assert.equal(project.branch_count, 101);
   assert.equal(project.total_count, 101);
-  assert.equal(project.branches.length, 0, 'Portfolio must not materialize nested branch details');
+  assert.equal(project.branches.length, 0, 'Project summary must not materialize nested branch details');
   assert.equal(project.branches_truncated, true);
   const names = new Set();
   let cursor = '';
