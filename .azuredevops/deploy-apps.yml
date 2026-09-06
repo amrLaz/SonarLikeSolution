@@ -173,17 +173,26 @@ stages:
                       CODEINSIGHTS_SMOKE_PASSWORD=$(az keyvault secret show --vault-name up-fr-odi-sast-prod-kv --name bootstrap-admin-password --query value -o tsv)
                       export CODEINSIGHTS_SMOKE_PASSWORD
                       python3 - <<'PY'
-                      import json, os, urllib.request
+                      import json, os, time, urllib.error, urllib.request
                       base = os.environ['CODEINSIGHTS_SMOKE_URL']
+
+                      def load_json(request):
+                          for attempt in range(1, 7):
+                              try:
+                                  with urllib.request.urlopen(request, timeout=20) as response:
+                                      return json.load(response)
+                              except (OSError, urllib.error.URLError):
+                                  if attempt == 6:
+                                      raise
+                                  time.sleep(5)
+
                       request = urllib.request.Request(base + '/api/v1/auth/login', data=json.dumps({
                           'email': 'admin@codeinsights.local', 'password': os.environ['CODEINSIGHTS_SMOKE_PASSWORD']
                       }).encode(), headers={'Content-Type': 'application/json'})
-                      with urllib.request.urlopen(request, timeout=30) as response:
-                          token = json.load(response)['token']
+                      token = load_json(request)['token']
                       for path in ['/api/v1/auth/me', '/api/v1/projects', '/api/v1/profiles']:
                           request = urllib.request.Request(base + path, headers={'Authorization': 'Bearer ' + token})
-                          with urllib.request.urlopen(request, timeout=30) as response:
-                              json.load(response)
+                          load_json(request)
                           print('Authenticated database probe passed: ' + path)
                       PY
                       unset CODEINSIGHTS_SMOKE_PASSWORD
