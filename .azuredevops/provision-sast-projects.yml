@@ -10,7 +10,7 @@ steps:
   - checkout: none
 
   - task: AzureCLI@2
-    displayName: Register projects and rotate the shared CI token
+    displayName: Restore Entra, register projects and rotate the shared CI token
     inputs:
       azureSubscription: Subscription Fabrik
       scriptType: bash
@@ -21,6 +21,22 @@ steps:
         token_file=$(mktemp)
         chmod 600 "$token_file"
         trap 'rm -f "$token_file"' EXIT
+
+        if [[ -n "${CODEINSIGHTS_ENTRA_CLIENT_SECRET:-}" \
+          && "$CODEINSIGHTS_ENTRA_CLIENT_SECRET" != '$('* ]]; then
+          az keyvault secret set \
+            --vault-name up-fr-odi-sast-prod-kv \
+            --name codeinsights-entra-client-secret \
+            --value "$CODEINSIGHTS_ENTRA_CLIENT_SECRET" \
+            --output none
+        else
+          export CODEINSIGHTS_ENTRA_CLIENT_SECRET
+          CODEINSIGHTS_ENTRA_CLIENT_SECRET=$(az keyvault secret show \
+            --vault-name up-fr-odi-sast-prod-kv \
+            --name codeinsights-entra-client-secret \
+            --query value \
+            --output tsv)
+        fi
 
         export CODEINSIGHTS_ADMIN_PASSWORD
         CODEINSIGHTS_ADMIN_PASSWORD=$(az keyvault secret show \
@@ -63,6 +79,31 @@ steps:
                 "password": os.environ["CODEINSIGHTS_ADMIN_PASSWORD"],
             },
         )["token"]
+
+        call(
+            "/api/v1/integrations/providers/azure-ad",
+            method="PUT",
+            token=session,
+            payload={
+                "connection_url": "",
+                "config_json": {
+                    "tenant_id": "475fd1d1-212f-472f-9c02-635526f47568",
+                    "client_id": "60fa4790-a8dd-4565-80c3-8854e1ff163c",
+                    "client_secret": os.environ["CODEINSIGHTS_ENTRA_CLIENT_SECRET"],
+                    "redirect_uri": (
+                        "https://up-france-odi-sast-prod-app.azurewebsites.net"
+                        "/api/v1/auth/entra/callback"
+                    ),
+                },
+            },
+        )
+        call(
+            "/api/v1/integrations/providers/azure-ad/test",
+            method="POST",
+            token=session,
+        )
+        print("Entra provider restored and enabled")
+
         existing = {
             project["key"]: project for project in call("/api/v1/projects", token=session)
         }
@@ -161,9 +202,12 @@ steps:
         PY
 
         unset CODEINSIGHTS_ADMIN_PASSWORD
+        unset CODEINSIGHTS_ENTRA_CLIENT_SECRET
         az keyvault secret set \
           --vault-name up-fr-odi-sast-prod-kv \
           --name codeinsights-ci-token \
           --file "$token_file" \
           --output none
         echo "CI token stored in Key Vault"
+    env:
+      CODEINSIGHTS_ENTRA_CLIENT_SECRET: $(CodeInsightsEntraClientSecret)
