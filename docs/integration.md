@@ -59,6 +59,13 @@ Les [routes](../apps/api/Endpoints/IngestionEndpoints.cs) et
 
 ## Validation et activation
 
+L'onboarding production des dépôts pilotes passe par la pipeline manuelle
+`.azuredevops/provision-sast-projects.yml`. Elle enregistre les projets avec le
+profil `platform-sast` version `1`, génère un jeton limité à
+`analysis:read`/`analysis:write` et stocke sa valeur dans le secret Key Vault
+`codeinsights-ci-token`. La valeur n'est ni affichée ni versionnée. Les pipelines
+consommatrices y accèdent via le groupe Key Vault `CodeInsights.Analysis`.
+
 Le parcours P1 a été exercé localement sur PostgreSQL/Azurite/API .NET : import,
 consultation, client canonique et republication idempotente avec gate `pass`.
 Le [smoke](p1-load.md) a réussi 75 publications et 6 064 lectures. Il ne valide

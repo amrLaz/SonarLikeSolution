@@ -1,0 +1,133 @@
+name: Provision_CodeInsights_Projects_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: none
+
+  - task: AzureCLI@2
+    displayName: Register projects and rotate the shared CI token
+    inputs:
+      azureSubscription: Subscription Fabrik
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+
+        token_file=$(mktemp)
+        chmod 600 "$token_file"
+        trap 'rm -f "$token_file"' EXIT
+
+        export CODEINSIGHTS_ADMIN_PASSWORD
+        CODEINSIGHTS_ADMIN_PASSWORD=$(az keyvault secret show \
+          --vault-name up-fr-odi-sast-prod-kv \
+          --name bootstrap-admin-password \
+          --query value \
+          --output tsv)
+        export CODEINSIGHTS_TOKEN_FILE="$token_file"
+
+        python3 - <<'PY'
+        import json
+        import os
+        import urllib.request
+
+        base_url = "https://up-france-odi-sast-prod-app.azurewebsites.net"
+        projects = (
+            ("Up.France.ODI.Commercant.Web", "Commercant Web"),
+            ("Up.France.ODI.StoreLocator.Web", "StoreLocator Web"),
+            ("Up.France.ODI.StoreLocator.Data", "StoreLocator Data"),
+        )
+
+        def call(path, *, method="GET", payload=None, token=None):
+            headers = {"Content-Type": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            request = urllib.request.Request(
+                base_url + path,
+                data=None if payload is None else json.dumps(payload).encode(),
+                headers=headers,
+                method=method,
+            )
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+
+        session = call(
+            "/api/v1/auth/login",
+            method="POST",
+            payload={
+                "email": "admin@codeinsights.local",
+                "password": os.environ["CODEINSIGHTS_ADMIN_PASSWORD"],
+            },
+        )["token"]
+        existing = {
+            project["key"]: project for project in call("/api/v1/projects", token=session)
+        }
+
+        for key, name in projects:
+            current = existing.get(key)
+            if (
+                current
+                and current.get("analysis_profile_id") == "platform-sast"
+                and current.get("analysis_profile_version") == "1"
+            ):
+                print(f"Project already registered: {key}")
+                continue
+            if current:
+                call(
+                    f"/api/v1/projects/{current['id']}",
+                    method="PATCH",
+                    token=session,
+                    payload={
+                        "analysis_profile_id": "platform-sast",
+                        "analysis_profile_version": "1",
+                    },
+                )
+                print(f"Project profile updated: {key}")
+                continue
+            call(
+                "/api/v1/projects",
+                method="POST",
+                token=session,
+                payload={
+                    "key": key,
+                    "name": name,
+                    "description": "Azure DevOps SAST analysis",
+                    "analysis_profile_id": "platform-sast",
+                    "analysis_profile_version": "1",
+                },
+            )
+            print(f"Project registered: {key}")
+
+        generated = call(
+            "/api/v1/platform/token/generate",
+            method="POST",
+            token=session,
+            payload={
+                "token_name": "Azure DevOps SAST consumers",
+                "ttl_days": 3650,
+                "require_current_token": False,
+                "project_keys": [key for key, _ in projects],
+                "scopes": ["analysis:read", "analysis:write"],
+            },
+        )
+        descriptor = os.open(
+            os.environ["CODEINSIGHTS_TOKEN_FILE"],
+            os.O_WRONLY | os.O_TRUNC,
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(generated["token"])
+        print("Shared CI token generated without exposing its value")
+        PY
+
+        unset CODEINSIGHTS_ADMIN_PASSWORD
+        az keyvault secret set \
+          --vault-name up-fr-odi-sast-prod-kv \
+          --name codeinsights-ci-token \
+          --file "$token_file" \
+          --output none
+        echo "CI token stored in Key Vault"
