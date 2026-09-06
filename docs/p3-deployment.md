@@ -55,6 +55,13 @@ L'acceptation organisationnelle des branch policies et la campagne de charge
 restent distinctes de ces checks fonctionnels. Aucun envoi externe n'est utilisé
 par les scénarios locaux.
 
+## Vérification Azure v0.6.6
+
+- [Application 276121](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276121) : succès le 6 septembre 2026 depuis le tag `v0.6.6`, source `f29efcee9f2671a8caa247fe541e7421367d273e`.
+- Image active : `upgroup.azurecr.io/sast-platform:276121` ; bundle React `index-CqZZXXBv.js` et footer authentifié `CodeInsights · v0.6.6`.
+- Les sondes `/api/v1/health`, `/healthz`, la page React, le login administrateur et les lectures authentifiées `auth/me`, `projects` et `profiles` ont réussi. Les lectures authentifiées sont retentées de manière bornée pendant la chauffe de l'App Service.
+- Le navigateur intégré confirme la suppression du contexte projet/branche dupliqué et du texte technique de pagination, la disposition compacte de « Mes problèmes », la restauration du projet, de la branche, de l'analyse et de la catégorie depuis l'URL, ainsi que les liens Azure DevOps vers la branche et le commit exacts.
+
 ## Vérification Azure v0.6.2
 
 - [Application 276116](https://dev.azure.com/up-group/Up.France.ODI/_build/results?buildId=276116) : succès le 6 septembre 2026 depuis le tag `v0.6.2`, source `530c4684c35bdb8cd7a68b7614f8447039312e31`.
