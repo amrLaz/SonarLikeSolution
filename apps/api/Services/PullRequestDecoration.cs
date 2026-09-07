@@ -103,7 +103,9 @@ public sealed class AzureDevOpsDecorator(AppDbContext db, IHttpClientFactory cli
 
     private static async Task<Dictionary<string, int>> ChangesAsync(HttpClient client, string baseUrl, int iteration, CancellationToken ct)
     {
-        var rows = await ValuesAsync(client, $"{baseUrl}/iterations/{iteration}/changes?$top=2000&api-version=7.1", ct);
+        using var document = await GetAsync(client, $"{baseUrl}/iterations/{iteration}/changes?$top=2000&api-version=7.1", ct);
+        // ponytail: a PR above 2,000 changes will need ADO nextTop/nextSkip pagination.
+        var rows = document.RootElement.GetProperty("changeEntries").EnumerateArray().Select(x => x.Clone()).ToList();
         return rows.Where(x => Property(x, "item").ValueKind == JsonValueKind.Object && Text(Property(x, "item"), "path") is not null && Property(x, "changeTrackingId").TryGetInt32(out _))
             .GroupBy(x => Text(Property(x, "item"), "path")!.TrimStart('/'), StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First().GetProperty("changeTrackingId").GetInt32(), StringComparer.OrdinalIgnoreCase);
     }
