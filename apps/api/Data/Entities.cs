@@ -32,6 +32,8 @@ public sealed class AnalysisRecord
     public string CommitSha { get; set; } = string.Empty;
     public string Branch { get; set; } = string.Empty;
     public string CiProvider { get; set; } = string.Empty;
+    public string ProviderRunId { get; set; } = string.Empty;
+    public string RepositoryUrl { get; set; } = string.Empty;
     public string Status { get; set; } = "queued";
     public string QualityGate { get; set; } = "unknown";
     public int? MaintainabilityScore { get; set; } = null;
@@ -57,9 +59,22 @@ public sealed class AnalysisRecord
     public string? PrRepoId { get; set; } = "";
     public string? PrAdoProject { get; set; } = "";
     public string? PrTargetBranch { get; set; } = "";
+    public string? PrAdoOrgUrl { get; set; } = "";
+    public string? PrSourceSha { get; set; } = "";
+    public string? PrTargetSha { get; set; } = "";
+    public int DecorationRevision { get; set; }
+    public long? GitHubCheckRunId { get; set; }
+    public string ResultHash { get; set; } = string.Empty;
+    public string FailureCode { get; set; } = string.Empty;
+    public string QualityGateSummary { get; set; } = string.Empty;
+    public int ErrorCount { get; set; }
+    public int WarningCount { get; set; }
+    public int InfoCount { get; set; }
     public string? PrDecorationStatus { get; set; } = "";
     public string? PrDecorationError { get; set; } = "";
     public string CreatedAt { get; set; } = string.Empty;
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CompletedAt { get; set; }
 }
 
 public sealed class RetentionPolicy
@@ -107,6 +122,7 @@ public sealed class AzureDevOpsOrganizationConfig
     public string Status { get; set; } = "ready";
     public DateTime? LastTestedAt { get; set; } = null;
     public string? LastError { get; set; } = null;
+    public string? BotIdentityId { get; set; } = null;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

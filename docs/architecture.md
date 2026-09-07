@@ -44,6 +44,12 @@ Le modèle initial contient les instantanés de mesures natives, les définition
 
 Le traitement des issues utilise une identité de finding indépendante des occurrences, l'assignation projet/équipe et des décisions de revue conservées après purge des détails. Il est intégré à Issues ; aucun module Portefeuille ou Boards parallèle n'est maintenu. Les contrats et limites sont dans [traitement des issues](p2-collaboration.md).
 
+## Cycle d’analyse et projection PR
+
+`analysis_records` est l’unique source de vérité. `/api/v1/analyses/start` crée ou retrouve un run `running/pending`; `/complete` persiste une seule fois le snapshot et le verdict `pass`, `fail` ou `unknown`; `/fail` termine en `failed/unknown`. Chaque transition et son job `pr-decoration` sont enregistrés ensemble. Le worker relit toujours l’état courant, donc un ancien job pending ne peut pas restaurer un état obsolète.
+
+Azure DevOps et GitHub sont des projections rejouables. Aucun mapping issue/commentaire ou issue/annotation n’est stocké. Seul l’identifiant du Check Run GitHub de l’analyse courante est conservé pour terminer ce snapshot immutable. Les sources textuelles strictement nécessaires aux prompts sont séparées des rapports et restent dans le Blob privé.
+
 Le [Terraform](../infra/PLATFORM_SAST.md) définit les ressources Azure. La [pipeline](../.azuredevops/deploy-apps.yml) construit et déploie l’image. Le [Compose](../docker-compose.yml) est destiné au développement local ; son existence ne prouve pas un déploiement Azure.
 
 P1 implémente stockage Blob, queue PostgreSQL, import SARIF/couverture/SBOM et agrégats serveur. `Ingestion:BlobServiceUri` utilise `DefaultAzureCredential` ; `BlobConnectionString` permet notamment le développement Azurite. Le conteneur de rapports est privé et sa création Azure appartient à Terraform. La concurrence est bornée par processus : ajouter une réplique augmente les connexions et la pression sur PostgreSQL. Le parsing conserve un plafond mémoire/entrées, mais ne constitue pas un traitement streaming intégral. Le catalogue des projets et les branches détaillées des synthèses restent des points à mesurer. Le smoke local ne certifie pas la capacité pour plusieurs centaines de projets ; la campagne A/B/C et le pilote Azure restent à réaliser. Voir [intégration](integration.md), [performances](performances.md) et [roadmap](roadmap.md).

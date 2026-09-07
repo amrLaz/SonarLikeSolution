@@ -55,7 +55,40 @@ public sealed class AnalysisRequest
     public string? PrTargetBranch { get; set; }
     public string? PrAdoOrgUrl { get; set; }
     public string? PlatformUrl { get; set; }
+    public string? RepositoryUrl { get; set; }
+    public string? ProviderRunId { get; set; }
+    public string? PrSourceSha { get; set; }
+    public string? PrTargetSha { get; set; }
 }
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class AnalysisStartRequest
+{
+    [JsonRequired] public string ProjectKey { get; set; } = "";
+    [JsonRequired] public string CommitSha { get; set; } = "";
+    [JsonRequired] public string Branch { get; set; } = "";
+    [JsonRequired] public string CiProvider { get; set; } = "local";
+    [JsonRequired] public string ProviderRunId { get; set; } = "";
+    public string? RepositoryUrl { get; set; }
+    public string? PrId { get; set; }
+    public string? PrRepoId { get; set; }
+    public string? PrAdoProject { get; set; }
+    public string? PrAdoOrgUrl { get; set; }
+    public string? PrTargetBranch { get; set; }
+    public string? PrSourceSha { get; set; }
+    public string? PrTargetSha { get; set; }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record AnalysisFailureRequest([property: JsonRequired] string ErrorCode);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SourceDeclaration([property: JsonRequired] string Path, [property: JsonRequired] long SizeBytes, [property: JsonRequired] string Sha256);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record AnalysisSourcesRequest([property: JsonRequired] List<SourceDeclaration> Sources);
+
+public sealed record QualityGateResult(string Status, string Summary, int ErrorCount, int WarningCount, int InfoCount);
 
 public sealed class AnalysisMetrics
 {
@@ -145,5 +178,9 @@ public sealed record AnalysisResponse(
     Dictionary<string, MeasurementValue> Measurements,
     string Completeness,
     string TechnicalState,
-    Dictionary<string, JsonElement> GateSnapshot
+    Dictionary<string, JsonElement> GateSnapshot,
+    QualityGateResult QualityGateResult,
+    DateTime StartedAt,
+    DateTime? CompletedAt,
+    string? ProviderRunId
 );

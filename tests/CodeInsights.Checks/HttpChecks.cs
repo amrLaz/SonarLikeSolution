@@ -44,6 +44,7 @@ public static class HttpChecks
             {
                 var concrete = System.Text.RegularExpressions.Regex.Replace(path, "\\{[^}]+\\}", "missing");
                 if (path.StartsWith("/api/v1/collaboration/occurrences/")) concrete = "/api/v1/collaboration/occurrences/1";
+                if (path.StartsWith("/api/v1/issues/")) concrete = "/api/v1/issues/1/prompt";
                 await Call(client, method.GetString()!, concrete, expected: 401);
                 checkedRoutes++;
             }

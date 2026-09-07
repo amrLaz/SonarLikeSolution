@@ -321,7 +321,33 @@ public static class GateEvaluation
             snapshot.TryGetValue("technical_state", out var state)
                 ? state.GetString() ?? TechnicalState(completeness, tools, measurements)
                 : TechnicalState(completeness, tools, measurements),
-            snapshot
+            snapshot,
+            new QualityGateResult(
+                r.QualityGate,
+                string.IsNullOrEmpty(r.QualityGateSummary) ? Summary(r.QualityGate, r.ErrorCount) : r.QualityGateSummary,
+                r.ErrorCount,
+                r.WarningCount,
+                r.InfoCount
+            ),
+            r.StartedAt,
+            r.CompletedAt,
+            string.IsNullOrEmpty(r.ProviderRunId) ? null : r.ProviderRunId
         );
     }
+
+    public static QualityGateResult Result(AnalysisRecord analysis) => new(
+        analysis.QualityGate,
+        string.IsNullOrEmpty(analysis.QualityGateSummary) ? Summary(analysis.QualityGate, analysis.ErrorCount) : analysis.QualityGateSummary,
+        analysis.ErrorCount,
+        analysis.WarningCount,
+        analysis.InfoCount
+    );
+
+    public static string Summary(string status, int errors) => status switch
+    {
+        "pending" => "CodeInsights analysis in progress",
+        "pass" => $"Quality Gate passed - {errors} blocking issues",
+        "fail" => $"Quality Gate failed - {errors} blocking issues",
+        _ => "CodeInsights analysis failed",
+    };
 }

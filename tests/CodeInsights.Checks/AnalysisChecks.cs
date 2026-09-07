@@ -196,6 +196,11 @@ public static class AnalysisChecks
         Check(AnalysisFindings.SeverityBucket("warning") == "medium", "warning severity bucket");
         Check(AnalysisFindings.SeverityBucket("convention") == "low", "convention severity bucket");
         Check(AnalysisFindings.SeverityBucket("unknown") == "info", "unknown severity bucket");
+        Check(PromptContext.Extract("one\ntwo\nthree", 1, 1) == "    1: one\n    2: two", "prompt first line bounds");
+        Check(PromptContext.Extract("one\ntwo\nthree", 2, 1).Contains("    3: three"), "prompt middle line");
+        Check(PromptContext.Extract("one\ntwo\nthree", 3, 1) == "    2: two\n    3: three", "prompt last line bounds");
+        Check(AnalysisLifecycle.SafePath("src/file.cs") == "src/file.cs", "safe source path");
+        try { AnalysisLifecycle.SafePath("../secret.txt"); throw new InvalidOperationException("Hostile source path accepted"); } catch (ApiException) { }
         Check(
             AnalysisFindings.RepoFileUrl(
                 "azure-devops",
@@ -318,7 +323,7 @@ public static class AnalysisChecks
             );
             Check(
                 status.RootElement.GetProperty("context").GetProperty("name").GetString()
-                    == "platform-quality-gate",
+                    == "quality-gate",
                 "PR context"
             );
         }

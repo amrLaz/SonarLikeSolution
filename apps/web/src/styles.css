@@ -2385,6 +2385,16 @@ pre {
 .config-modal::backdrop {
   background: rgb(23 42 65 / 35%);
 }
+
+.prompt-modal {
+  width: min(48rem, calc(100vw - 2rem));
+}
+
+.prompt-modal textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--font-mono);
+}
 .config-modal-header {
   display: flex;
   align-items: center;

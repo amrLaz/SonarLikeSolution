@@ -84,6 +84,13 @@ pas la capacité A/B/C ni l'ensemble des matrices de rapports.
 
 Le pilote Azure DevOps reste nécessaire : dépôt/organisation autorisés, droits
 PAT, statut rattaché à l'itération, commentaire mis à jour et branch policy requise.
-Le `POST /analyses` direct conserve sa décoration synchrone et ses notifications
-en mémoire ; seule la nouvelle ingestion dispose du traitement durable décrit.
+Le `POST /analyses` historique reste compatible, mais sa décoration rejoint désormais le même outbox durable que l’ingestion.
 Voir les [lots P1 restant à accepter](roadmap.md) et les [budgets](performances.md).
+
+## Cycle explicite, sources et décorations
+
+Le cycle recommandé est `POST /api/v1/analyses/start`, transfert optionnel des sources, puis `POST /api/v1/analyses/{id}/complete` ou `/fail`. `provider_run_id` rend le start idempotent; une complétion identique est rejouable et un résultat terminal différent renvoie 409. Les écritures exigent `analysis:write`.
+
+Les sources portant une issue se déclarent par `POST /api/v1/analyses/{id}/sources`, puis se transfèrent par `PUT .../sources/{source_id}`. Seuls les chemins relatifs sûrs et le texte UTF-8 sont acceptés. `GET /api/v1/issues/{occurrence_id}/prompt` exige une session autorisée et extrait 20 lignes avant/après. Une source absente ou purgée rend le prompt indisponible sans changer le gate.
+
+Azure DevOps utilise le contexte stable `CodeInsights/quality-gate`, nettoie seulement les commentaires des threads gérés écrits par l’identité du PAT testé, republie les issues puis le statut final. GitHub utilise une GitHub App, un Check Run par analyse, `external_id=analysisId`, des annotations déterministes par lots de 50 et `annotations_count` pour reprendre un envoi incertain.

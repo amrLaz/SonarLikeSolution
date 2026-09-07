@@ -39,6 +39,17 @@ public sealed class IngestionReport
     public string Error { get; set; } = "";
 }
 
+public sealed class AnalysisSource
+{
+    public string SourceId { get; set; } = Guid.NewGuid().ToString();
+    public string AnalysisId { get; set; } = "";
+    public string Path { get; set; } = "";
+    public string BlobName { get; set; } = "";
+    public string Sha256 { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string State { get; set; } = "expected";
+}
+
 public sealed class DurableJob
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -142,6 +153,9 @@ public static class IngestionModel
         model.Entity<IngestionRecord>().HasIndex(x => new { x.ProjectKey, x.CreatedAt });
         model.Entity<IngestionReport>().ToTable("ingestion_reports").HasKey(x => new { x.IngestionId, x.ReportId });
         model.Entity<IngestionReport>().HasOne<IngestionRecord>().WithMany().HasForeignKey(x => x.IngestionId).OnDelete(DeleteBehavior.Cascade);
+        model.Entity<AnalysisSource>().ToTable("analysis_sources").HasKey(x => x.SourceId);
+        model.Entity<AnalysisSource>().HasIndex(x => new { x.AnalysisId, x.Path }).IsUnique();
+        model.Entity<AnalysisSource>().HasOne<AnalysisRecord>().WithMany().HasForeignKey(x => x.AnalysisId).OnDelete(DeleteBehavior.Cascade);
         model.Entity<DurableJob>().ToTable("durable_jobs").HasKey(x => x.Id);
         model.Entity<DurableJob>().HasIndex(x => new { x.Kind, x.ResourceId }).IsUnique();
         model.Entity<DurableJob>().HasIndex(x => new { x.State, x.AvailableAt });
@@ -155,7 +169,7 @@ public static class IngestionModel
         model.Entity<IngestionProjectPolicy>().ToTable("ingestion_project_policies").HasKey(x => x.ProjectKey);
         model.Entity<ProfileException>().ToTable("profile_exceptions").HasKey(x => x.Id);
         model.Entity<ProfileException>().HasIndex(x => new { x.ProjectKey, x.ExpiresAt });
-        Type[] types = [typeof(IngestionRecord), typeof(IngestionReport), typeof(DurableJob), typeof(FindingOccurrence), typeof(CoverageLine), typeof(SbomComponent), typeof(ProfileVersion), typeof(IngestionProjectPolicy), typeof(ProfileException)];
+        Type[] types = [typeof(IngestionRecord), typeof(IngestionReport), typeof(AnalysisSource), typeof(DurableJob), typeof(FindingOccurrence), typeof(CoverageLine), typeof(SbomComponent), typeof(ProfileVersion), typeof(IngestionProjectPolicy), typeof(ProfileException)];
         foreach (var type in types)
         foreach (var property in model.Entity(type).Metadata.GetProperties())
             property.SetColumnName(JsonNamingPolicy.SnakeCaseLower.ConvertName(property.Name));

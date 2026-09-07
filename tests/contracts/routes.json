@@ -154,6 +154,42 @@
     ]
   },
   {
+    "path": "/api/v1/analyses/start",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/complete",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/fail",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/sources",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "path": "/api/v1/analyses/{analysis_id}/sources/{source_id}",
+    "methods": [
+      "PUT"
+    ]
+  },
+  {
+    "path": "/api/v1/issues/{occurrence_id}/prompt",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
     "path": "/api/v1/analyses/export/csv",
     "methods": [
       "GET"

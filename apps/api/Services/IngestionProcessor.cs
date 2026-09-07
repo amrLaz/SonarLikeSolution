@@ -162,6 +162,7 @@ public sealed class IngestionProcessor(AppDbContext db, ReportStorage storage, I
             if (analysis is null) { analysis = new AnalysisRecord { AnalysisId = row.AnalysisId, CreatedAt = ApiJson.Iso(row.CreatedAt) }; db.Add(analysis); }
             analysis.ProjectKey = row.ProjectKey; analysis.Branch = manifest.Branch; analysis.CommitSha = manifest.CommitSha; analysis.CiProvider = manifest.CiProvider;
             analysis.Status = "completed"; analysis.QualityGate = row.QualityGate; analysis.Completeness = complete ? "complete" : "incomplete";
+            analysis.CompletedAt = row.CompletedAt; analysis.RepositoryUrl = manifest.RepositoryUrl; analysis.ProviderRunId = manifest.BuildId;
             analysis.ProfileId = profile.ProfileId; analysis.ProfileVersion = profile.Version; analysis.FormulaVersion = formula; analysis.GateSnapshot = row.GateSnapshot;
             analysis.Bugs = Int("bugs"); analysis.CodeSmells = Int("code_smells"); analysis.Vulnerabilities = Int("vulnerabilities"); analysis.SecurityHotspots = Int("security_hotspots");
             analysis.Coverage = Int("coverage"); analysis.DependencyVulnerabilities = Int("dependency_vulnerabilities");
@@ -169,9 +170,15 @@ public sealed class IngestionProcessor(AppDbContext db, ReportStorage storage, I
             analysis.ToolExecutions = JsonSerializer.Serialize(manifest.Reports.Select(r => new { tool = r.Tool, version = r.ToolVersion, status = r.State == "measured" ? "success" : r.State }), ApiJson.Options);
             analysis.GateFailures = JsonSerializer.Serialize(conditions.Where(x => x.Result is "fail" or "unknown").Select(x => $"{x.Scope}/{x.Metric}: {x.Value?.ToString() ?? "not measured"} {x.Operator} {x.Threshold} ({x.Result})")
                 .Concat(configuration.State is "missing" or "drift" ? [$"configuration: {configuration.Reason}"] : Array.Empty<string>()));
-            analysis.PrId = manifest.PrId; analysis.PrRepoId = manifest.PrRepoId; analysis.PrAdoProject = manifest.PrAdoProject; analysis.PrTargetBranch = "";
+            analysis.PrId = manifest.PrId; analysis.PrRepoId = manifest.PrRepoId; analysis.PrAdoProject = manifest.PrAdoProject; analysis.PrAdoOrgUrl = manifest.PrAdoOrgUrl;
+            analysis.PrSourceSha = manifest.SourceSha; analysis.PrTargetSha = manifest.TargetSha; analysis.PrTargetBranch = "";
+            analysis.ErrorCount = findings.Count(x => !x.Excepted && x.Severity.ToLowerInvariant() is "blocker" or "critical" or "error" or "high");
+            analysis.WarningCount = findings.Count(x => !x.Excepted && x.Severity.ToLowerInvariant() is "warning" or "medium");
+            analysis.InfoCount = findings.Count(x => !x.Excepted) - analysis.ErrorCount - analysis.WarningCount;
+            analysis.QualityGateSummary = GateEvaluation.Summary(analysis.QualityGate, analysis.ErrorCount);
+            analysis.DecorationRevision++; analysis.PrDecorationStatus = "queued";
             await FindingCollaboration.ObserveAsync(db, analysis, findings, ct, manifest.GitDiff);
-            db.Add(new DurableJob { Kind = "ado", ResourceId = id });
+            db.Add(new DurableJob { Kind = "pr-decoration", ResourceId = $"{analysis.AnalysisId}:{analysis.DecorationRevision}" });
             var channels = await db.Set<NotificationChannel>().Where(x => x.Enabled && (row.QualityGate == "fail" && x.OnFail || row.QualityGate == "pass" && x.OnPass)).Select(x => x.Id).ToListAsync(ct);
             foreach (var channel in channels) db.Add(new DurableJob { Kind = "notification", ResourceId = id + ":" + channel });
         }

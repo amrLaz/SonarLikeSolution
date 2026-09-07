@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 
-
 namespace CodeInsights.Api.Data;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
@@ -10,9 +9,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         foreach (var entry in ChangeTracker.Entries().Where(x => x.State == EntityState.Modified))
         {
             if (entry.Metadata.FindProperty("UpdatedAt") is not null)
-                {
-                    entry.Property("UpdatedAt").CurrentValue = DateTime.UtcNow;
-                }
+            {
+                entry.Property("UpdatedAt").CurrentValue = DateTime.UtcNow;
+            }
         }
         return base.SaveChangesAsync(cancellationToken);
     }
@@ -114,6 +113,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasColumnName("ci_provider")
                 .HasColumnType("character varying(50)")
                 .IsRequired();
+            e.Property(x => x.ProviderRunId)
+                .HasColumnName("provider_run_id")
+                .HasColumnType("character varying(255)")
+                .IsRequired();
+            e.Property(x => x.RepositoryUrl)
+                .HasColumnName("repository_url")
+                .HasColumnType("text")
+                .IsRequired();
             e.Property(x => x.Status)
                 .HasColumnName("status")
                 .HasColumnType("character varying(50)")
@@ -190,6 +197,32 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(x => x.PrTargetBranch)
                 .HasColumnName("pr_target_branch")
                 .HasColumnType("character varying(255)");
+            e.Property(x => x.PrAdoOrgUrl).HasColumnName("pr_ado_org_url").HasColumnType("text");
+            e.Property(x => x.PrSourceSha)
+                .HasColumnName("pr_source_sha")
+                .HasColumnType("character varying(255)");
+            e.Property(x => x.PrTargetSha)
+                .HasColumnName("pr_target_sha")
+                .HasColumnType("character varying(255)");
+            e.Property(x => x.DecorationRevision)
+                .HasColumnName("decoration_revision")
+                .HasDefaultValue(0);
+            e.Property(x => x.GitHubCheckRunId).HasColumnName("github_check_run_id");
+            e.Property(x => x.ResultHash)
+                .HasColumnName("result_hash")
+                .HasColumnType("character varying(64)")
+                .IsRequired();
+            e.Property(x => x.FailureCode)
+                .HasColumnName("failure_code")
+                .HasColumnType("character varying(100)")
+                .IsRequired();
+            e.Property(x => x.QualityGateSummary)
+                .HasColumnName("quality_gate_summary")
+                .HasColumnType("text")
+                .IsRequired();
+            e.Property(x => x.ErrorCount).HasColumnName("error_count");
+            e.Property(x => x.WarningCount).HasColumnName("warning_count");
+            e.Property(x => x.InfoCount).HasColumnName("info_count");
             e.Property(x => x.PrDecorationStatus)
                 .HasColumnName("pr_decoration_status")
                 .HasColumnType("character varying(50)");
@@ -200,8 +233,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasColumnName("created_at")
                 .HasColumnType("character varying(64)")
                 .IsRequired();
+            e.Property(x => x.StartedAt)
+                .HasColumnName("started_at")
+                .HasColumnType("timestamp with time zone");
+            e.Property(x => x.CompletedAt)
+                .HasColumnName("completed_at")
+                .HasColumnType("timestamp with time zone");
             e.Property(x => x.DetailsPurged).HasColumnName("details_purged").HasDefaultValue(false);
             e.HasKey(x => x.AnalysisId);
+            e.HasIndex(x => new { x.ProjectKey, x.ProviderRunId })
+                .IsUnique()
+                .HasFilter("provider_run_id <> ''");
         });
         modelBuilder.Entity<RetentionPolicy>(e =>
         {
@@ -340,6 +382,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasColumnName("last_tested_at")
                 .HasColumnType("timestamp with time zone");
             e.Property(x => x.LastError).HasColumnName("last_error").HasColumnType("text");
+            e.Property(x => x.BotIdentityId)
+                .HasColumnName("bot_identity_id")
+                .HasColumnType("character varying(255)");
             e.Property(x => x.CreatedAt)
                 .HasColumnName("created_at")
                 .HasColumnType("timestamp with time zone")
@@ -765,7 +810,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<AnalysisRecord>().HasIndex(x => x.Status);
         modelBuilder.Entity<RetentionPolicy>().HasIndex(x => x.ProjectId).IsUnique();
         modelBuilder.Entity<AzureDevOpsOrganizationConfig>().HasIndex(x => x.ConfigName).IsUnique();
-        modelBuilder.Entity<AzureDevOpsOrganizationConfig>().HasIndex(x => x.OrganizationUrl).IsUnique();
+        modelBuilder
+            .Entity<AzureDevOpsOrganizationConfig>()
+            .HasIndex(x => x.OrganizationUrl)
+            .IsUnique();
         modelBuilder.Entity<PlatformApiToken>().HasIndex(x => x.TokenHash);
         modelBuilder.Entity<PlatformApiToken>().HasIndex(x => new { x.IsCurrent, x.Revoked });
         modelBuilder.Entity<ProjectIntegration>().HasIndex(x => x.ProjectKey).IsUnique();
@@ -774,11 +822,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<PlatformUser>().HasIndex(x => x.EntraTenantId);
         modelBuilder.Entity<PlatformUser>().HasIndex(x => x.EntraObjectId);
         modelBuilder.Entity<PlatformUser>().HasIndex(x => x.Role);
-        modelBuilder.Entity<PlatformUser>().HasIndex(x => new { x.EntraTenantId, x.EntraObjectId }).IsUnique();
+        modelBuilder
+            .Entity<PlatformUser>()
+            .HasIndex(x => new { x.EntraTenantId, x.EntraObjectId })
+            .IsUnique();
         modelBuilder.Entity<Organization>().HasIndex(x => x.Key).IsUnique();
         modelBuilder.Entity<UserGrant>().HasIndex(x => x.UserId);
         modelBuilder.Entity<UserGrant>().HasIndex(x => x.ScopeId);
-        modelBuilder.Entity<UserGrant>().HasIndex(x => new { x.UserId, x.ScopeType, x.ScopeId }).IsUnique();
+        modelBuilder
+            .Entity<UserGrant>()
+            .HasIndex(x => new
+            {
+                x.UserId,
+                x.ScopeType,
+                x.ScopeId,
+            })
+            .IsUnique();
         modelBuilder.Entity<TokenProjectAccess>().HasIndex(x => x.ProjectKey);
         modelBuilder.Entity<OidcTransaction>().HasIndex(x => x.CookieHash);
         modelBuilder.Entity<PlatformSetting>().HasIndex(x => x.Key).IsUnique();
@@ -788,6 +847,3 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<RetentionPolicy>().HasIndex(x => x.ProjectId).IsUnique();
     }
 }
-
-
-

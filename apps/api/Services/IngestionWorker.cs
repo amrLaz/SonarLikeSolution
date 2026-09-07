@@ -35,6 +35,17 @@ public sealed class IngestionWorker(IServiceScopeFactory scopes, IOptions<Ingest
                             var row = await db.Set<IngestionRecord>().FindAsync([job.ResourceId], work.Token);
                             if (row is not null) await scope.ServiceProvider.GetRequiredService<IngestionAdo>().SendAsync(row, work.Token);
                             break;
+                        case "pr-decoration":
+                            var analysisId = job.ResourceId.Split(':', 2)[0];
+                            var analysis = await db.Set<AnalysisRecord>().FindAsync([analysisId], work.Token);
+                            if (analysis is not null)
+                            {
+                                await scope.ServiceProvider.GetRequiredService<PullRequestDecoration>().PublishCurrentAsync(analysis, work.Token);
+                                analysis.PrDecorationStatus = "posted";
+                                analysis.PrDecorationError = "";
+                                await db.SaveChangesAsync(work.Token);
+                            }
+                            break;
                         case "notification":
                             var parts = job.ResourceId.Split(':', 2);
                             var ingestion = await db.Set<IngestionRecord>().FindAsync([parts[0]], work.Token);
@@ -61,6 +72,11 @@ public sealed class IngestionWorker(IServiceScopeFactory scopes, IOptions<Ingest
                     var changed = await db.Set<DurableJob>().Where(x => x.Id == job.Id && x.LeaseOwner == job.LeaseOwner).ExecuteUpdateAsync(s => s.SetProperty(x => x.State, terminal ? "failed" : "pending")
                         .SetProperty(x => x.Error, safeError).SetProperty(x => x.AvailableAt, retry).SetProperty(x => x.LeaseOwner, (string?)null).SetProperty(x => x.LeaseUntil, (DateTime?)null), stoppingToken);
                     if (terminal && changed > 0 && job.Kind == "ingest") await MarkIngestionFailedAsync(db, job.ResourceId, safeError, stoppingToken);
+                    if (terminal && changed > 0 && job.Kind == "pr-decoration")
+                    {
+                        var analysisId = job.ResourceId.Split(':', 2)[0];
+                        await db.Set<AnalysisRecord>().Where(x => x.AnalysisId == analysisId).ExecuteUpdateAsync(s => s.SetProperty(x => x.PrDecorationStatus, "error").SetProperty(x => x.PrDecorationError, safeError), stoppingToken);
+                    }
                     await failureTransaction.CommitAsync(stoppingToken);
                     logger.LogWarning("Job {Id} {Kind}: {State} ({Error})", job.Id, job.Kind, terminal ? "failed" : "retry", safeError);
                 }
@@ -96,7 +112,7 @@ public sealed class IngestionWorker(IServiceScopeFactory scopes, IOptions<Ingest
         return job;
     }
 
-    /// <summary>Persists a terminal receipt and its ADO outbox entry inside the caller's transaction.</summary>
+    /// <summary>Persists a terminal receipt and its PR-decoration outbox entry inside the caller's transaction.</summary>
     public static async Task MarkIngestionFailedAsync(AppDbContext db, string id, string safeError, CancellationToken ct, string? expectedState = null)
     {
         if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("Terminal failure requires a transaction.");
@@ -105,8 +121,15 @@ public sealed class IngestionWorker(IServiceScopeFactory scopes, IOptions<Ingest
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.State, "failed").SetProperty(x => x.TechnicalState, "failed").SetProperty(x => x.QualityGate, "unknown")
                 .SetProperty(x => x.Comparison, "{\"state\":\"unavailable\",\"reason\":\"ingestion_failed\"}").SetProperty(x => x.Error, safeError).SetProperty(x => x.CompletedAt, now), ct);
         if (changed == 0) return;
-        var jobId = Guid.NewGuid().ToString();
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO durable_jobs (id,kind,resource_id,state,attempts,available_at,error,created_at) VALUES ({jobId},'ado',{id},'pending',0,{now},'',{now}) ON CONFLICT (kind,resource_id) DO NOTHING", ct);
+        var analysisId = await db.Set<IngestionRecord>().Where(x => x.Id == id).Select(x => x.AnalysisId).SingleAsync(ct);
+        var analysis = await db.Set<AnalysisRecord>().FindAsync([analysisId], ct);
+        if (analysis is not null && analysis.Status == "running")
+        {
+            analysis.Status = "failed"; analysis.QualityGate = "unknown"; analysis.QualityGateSummary = GateEvaluation.Summary("unknown", 0);
+            analysis.FailureCode = safeError[..Math.Min(100, safeError.Length)]; analysis.CompletedAt = now; analysis.DecorationRevision++; analysis.PrDecorationStatus = "queued";
+            db.Add(new DurableJob { Kind = "pr-decoration", ResourceId = $"{analysis.AnalysisId}:{analysis.DecorationRevision}" });
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private async Task RenewAsync(string id, string owner, CancellationTokenSource work)
@@ -141,6 +164,8 @@ public sealed class IngestionMaintenance(AppDbContext db, ReportStorage storage,
             await IngestionWorker.MarkIngestionFailedAsync(db, id, "Publication abandoned before finalization", ct, "receiving");
             await transaction.CommitAsync(ct);
         }
+        var abandonedAnalyses = await db.Set<AnalysisRecord>().Where(x => x.Status == "running" && x.StartedAt < abandoned).OrderBy(x => x.StartedAt).Take(100).ToListAsync(ct);
+        foreach (var analysis in abandonedAnalyses) await AnalysisLifecycle.FailAsync(db, analysis, "analysis_abandoned", ct);
         if (string.IsNullOrEmpty(options.Value.BlobConnectionString) && string.IsNullOrEmpty(options.Value.BlobServiceUri)) return;
         var cutoff = DateTime.UtcNow.AddDays(-90);
         var rows = await db.Set<IngestionRecord>().Where(x => !x.DetailsPurged && x.CreatedAt < cutoff && (x.State == "completed" || x.State == "failed")).OrderBy(x => x.CreatedAt).Take(100).ToListAsync(ct);
@@ -158,8 +183,15 @@ public sealed class IngestionMaintenance(AppDbContext db, ReportStorage storage,
             PurgeCodeDetails(row);
             row.DetailsPurged = true; await db.SaveChangesAsync(ct);
         }
+        var analyses = await db.Set<AnalysisRecord>().Where(x => !x.DetailsPurged && x.CompletedAt < cutoff).OrderBy(x => x.CompletedAt).Take(100).ToListAsync(ct);
+        foreach (var analysis in analyses)
+        {
+            var sources = await db.Set<AnalysisSource>().Where(x => x.AnalysisId == analysis.AnalysisId).ToListAsync(ct);
+            foreach (var source in sources) if (source.BlobName.Length > 0) await storage.DeleteAsync(source.BlobName, ct);
+            db.RemoveRange(sources); analysis.DetailsPurged = true; await db.SaveChangesAsync(ct);
+        }
         await foreach (var name in storage.AbandonedAsync(abandoned, ct))
-            if (!await db.Set<IngestionReport>().AnyAsync(x => x.BlobName == name, ct)) await storage.DeleteAsync(name, ct);
+            if (!await db.Set<IngestionReport>().AnyAsync(x => x.BlobName == name, ct) && !await db.Set<AnalysisSource>().AnyAsync(x => x.BlobName == name, ct)) await storage.DeleteAsync(name, ct);
     }
 
     public static void PurgeCodeDetails(IngestionRecord row)

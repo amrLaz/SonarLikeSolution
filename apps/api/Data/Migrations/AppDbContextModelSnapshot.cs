@@ -56,6 +56,10 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("commit_sha");
 
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
                     b.Property<string>("Completeness")
                         .IsRequired()
                         .HasColumnType("character varying(50)")
@@ -70,6 +74,12 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("DecorationRevision")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("decoration_revision");
+
                     b.Property<int?>("DependencyVulnerabilities")
                         .HasColumnType("integer")
                         .HasColumnName("dependency_vulnerabilities");
@@ -83,6 +93,15 @@ namespace CodeInsights.Api.Data.Migrations
                     b.Property<int?>("Duplication")
                         .HasColumnType("integer")
                         .HasColumnName("duplication");
+
+                    b.Property<int>("ErrorCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("error_count");
+
+                    b.Property<string>("FailureCode")
+                        .IsRequired()
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("failure_code");
 
                     b.Property<string>("FormulaVersion")
                         .IsRequired()
@@ -99,6 +118,14 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("gate_snapshot");
 
+                    b.Property<long?>("GitHubCheckRunId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("github_check_run_id");
+
+                    b.Property<int>("InfoCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("info_count");
+
                     b.Property<int?>("MaintainabilityScore")
                         .HasColumnType("integer")
                         .HasColumnName("maintainability_score");
@@ -107,6 +134,10 @@ namespace CodeInsights.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("measurements");
+
+                    b.Property<string>("PrAdoOrgUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("pr_ado_org_url");
 
                     b.Property<string>("PrAdoProject")
                         .HasColumnType("character varying(255)")
@@ -128,9 +159,17 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("pr_repo_id");
 
+                    b.Property<string>("PrSourceSha")
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("pr_source_sha");
+
                     b.Property<string>("PrTargetBranch")
                         .HasColumnType("character varying(255)")
                         .HasColumnName("pr_target_branch");
+
+                    b.Property<string>("PrTargetSha")
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("pr_target_sha");
 
                     b.Property<string>("ProfileId")
                         .IsRequired()
@@ -147,14 +186,34 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("project_key");
 
+                    b.Property<string>("ProviderRunId")
+                        .IsRequired()
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("provider_run_id");
+
                     b.Property<string>("QualityGate")
                         .IsRequired()
                         .HasColumnType("character varying(50)")
                         .HasColumnName("quality_gate");
 
+                    b.Property<string>("QualityGateSummary")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("quality_gate_summary");
+
                     b.Property<int?>("ReliabilityScore")
                         .HasColumnType("integer")
                         .HasColumnName("reliability_score");
+
+                    b.Property<string>("RepositoryUrl")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("repository_url");
+
+                    b.Property<string>("ResultHash")
+                        .IsRequired()
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("result_hash");
 
                     b.Property<int?>("SecurityHotspots")
                         .HasColumnType("integer")
@@ -163,6 +222,10 @@ namespace CodeInsights.Api.Data.Migrations
                     b.Property<int?>("SecurityScore")
                         .HasColumnType("integer")
                         .HasColumnName("security_score");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -178,6 +241,10 @@ namespace CodeInsights.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("vulnerabilities");
 
+                    b.Property<int>("WarningCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("warning_count");
+
                     b.HasKey("AnalysisId");
 
                     b.HasIndex("Branch");
@@ -190,7 +257,54 @@ namespace CodeInsights.Api.Data.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("ProjectKey", "ProviderRunId")
+                        .IsUnique()
+                        .HasFilter("provider_run_id <> ''");
+
                     b.ToTable("analysis_records", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.AnalysisSource", b =>
+                {
+                    b.Property<string>("SourceId")
+                        .HasColumnType("text")
+                        .HasColumnName("source_id");
+
+                    b.Property<string>("AnalysisId")
+                        .IsRequired()
+                        .HasColumnType("character varying(36)")
+                        .HasColumnName("analysis_id");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("blob_name");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("sha256");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.HasKey("SourceId");
+
+                    b.HasIndex("AnalysisId", "Path")
+                        .IsUnique();
+
+                    b.ToTable("analysis_sources", (string)null);
                 });
 
             modelBuilder.Entity("CodeInsights.Api.Data.ArchivedCodeBranch", b =>
@@ -327,6 +441,10 @@ namespace CodeInsights.Api.Data.Migrations
                     b.Property<string>("ConfigId")
                         .HasColumnType("character varying(36)")
                         .HasColumnName("config_id");
+
+                    b.Property<string>("BotIdentityId")
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("bot_identity_id");
 
                     b.Property<string>("ConfigName")
                         .IsRequired()
@@ -1816,6 +1934,15 @@ namespace CodeInsights.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("user_grants", (string)null);
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.AnalysisSource", b =>
+                {
+                    b.HasOne("CodeInsights.Api.Data.AnalysisRecord", null)
+                        .WithMany()
+                        .HasForeignKey("AnalysisId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CodeInsights.Api.Data.Branch", b =>

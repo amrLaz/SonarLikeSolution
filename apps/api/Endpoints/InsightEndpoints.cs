@@ -20,6 +20,7 @@ public static class InsightEndpoints
             CommitSha = x.CommitSha,
             Branch = x.Branch,
             CiProvider = x.CiProvider,
+            ProviderRunId = x.ProviderRunId,
             Status = x.Status,
             QualityGate = x.QualityGate,
             MaintainabilityScore = x.MaintainabilityScore,
@@ -43,6 +44,12 @@ public static class InsightEndpoints
             ProfileVersion = x.ProfileVersion,
             FormulaVersion = x.FormulaVersion,
             GateSnapshot = x.GateSnapshot,
+            QualityGateSummary = x.QualityGateSummary,
+            ErrorCount = x.ErrorCount,
+            WarningCount = x.WarningCount,
+            InfoCount = x.InfoCount,
+            StartedAt = x.StartedAt,
+            CompletedAt = x.CompletedAt,
             DetailsPurged = x.DetailsPurged,
         };
 
@@ -279,9 +286,9 @@ public static class InsightEndpoints
         var manifest = ingestion is null
             ? null
             : JsonSerializer.Deserialize<IngestionManifest>(ingestion.Manifest, ApiJson.Options);
-        var directAnalysis = ingestion is null
-            ? await db.Set<AnalysisRecord>().AsNoTracking().SingleAsync(x => x.AnalysisId == id, ct)
-            : null;
+        var analysisRecord = await db.Set<AnalysisRecord>().AsNoTracking().SingleAsync(x => x.AnalysisId == id, ct);
+        var directAnalysis = ingestion is null ? analysisRecord : null;
+        var sourcePaths = (await db.Set<AnalysisSource>().AsNoTracking().Where(x => x.AnalysisId == id && x.State == "received").Select(x => x.Path).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         var directIntegration = directAnalysis is null
             ? null
             : await db.Set<ProjectIntegration>().AsNoTracking().FirstOrDefaultAsync(x => x.ProjectKey == directAnalysis.ProjectKey, ct);
@@ -307,6 +314,8 @@ public static class InsightEndpoints
                     x.Line,
                     x.Fingerprint,
                     x.Excepted,
+                    prompt_available = !analysisRecord.DetailsPurged && x.Path is not null && x.Line is not null && sourcePaths.Contains(x.Path.Replace('\\', '/')),
+                    prompt_unavailable_reason = analysisRecord.DetailsPurged ? "source_purged" : x.Path is null || x.Line is null ? "location_unavailable" : !sourcePaths.Contains(x.Path.Replace('\\', '/')) ? "source_unavailable" : null,
                     tool_version = manifest
                         ?.Reports.FirstOrDefault(r => r.ReportId == x.ReportId)
                         ?.ToolVersion,

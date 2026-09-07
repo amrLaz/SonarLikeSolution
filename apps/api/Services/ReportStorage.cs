@@ -18,6 +18,10 @@ public sealed class IngestionOptions
     public int MaxAttempts { get; set; } = 5;
     public int LeaseSeconds { get; set; } = 120;
     public int ParseTimeoutSeconds { get; set; } = 120;
+    public int MaxSourceFiles { get; set; } = 1000;
+    public long MaxSourceBytes { get; set; } = 2 * 1024 * 1024;
+    public long MaxAnalysisSourceBytes { get; set; } = 50 * 1024 * 1024;
+    public int PromptContextLines { get; set; } = 20;
 }
 
 public sealed class ReportStorage(IOptions<IngestionOptions> options)
@@ -67,6 +71,6 @@ public sealed class ReportStorage(IOptions<IngestionOptions> options)
     public async IAsyncEnumerable<string> AbandonedAsync(DateTime cutoff, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await foreach (var blob in Container().GetBlobsAsync(cancellationToken: ct))
-            if (blob.Properties.LastModified < cutoff && blob.Name.Split('/') is { Length: 3 } parts && Guid.TryParse(parts[1], out _) && Guid.TryParseExact(parts[2], "N", out _)) yield return blob.Name;
+            if (blob.Properties.LastModified < cutoff && blob.Name.Split('/') is { Length: 3 } parts && (parts[0] == "sources" && Guid.TryParse(parts[1], out _) && Guid.TryParse(parts[2], out _) || parts[0] != "sources" && Guid.TryParse(parts[1], out _) && Guid.TryParseExact(parts[2], "N", out _))) yield return blob.Name;
     }
 }

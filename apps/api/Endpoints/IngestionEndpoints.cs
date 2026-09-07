@@ -62,7 +62,6 @@ public static class IngestionEndpoints
                     throw new ApiException(409, "Expected reports have not all been uploaded; finalize a manifest declaring missing/failed producers explicitly");
                 ingestion.State = "queued";
                 db.Add(new DurableJob { ResourceId = id });
-                db.Add(new DurableJob { Kind = "ado-pending", ResourceId = id });
                 await db.SaveChangesAsync(ct);
             }
             await tx.CommitAsync(ct);
@@ -142,6 +141,27 @@ public static class IngestionEndpoints
         row.SecurityReviewSnapshot = await SecurityReviewEvaluation.CaptureAsync(db, row.ProjectKey, manifest.Branch, row.CreatedAt, ct);
         row.ExceptionSnapshot = JsonSerializer.Serialize(await db.Set<ProfileException>().AsNoTracking().Where(x => x.ProjectKey == row.ProjectKey && x.ExpiresAt > row.CreatedAt && x.CreatedAt <= row.CreatedAt).ToListAsync(ct), ApiJson.Options);
         db.Add(row);
+        if (previous is null)
+        {
+            var analysis = new AnalysisRecord
+            {
+                AnalysisId = row.AnalysisId, ProjectKey = manifest.ProjectKey, CommitSha = manifest.CommitSha, Branch = manifest.Branch,
+                CiProvider = manifest.CiProvider, ProviderRunId = manifest.BuildId, RepositoryUrl = manifest.RepositoryUrl,
+                Status = "running", QualityGate = "pending", QualityGateSummary = GateEvaluation.Summary("pending", 0),
+                CreatedAt = ApiJson.Iso(row.CreatedAt), StartedAt = row.CreatedAt, PrId = manifest.PrId ?? "", PrRepoId = manifest.PrRepoId ?? "",
+                PrAdoProject = manifest.PrAdoProject ?? "", PrAdoOrgUrl = manifest.PrAdoOrgUrl ?? "", PrSourceSha = manifest.SourceSha,
+                PrTargetSha = manifest.TargetSha, PrDecorationStatus = "queued", DecorationRevision = 1,
+            };
+            db.Add(analysis);
+            db.Add(new DurableJob { Kind = "pr-decoration", ResourceId = $"{analysis.AnalysisId}:1" });
+        }
+        else
+        {
+            var analysis = await db.Set<AnalysisRecord>().FindAsync([row.AnalysisId], ct) ?? throw new ApiException(409, "Analysis for the previous contribution is missing");
+            analysis.Status = "running"; analysis.QualityGate = "pending"; analysis.QualityGateSummary = GateEvaluation.Summary("pending", 0); analysis.CompletedAt = null;
+            analysis.DecorationRevision++; analysis.PrDecorationStatus = "queued";
+            db.Add(new DurableJob { Kind = "pr-decoration", ResourceId = $"{analysis.AnalysisId}:{analysis.DecorationRevision}" });
+        }
         foreach (var descriptor in manifest.Reports)
         {
             var oldReport = previous is null ? null : await db.Set<IngestionReport>().FindAsync([previous.Id, descriptor.ReportId], ct);

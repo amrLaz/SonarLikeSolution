@@ -15,6 +15,7 @@ public static class AnalysisEndpoints
         var routes = app.MapGroup("/api/v1/analyses").RequireAuthorization();
         routes.MapGet("", InsightEndpoints.ListAnalysesAsync);
         routes.MapPost("", CreateAsync).Produces<AnalysisResponse>();
+        AnalysisLifecycleEndpoints.Map(routes);
         routes.MapGet(
             "/export/csv",
             async (HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct) =>
@@ -124,11 +125,12 @@ public static class AnalysisEndpoints
                 HttpContext context,
                 AppDbContext db,
                 AuthService auth,
+                ReportStorage storage,
                 CancellationToken ct
             ) =>
             {
                 await auth.RequireAsync(context, "admin", ct);
-                return Results.Ok(await DeleteAsync(db, project_key, null, ct));
+                return Results.Ok(await DeleteAsync(db, storage, project_key, null, ct));
             }
         );
         routes.MapDelete(
@@ -139,11 +141,12 @@ public static class AnalysisEndpoints
                 HttpContext context,
                 AppDbContext db,
                 AuthService auth,
+                ReportStorage storage,
                 CancellationToken ct
             ) =>
             {
                 await auth.RequireAsync(context, "admin", ct);
-                return Results.Ok(await DeleteAsync(db, project_key, branch, ct));
+                return Results.Ok(await DeleteAsync(db, storage, project_key, branch, ct));
             }
         );
         return app;
@@ -170,9 +173,7 @@ public static class AnalysisEndpoints
         HttpContext context,
         AppDbContext db,
         AuthService auth,
-        IHttpClientFactory clients,
         NotificationService notifications,
-        IOptions<AnalysisOptions> options,
         CancellationToken ct
     )
     {
@@ -232,6 +233,8 @@ public static class AnalysisEndpoints
             CommitSha = request.CommitSha,
             Branch = request.Branch,
             CiProvider = request.CiProvider,
+            ProviderRunId = request.ProviderRunId ?? "",
+            RepositoryUrl = request.RepositoryUrl ?? "",
             Status = "completed",
             QualityGate = verdict,
             MaintainabilityScore = metrics.MaintainabilityScore,
@@ -254,39 +257,32 @@ public static class AnalysisEndpoints
             AffectedFiles = JsonSerializer.Serialize(metrics.AffectedFiles ?? [], ApiJson.Options),
             GateFailures = JsonSerializer.Serialize(failures),
             CreatedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.ffffffzzz"),
+            StartedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow,
             PrId = request.PrId ?? "",
             PrRepoId = request.PrRepoId ?? "",
             PrAdoProject = request.PrAdoProject ?? "",
             PrTargetBranch = request.PrTargetBranch ?? "",
-            PrDecorationStatus = "",
+            PrAdoOrgUrl = request.PrAdoOrgUrl ?? "",
+            PrSourceSha = request.PrSourceSha ?? request.CommitSha,
+            PrTargetSha = request.PrTargetSha ?? "",
+            PrDecorationStatus = "queued",
             PrDecorationError = "",
+            DecorationRevision = 1,
         };
         await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
             db.Add(record);
             var occurrences = AnalysisOccurrences.From(record).ToList();
+            record.ErrorCount = occurrences.Count(x => x.Severity.ToLowerInvariant() is "blocker" or "critical" or "error" or "high");
+            record.WarningCount = occurrences.Count(x => x.Severity.ToLowerInvariant() is "warning" or "medium");
+            record.InfoCount = occurrences.Count - record.ErrorCount - record.WarningCount;
+            record.QualityGateSummary = GateEvaluation.Summary(record.QualityGate, record.ErrorCount);
             db.AddRange(occurrences);
             await FindingCollaboration.ObserveAsync(db, record, occurrences, ct);
+            db.Add(new DurableJob { Kind = "pr-decoration", ResourceId = $"{record.AnalysisId}:1" });
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-        }
-        if (
-            !string.IsNullOrEmpty(request.PrId)
-            && !string.IsNullOrEmpty(request.PrRepoId)
-            && !string.IsNullOrEmpty(request.PrAdoProject)
-        )
-        {
-            await AnalysisExternal.DecorateAsync(
-                record,
-                request,
-                metrics,
-                failures,
-                db,
-                clients,
-                options.Value,
-                ct
-            );
-            await db.SaveChangesAsync(ct);
         }
         notifications.Dispatch(
             verdict,
@@ -308,11 +304,13 @@ public static class AnalysisEndpoints
 
     private static async Task<object> DeleteAsync(
         AppDbContext db,
+        ReportStorage storage,
         string key,
         string? branch,
         CancellationToken ct
     )
     {
+        var sourceBlobs = await db.Set<AnalysisSource>().Where(x => x.BlobName != "" && db.Set<AnalysisRecord>().Any(a => a.AnalysisId == x.AnalysisId && a.ProjectKey == key && (branch == null || a.Branch == branch))).Select(x => x.BlobName).ToListAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var query = db.Set<AnalysisRecord>()
             .Where(x => x.ProjectKey == key && (branch == null || x.Branch == branch));
@@ -326,6 +324,7 @@ public static class AnalysisEndpoints
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM ingestions WHERE project_key = {key} AND ({branch}::text IS NULL OR manifest::jsonb->>'branch' = {branch})", ct);
         var deletedCount = await query.ExecuteDeleteAsync(ct);
         await transaction.CommitAsync(ct);
+        foreach (var blob in sourceBlobs) await storage.DeleteAsync(blob, ct);
         var label = branch == null ? $"project {key}" : $"{key}/{branch}";
         var message =
             deletedCount == 0

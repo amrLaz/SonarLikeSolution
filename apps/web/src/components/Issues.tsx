@@ -1,7 +1,7 @@
 import InfoHint from './InfoHint';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiPage } from '../api';
+import { apiJson, apiPage } from '../api';
 import { findingCategory, findingCategoryLabel } from '../metric-display';
 import type { IssueSeverityFilter, IssueTypeFilter, ProjectMeta, ProjectSummary } from '../types';
 import ProjectHeader from './ProjectHeader';
@@ -49,6 +49,8 @@ type IssueOccurrence = {
   line: number | null;
   source_url?: string | null;
   evidence?: FindingEvidence | null;
+  prompt_available: boolean;
+  prompt_unavailable_reason?: string | null;
 };
 
 export default function Issues({
@@ -68,6 +70,25 @@ export default function Issues({
   onFiltersChange,
 }: Props) {
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
+  const promptDialog = useRef<HTMLDialogElement>(null);
+  const [promptState, setPromptState] = useState<{ issueId: string; prompt: string; loading: boolean; error: string | null; copied: boolean } | null>(null);
+  useEffect(() => {
+    if (!promptState) return;
+    promptDialog.current?.showModal();
+  }, [promptState?.issueId]);
+  const closePrompt = () => {
+    promptDialog.current?.close();
+    setPromptState(null);
+  };
+  const loadPrompt = async (issueId: string) => {
+    setPromptState({ issueId, prompt: '', loading: true, error: null, copied: false });
+    try {
+      const result = await apiJson<{ prompt: string }>(`${API_BASE}/v1/issues/${encodeURIComponent(issueId)}/prompt`, authToken);
+      setPromptState({ issueId, prompt: result.prompt, loading: false, error: null, copied: false });
+    } catch (error) {
+      setPromptState({ issueId, prompt: '', loading: false, error: error instanceof Error ? error.message : 'Impossible de générer le prompt.', copied: false });
+    }
+  };
   const { severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, file: issueFileFilter, mine, state, team: teamId } = filters;
   const updateFilters = (patch: Partial<IssueFilters>) => onFiltersChange({ ...filters, ...patch });
   const [teamPage, setTeamPage] = useState({ project: '', cursor: '' });
@@ -124,6 +145,8 @@ export default function Issues({
         documentation_url: evidenceLink(issue.evidence?.documentation_url),
         producer: issue.original_tool ?? issue.tool,
         tool_version: issue.evidence?.driver_version ?? issue.tool_version,
+        prompt_available: issue.prompt_available,
+        prompt_unavailable_reason: issue.prompt_unavailable_reason,
       })),
     [issuesQuery.data, selectedAnalysis],
   );
@@ -385,6 +408,17 @@ export default function Issues({
                       ) : (
                         <p>Lien vers le code au commit analysé indisponible.</p>
                       )}
+                      <div className="issue-actions">
+                        <button
+                          type="button"
+                          disabled={!issue.prompt_available}
+                          title={issue.prompt_available ? undefined : `Prompt indisponible : ${issue.prompt_unavailable_reason ?? 'source absente'}`}
+                          onClick={() => void loadPrompt(issue.id)}
+                        >
+                          Générer le prompt
+                        </button>
+                        {!issue.prompt_available && <span>Prompt indisponible ({issue.prompt_unavailable_reason ?? 'source absente'}).</span>}
+                      </div>
                       <section aria-label="Documentation de la règle">
                         <h4>Pourquoi cette issue ? Comment la résoudre ?</h4>
                         <p>
@@ -460,6 +494,35 @@ export default function Issues({
           </div>
         )}
       </div>
+      {promptState && (
+        <dialog ref={promptDialog} className="config-modal prompt-modal" aria-labelledby="prompt-dialog-title" onCancel={(event) => { event.preventDefault(); closePrompt(); }}>
+          <div className="config-modal-header">
+            <h3 id="prompt-dialog-title">Prompt IA contextualisé</h3>
+            <button type="button" aria-label="Fermer" onClick={closePrompt}>×</button>
+          </div>
+          {promptState.loading && <p role="status">Génération du prompt…</p>}
+          {promptState.error && <p className="feedback error" role="alert">{promptState.error}</p>}
+          {promptState.prompt && <textarea aria-label="Prompt IA" readOnly value={promptState.prompt} rows={18} />}
+          <div className="action-row">
+            <button
+              type="button"
+              disabled={!promptState.prompt}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(promptState.prompt);
+                  setPromptState({ ...promptState, copied: true, error: null });
+                } catch {
+                  setPromptState({ ...promptState, copied: false, error: 'La copie dans le presse-papiers a échoué.' });
+                }
+              }}
+            >
+              Copier
+            </button>
+            <button type="button" onClick={closePrompt}>Fermer</button>
+            {promptState.copied && <span role="status">Copié</span>}
+          </div>
+        </dialog>
+      )}
     </section>
   );
 }

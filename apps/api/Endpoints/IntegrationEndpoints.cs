@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using CodeInsights.Api.Auth;
 using CodeInsights.Api.Data;
@@ -291,13 +292,13 @@ public static class IntegrationEndpoints
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     timeout.CancelAfter(TimeSpan.FromSeconds(10));
                     using var client = clients.CreateClient("azure-devops");
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                        "Basic",
+                        Convert.ToBase64String(Encoding.UTF8.GetBytes(":" + row.Pat))
+                    );
                     using var request = new HttpRequestMessage(
                         HttpMethod.Get,
                         row.OrganizationUrl.TrimEnd('/') + "/_apis/projects?api-version=7.0&$top=1"
-                    );
-                    request.Headers.Authorization = new AuthenticationHeaderValue(
-                        "Basic",
-                        Convert.ToBase64String(Encoding.UTF8.GetBytes(":" + row.Pat))
                     );
                     using var response = await client.SendAsync(request, timeout.Token);
                     var code = (int)response.StatusCode;
@@ -313,6 +314,11 @@ public static class IntegrationEndpoints
                         );
                     if (code is not (200 or 203))
                         throw new ApiException(400, $"Azure DevOps returned HTTP {code}");
+                    using var identityResponse = await client.GetAsync(row.OrganizationUrl.TrimEnd('/') + "/_apis/connectionData?connectOptions=1&lastChangeId=-1&lastChangeId64=-1", timeout.Token);
+                    if (!identityResponse.IsSuccessStatusCode) throw new ApiException(400, "Azure DevOps bot identity could not be resolved");
+                    using var identityBody = JsonDocument.Parse(await identityResponse.Content.ReadAsStringAsync(timeout.Token));
+                    row.BotIdentityId = identityBody.RootElement.GetProperty("authenticatedUser").GetProperty("id").GetString();
+                    if (string.IsNullOrEmpty(row.BotIdentityId)) throw new ApiException(400, "Azure DevOps returned no authenticated identity");
                     row.Status = "validated";
                     row.LastTestedAt = row.UpdatedAt = DateTime.UtcNow;
                     row.LastError = null;

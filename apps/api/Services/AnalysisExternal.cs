@@ -54,7 +54,7 @@ public static class AnalysisExternal
             {
                 ["state"] = !technicallyComplete || record.QualityGate == "unknown" ? "error" : informative || record.QualityGate == "pass" ? "succeeded" : "failed",
                 ["description"] = description[..Math.Min(description.Length, 200)],
-                ["context"] = new { name = "platform-quality-gate", genre = "static-analysis" },
+                ["context"] = new { name = "quality-gate", genre = "CodeInsights" },
             };
             if (!string.IsNullOrEmpty(request.PlatformUrl))
                 body["targetUrl"] =

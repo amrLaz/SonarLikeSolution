@@ -167,3 +167,9 @@ Les pipelines 963 et 969 ciblent le dépôt CodeInsights. Le déclenchement auto
 ### Configuration Entra après initialisation de la base
 
 La recréation de la base efface aussi les paramètres des fournisseurs. Le bootstrap crée Entra désactivé ; React affiche son bouton uniquement si le fournisseur est activé. Le tenant, le client de l'inscription `UP-France-ODI-SAST-Platform`, son URL de callback et le secret fourni par l'opérateur sont configurés. Le fournisseur est activé ; le bouton « Sign in with Microsoft / Entra ID » est visible dans le navigateur intégré après actualisation. L'initialisation OIDC retourne une URL Microsoft pour le bon client et pose le cookie de corrélation. Cette vérification ne constitue pas encore un login interactif complet sur le tenant. Aucun secret n'est versionné.
+
+## Cycle Quality Gate et prompts
+
+La recette dédiée couvre l’idempotence par `provider_run_id`, le conflit 409 d’une seconde complétion différente, les transitions `running/pending`, `completed/pass|fail|unknown` et `failed/unknown`, ainsi que l’expiration d’un run abandonné. Les sources couvrent hash, limites, chemins hostiles, UTF-8, purge et fenêtres en début, milieu et fin de fichier. Les doubles ADO vérifient l’ordre nettoyage/issues/statut et la conservation des humains; les doubles GitHub vérifient un Check Run distinct par analyse, les lots de 50, la reprise par compteur et la conclusion `neutral`.
+
+La validation locale minimale exécute le build Release, `CodeInsights.Checks`, `npm run check`, `npm run build`, les deux suites Python du runner, le build Docker et `docker compose config --quiet`. Les checks PostgreSQL/Blob exigent une base et un Azurite isolés; leur absence est une validation partielle.

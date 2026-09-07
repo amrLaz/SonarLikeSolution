@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using CodeInsights.Api;
 using CodeInsights.Api.Contracts;
 using CodeInsights.Api.Services;
@@ -73,6 +75,39 @@ public static class AnalysisHttpChecks
         complete.AffectedFiles = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
             "{\"src/a.cs\":[{\"rule\":\"semgrep/csharp.sample-rule\",\"severity\":\"HIGH\",\"category\":\"vulnerability\",\"line\":4,\"message\":\"Sample issue\"}],\"sample.csproj\":[{\"rule\":\"trivy/CVE-2026-0001\",\"severity\":\"HIGH\",\"category\":\"dependency_vulnerability\",\"message\":\"Sample@1: title | fix: upgrade to 2 | CVSS 8.1\"}]}"
         );
+        var cycle = JsonSerializer.Deserialize<AnalysisRequest>(JsonSerializer.Serialize(complete, ApiJson.Options), ApiJson.Options)!;
+        cycle.CommitSha = "fedcba987654";
+        cycle.Branch = "lifecycle-check";
+        var providerRun = "http-check-" + Guid.NewGuid().ToString("N");
+        var startBody = new AnalysisStartRequest { ProjectKey = projectKey, CommitSha = cycle.CommitSha, Branch = cycle.Branch, CiProvider = cycle.CiProvider, ProviderRunId = providerRun };
+        var started = await Json(await Send(HttpMethod.Post, "/api/v1/analyses/start", startBody));
+        var lifecycleId = started.GetProperty("analysis_id").GetString()!;
+        Require(started.GetProperty("status").GetString() == "running" && started.GetProperty("quality_gate_result").GetProperty("status").GetString() == "pending", "pending lifecycle");
+        var replayed = await Json(await Send(HttpMethod.Post, "/api/v1/analyses/start", startBody));
+        Require(replayed.GetProperty("analysis_id").GetString() == lifecycleId, "idempotent start");
+        var sourceBytes = Encoding.UTF8.GetBytes("one\ntwo\nthree\nunsafe();");
+        var declared = await Json(await Send(HttpMethod.Post, $"/api/v1/analyses/{lifecycleId}/sources", new { sources = new[] { new { path = "src/a.cs", size_bytes = sourceBytes.Length, sha256 = Convert.ToHexStringLower(SHA256.HashData(sourceBytes)) } } }));
+        var sourceId = declared.GetProperty("sources")[0].GetProperty("source_id").GetString()!;
+        using (var upload = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/analyses/{lifecycleId}/sources/{sourceId}"))
+        {
+            upload.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ciToken);
+            upload.Content = new ByteArrayContent(sourceBytes);
+            using var uploaded = await client.SendAsync(upload);
+            Require(uploaded.StatusCode == HttpStatusCode.OK, "source upload");
+        }
+        var completedCycle = await Json(await Send(HttpMethod.Post, $"/api/v1/analyses/{lifecycleId}/complete", cycle));
+        Require(completedCycle.GetProperty("status").GetString() == "completed", "completed lifecycle");
+        await Json(await Send(HttpMethod.Post, $"/api/v1/analyses/{lifecycleId}/complete", cycle));
+        cycle.Measurements["security_score"] = new("measured", 0, "semgrep", "1");
+        await Json(await Send(HttpMethod.Post, $"/api/v1/analyses/{lifecycleId}/complete", cycle), HttpStatusCode.Conflict);
+        var lifecycleFindings = await Json(await Send(HttpMethod.Get, $"/api/v1/insights/analyses/{lifecycleId}/findings"));
+        var occurrenceId = lifecycleFindings.EnumerateArray().Single(x => x.GetProperty("path").GetString() == "src/a.cs").GetProperty("id").GetInt64();
+        var prompt = await Json(await Send(HttpMethod.Get, $"/api/v1/issues/{occurrenceId}/prompt", token: adminToken));
+        Require(prompt.GetProperty("prompt").GetString()!.Contains("    4: unsafe();"), "prompt source context");
+        var failedStart = await Json(await Send(HttpMethod.Post, "/api/v1/analyses/start", new AnalysisStartRequest { ProjectKey = projectKey, CommitSha = "001122334455", Branch = "failure-check", CiProvider = "local", ProviderRunId = "http-fail-" + Guid.NewGuid().ToString("N") }));
+        var failedId = failedStart.GetProperty("analysis_id").GetString()!;
+        var failedCycle = await Json(await Send(HttpMethod.Post, $"/api/v1/analyses/{failedId}/fail", new { error_code = "scanner_failed" }));
+        Require(failedCycle.GetProperty("status").GetString() == "failed" && failedCycle.GetProperty("quality_gate").GetString() == "unknown", "technical failure is not a quality failure");
         var created = await Json(await Send(HttpMethod.Post, "/api/v1/analyses", complete));
         Require(created.GetProperty("quality_gate").GetString() == "pass", "complete gate pass");
         var id = created.GetProperty("analysis_id").GetString()!;
