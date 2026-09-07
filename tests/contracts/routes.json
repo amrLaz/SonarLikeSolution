@@ -221,12 +221,6 @@
     ]
   },
   {
-    "path": "/api/v1/analyses/{analysis_id}/export/pdf",
-    "methods": [
-      "GET"
-    ]
-  },
-  {
     "path": "/api/v1/analyses/projects/{project_key}",
     "methods": [
       "DELETE"
@@ -583,7 +577,7 @@
     "methods": [
       "GET"
     ],
-    "path": "/api/v1/insights/analyses/{id}/findings/export/{format}"
+    "path": "/api/v1/insights/analyses/{id}/findings/export/csv"
   },
   {
     "methods": [

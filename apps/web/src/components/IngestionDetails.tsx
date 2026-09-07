@@ -43,44 +43,44 @@ export function NewCode({ analysisId, token, repoProvider = 'other', repoUrl }: 
   return (
     <section className="panel comparison-panel">
       <h2>
-        New Code <InfoHint>Comparaison Git de l’analyse sélectionnée et de sa cible figée.</InfoHint>
+        New Code <InfoHint>Git comparison between the selected analysis and its frozen target.</InfoHint>
       </h2>
       {!analysisId ? (
-        <p role="status">Sélectionnez une analyse.</p>
+        <p role="status">Select an analysis.</p>
       ) : query.isLoading ? (
-        <p role="status">Chargement de la comparaison…</p>
+        <p role="status">Loading comparison…</p>
       ) : query.error ? (
         <p role="alert">{query.error.message}</p>
       ) : query.data?.state !== 'available' ? (
-        <p role="status">Non disponible : {query.data?.reason ?? 'comparaison non mesurée'}.</p>
+        <p role="status">Not available: {query.data?.reason ?? 'comparison not measured'}.</p>
       ) : (
         <>
           <p className="scope-note">
-            Baseline : <code>{query.data.baseline_id ?? 'Non disponible'}</code>
+            Baseline: <code>{query.data.baseline_id ?? 'Not available'}</code>
             <br />
-            {baseUrl ? <a className="repository-reference" href={baseUrl} target="_blank" rel="noreferrer"><code>{query.data.base_sha}</code> ↗</a> : <code>{query.data.base_sha ?? 'Non disponible'}</code>}
+            {baseUrl ? <a className="repository-reference" href={baseUrl} target="_blank" rel="noreferrer"><code>{query.data.base_sha}</code> ↗</a> : <code>{query.data.base_sha ?? 'Not available'}</code>}
             {' → '}
-            {headUrl ? <a className="repository-reference" href={headUrl} target="_blank" rel="noreferrer"><code>{query.data.head_sha}</code> ↗</a> : <code>{query.data.head_sha ?? 'Non disponible'}</code>}
+            {headUrl ? <a className="repository-reference" href={headUrl} target="_blank" rel="noreferrer"><code>{query.data.head_sha}</code> ↗</a> : <code>{query.data.head_sha ?? 'Not available'}</code>}
           </p>
           <dl className="metric-grid">
             {(
               [
-                ['Nouveaux', query.data.new_count],
-                ['Persistants', query.data.persistent_count],
-                ['Résolus', query.data.resolved_count],
-                ['Indéterminés', query.data.indeterminate_count],
-                ['Couverture des lignes modifiées (%)', query.data.coverage],
+                ['New', query.data.new_count],
+                ['Persistent', query.data.persistent_count],
+                ['Resolved', query.data.resolved_count],
+                ['Indeterminate', query.data.indeterminate_count],
+                ['Changed-line coverage (%)', query.data.coverage],
               ] as const
             ).map(([label, value]) => (
               <div className="metric-card" key={label}>
                 <dt>{label}</dt>
-                <dd>{value ?? 'Non disponible'}</dd>
+                <dd>{value ?? 'Not available'}</dd>
               </div>
             ))}
           </dl>
           <p>
-            {query.data.covered_lines ?? 'Non disponible'} lignes couvertes / {query.data.executable_lines ?? 'Non disponible'} lignes exécutables modifiées dans les données reçues.{' '}
-            {query.data.executable_lines === 0 && 'L’absence de lignes ne prouve pas la présence d’un rapport de couverture ; consultez l’état de la condition dans les preuves du gate.'}
+            {query.data.covered_lines ?? 'Not available'} covered lines / {query.data.executable_lines ?? 'Not available'} changed executable lines in the received data.{' '}
+            {query.data.executable_lines === 0 && 'No changed lines does not prove that a coverage report was provided; check the condition status in the gate evidence.'}
           </p>
         </>
       )}
@@ -119,7 +119,7 @@ export default function IngestionDetails({ project, analysisId, token }: { proje
   return (
     <section className="panel ingestion-details">
       <h2>
-        Rapports et composants <InfoHint>Imports du projet, 50 par page. Le verdict qualité et l’état technique sont distincts.</InfoHint>
+        Reports and components <InfoHint>Project imports, 50 per page. Quality verdict and technical status are distinct.</InfoHint>
       </h2>
       <button
         type="button"
@@ -128,64 +128,64 @@ export default function IngestionDetails({ project, analysisId, token }: { proje
           void components.refetch();
         }}
       >
-        Actualiser les imports
+        Refresh imports
       </button>
-      {ingestions.isLoading && <p role="status">Chargement des imports…</p>}
+      {ingestions.isLoading && <p role="status">Loading imports…</p>}
       {ingestions.error && <p role="alert">{ingestions.error.message}</p>}
       {(ingestions.data?.items ?? []).map((item) => (
         <p key={item.ingestion_id}>
           <button type="button" aria-pressed={selectedImport === item.ingestion_id} onClick={() => setImportSelection({ project, id: item.ingestion_id })}>
             {item.ingestion_id}
           </button>{' '}
-          · révision {item.revision} · {item.state} · technique : {item.technical_state} · qualité : {item.quality_gate}
+          · revision {item.revision} · {item.state} · technical: {item.technical_state} · quality: {item.quality_gate}
           {item.error && ` · ${item.error}`}
         </p>
       ))}
       <div className="action-row">
         {importCursor && (
           <button type="button" onClick={() => setImportPage({ project, cursor: '' })}>
-            Première page d’imports
+            First page
           </button>
         )}
         {ingestions.data?.next && (
           <button type="button" onClick={() => setImportPage({ project, cursor: ingestions.data!.next! })}>
-            Imports précédents
+            Next
           </button>
         )}
       </div>
-      {receipt.isLoading && <p role="status">Chargement du reçu…</p>}
+      {receipt.isLoading && <p role="status">Loading receipt…</p>}
       {receipt.error && <p role="alert">{receipt.error.message}</p>}
       {receipt.data && (
         <div>
-          <h3>Rapports du reçu</h3>
+          <h3>Receipt reports</h3>
           <p>
-            {receipt.data.reports.filter((report) => report.state === 'received').length} reçus / {receipt.data.reports.length} déclarés
+            {receipt.data.reports.filter((report) => report.state === 'received').length} received / {receipt.data.reports.length} declared
           </p>
           {receipt.data.reports.map((report) => (
             <p key={report.report_id}>
-              <code>{report.report_id}</code> · {report.state} · {report.size_bytes} octets {report.error}
+              <code>{report.report_id}</code> · {report.state} · {report.size_bytes} bytes {report.error}
             </p>
           ))}
         </div>
       )}
       <h3>
-        Inventaire SBOM de l’analyse sélectionnée <InfoHint>Les CVE proviennent uniquement des rapports. Une liste vide ne prouve pas l’absence de vulnérabilités.</InfoHint>
+        Selected analysis SBOM inventory <InfoHint>CVEs come only from reports. An empty list does not prove that there are no vulnerabilities.</InfoHint>
       </h3>
       {components.isLoading ? (
-        <p role="status">Chargement des composants…</p>
+        <p role="status">Loading components…</p>
       ) : components.error ? (
         <p role="alert">{components.error.message}</p>
       ) : !components.data?.items.length ? (
-        <p role="status">Aucun composant fourni pour cette analyse.</p>
+        <p role="status">No components were provided for this analysis.</p>
       ) : (
-        <div className="table-wrap" tabIndex={0} role="region" aria-label="Composants SBOM">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="SBOM components">
           <table>
             <thead>
               <tr>
-                <th>Composant</th>
-                <th>Relation</th>
-                <th>Licences</th>
-                <th>Décision</th>
+                <th>Component</th>
+                <th>Relationship</th>
+                <th>Licenses</th>
+                <th>Decision</th>
                 <th>Provenance</th>
               </tr>
             </thead>
@@ -193,19 +193,19 @@ export default function IngestionDetails({ project, analysisId, token }: { proje
               {components.data.items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    {item.name} {item.version ?? 'version inconnue'}
+                    {item.name} {item.version ?? 'unknown version'}
                     <br />
                     <code>{item.purl}</code>
                   </td>
                   <td>{item.relationship}</td>
-                  <td>{item.licenses.join(', ') || 'Non disponible'}</td>
+                  <td>{item.licenses.join(', ') || 'Not available'}</td>
                   <td>{item.license_decision}</td>
                   <td>
                     {item.source}
                     <br />
                     {new Date(item.observed_at).toLocaleString()}
                     <br />
-                    {item.vulnerabilities.length} références CVE reçues
+                    {item.vulnerabilities.length} CVE references received
                   </td>
                 </tr>
               ))}
@@ -216,12 +216,12 @@ export default function IngestionDetails({ project, analysisId, token }: { proje
       <div className="action-row">
         {cursor && (
           <button type="button" onClick={() => setPage({ analysis: analysisId, cursor: '' })}>
-            Première page
+            First page
           </button>
         )}
         {components.data?.next && (
           <button type="button" onClick={() => setPage({ analysis: analysisId, cursor: components.data!.next! })}>
-            Composants suivants
+            Next
           </button>
         )}
       </div>

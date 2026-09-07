@@ -1,5 +1,5 @@
 export function formatMetric(value: number | null | undefined, unit = ''): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value}${unit}` : 'Non disponible';
+  return typeof value === 'number' && Number.isFinite(value) ? `${value}${unit}` : 'Not available';
 }
 
 export function comparableVersions(previous: { profile_id?: string | null; profile_version?: string | null; formula_version?: string | null }, current: typeof previous): boolean {
@@ -20,16 +20,16 @@ export function analysisGateClass(value: string | null | undefined, completeness
 }
 
 export function measurementStateLabel(value: string | null | undefined): string {
-  if (value === 'measured') return 'Mesurée';
-  if (value === 'absent') return 'Absente';
-  if (value === 'failed') return 'Échec de mesure';
-  return 'Non mesurée';
+  if (value === 'measured') return 'Measured';
+  if (value === 'absent') return 'Absent';
+  if (value === 'failed') return 'Measurement failed';
+  return 'Not measured';
 }
 
 export function completenessLabel(value: string | null | undefined): string {
-  if (value === 'complete') return 'Complète';
-  if (value === 'incomplete') return 'Incomplète';
-  return 'Non disponible';
+  if (value === 'complete') return 'Complete';
+  if (value === 'incomplete') return 'Incomplete';
+  return 'Not available';
 }
 
 export type FindingCategory = 'secret' | 'dependency' | 'code' | 'ioc' | 'unknown' | 'bug' | 'code_smell' | 'vulnerability' | 'security_hotspot';
@@ -40,12 +40,12 @@ export function findingCategory(value: string | null | undefined): FindingCatego
 
 export function findingCategoryLabel(value: FindingCategory): string {
   return {
-    bug: 'Bug', code_smell: 'Code smell', vulnerability: 'Vulnérabilité', security_hotspot: 'Point sensible',
+    bug: 'Bug', code_smell: 'Code smell', vulnerability: 'Vulnerability', security_hotspot: 'Security hotspot',
     secret: 'Secret',
-    dependency: 'Dépendance / CVE',
+    dependency: 'Dependency / CVE',
     code: 'Code',
     ioc: 'IOC',
-    unknown: 'Catégorie inconnue',
+    unknown: 'Unknown category',
   }[value];
 }
 

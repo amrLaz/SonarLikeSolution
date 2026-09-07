@@ -109,14 +109,14 @@ export default function ProjectHeader({
                 <select id="branch-selector" className="branch-selector-button" value={selectedBranch} onChange={(event) => onBranchChange(event.target.value)}>
                   {availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
                 </select>
-                {branchUrl && <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${selectedBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">↗</a>}
+        {branchUrl && <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Open branch ${selectedBranch} in the repository`} title="Open branch in the repository">↗</a>}
               </div>
             </div>
           )}
 
           {onAnalysisChange && branchAnalyses.length > 0 && (
             <div className="analysis-selector-group">
-              <label htmlFor="analysis-selector">Analyse</label>
+      <label htmlFor="analysis-selector">Analysis</label>
               <select
                 id="analysis-selector"
                 value={selectedBranchData?.analysis_id ?? ""}
@@ -124,7 +124,7 @@ export default function ProjectHeader({
               >
                 {branchAnalyses.map((analysis) => (
                   <option key={analysis.analysis_id} value={analysis.analysis_id}>
-                    {new Date(analysis.created_at).toLocaleString()} · {analysis.commit_sha?.substring(0, 7) || "commit inconnu"}
+                    {new Date(analysis.created_at).toLocaleString()} · {analysis.commit_sha?.substring(0, 7) || 'unknown commit'}
                   </option>
                 ))}
               </select>
@@ -146,7 +146,7 @@ export default function ProjectHeader({
               <a className="commit-sha repository-reference" href={commitUrl} target="_blank" rel="noreferrer" title={selectedBranchData.commit_sha}>
                 {selectedBranchData.commit_sha.substring(0, 7)} ↗
               </a>
-            ) : <span className="commit-sha" title={selectedBranchData.commit_sha}>{selectedBranchData.commit_sha?.substring(0, 7) || "Commit non disponible"}</span>}
+          ) : <span className="commit-sha" title={selectedBranchData.commit_sha}>{selectedBranchData.commit_sha?.substring(0, 7) || "Commit not available"}</span>}
             {pullRequestUrl && <a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">PR #{selectedBranchData.pr_id} ↗</a>}
             <span className="analysis-date">
               {new Date(selectedBranchData.created_at).toLocaleString()}

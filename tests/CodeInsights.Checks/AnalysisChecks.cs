@@ -237,9 +237,8 @@ public static class AnalysisChecks
             Encoding.UTF8.GetString(ExportService.Csv([record])).Contains("\"a,b\""),
             "CSV quoting"
         );
-        Check(Encoding.ASCII.GetString(ExportService.Pdf(record), 0, 5) == "%PDF-", "PDF fonts");
         Console.WriteLine(
-            "Strict analysis contract, gates, IaC, null measurements, CSV and PDF checks passed."
+            "Strict analysis contract, gates, IaC, null measurements, and CSV checks passed."
         );
     }
 

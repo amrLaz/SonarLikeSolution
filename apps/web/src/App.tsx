@@ -15,7 +15,6 @@ import Notifications from './components/Notifications';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch as request, apiJson, sessionEvents } from './api';
-import InfoHint from './components/InfoHint';
 import MainNavigation from './components/MainNavigation';
 import { createSessionQueryClient } from './query-client';
 import { defaultIssueFilters, parseWorkspaceUrl, workspaceSearch, type IssueFilters, type WorkspaceUrlState } from './navigation-state';
@@ -46,14 +45,6 @@ const TABS: Array<{ id: AppTab; label: string }> = [
   { id: 'quality-gates', label: 'Quality Gates' },
   { id: 'administration', label: 'Administration' },
 ];
-
-const TAB_HELP: Record<AppTab, string> = {
-  projects: 'Consultez la dernière analyse de chaque projet, puis choisissez une branche et une analyse pour explorer ses résultats.',
-  issues: 'Filtrez les findings de l’analyse sélectionnée et consultez leur localisation, leurs preuves et leur suivi.',
-  rules: 'Consultez les règles observées et le catalogue publié ; la présence au catalogue ne prouve pas leur exécution.',
-  'quality-gates': 'Consultez les conditions qui déterminent le verdict qualité. Le périmètre New Code exige une comparaison Git disponible.',
-  administration: 'Configurez les intégrations, accès et paramètres de la plateforme. Ces actions sont réservées aux administrateurs.',
-};
 
 const ADMIN_PRIMARY_TABS: Array<{ id: AdminPrimaryTab; label: string }> = [
   { id: 'configuration', label: 'Configuration' },
@@ -175,6 +166,10 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
 
   const sessionUser = initialUser;
   const [authScreen, setAuthScreen] = useState<'sign-in' | 'app' | 'sign-out'>(initialUser ? 'app' : 'sign-in');
+  useEffect(() => {
+    const pageName = authScreen === 'app' ? TABS.find((tab) => tab.id === activeTab)?.label : authScreen === 'sign-in' ? 'Sign In' : 'Sign Out';
+    document.title = pageName ? `CodeInsights - ${pageName}` : 'CodeInsights';
+  }, [activeTab, authScreen]);
 
   const [signInForm, setSignInForm] = useState({
     email: '',
@@ -776,20 +771,13 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
                   .join('')
                   .toLocaleUpperCase() || '?'}
               </span>
-              <button type="button" className="signout-btn" onClick={openSignOutPage} title="Déconnexion" aria-label="Déconnexion">
+              <button type="button" className="signout-btn" onClick={openSignOutPage} title="Sign out" aria-label="Sign out">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M9 4H4v16h5M9 12h11m-4-4 4 4-4 4" />
                 </svg>
               </button>
             </>
           )}
-        </div>
-      </header>
-
-      <header className="workspace-header" id="workspace-content" tabIndex={-1}>
-        <div className="workspace-heading">
-          <h1>{visibleTabs.find((tab) => tab.id === activeTab)?.label}</h1>
-          <InfoHint label="À propos de cette vue">{TAB_HELP[activeTab]}</InfoHint>
         </div>
       </header>
 
@@ -825,7 +813,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         </section>
       )}
 
-      <div key={activeTab} className="workspace-view">
+      <div key={activeTab} className="workspace-view" id="workspace-content" tabIndex={-1}>
         {!independentScope && scopeMode === 'new-code' && (
           <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} repoProvider={projectMeta[selectedProject]?.repoProvider} repoUrl={projectMeta[selectedProject]?.repoUrl} />
         )}
@@ -845,61 +833,6 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
           </p>
         )}
 
-        {!independentScope && (projectCursor || summaryQuery.data?.next_cursor) && (
-          <div className="action-row" aria-label="Project pages">
-            {projectCursor && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedProject('');
-                  setProjectCursor('');
-                }}
-              >
-                Première page de projets
-              </button>
-            )}
-            {summaryQuery.data?.next_cursor && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedProject('');
-                  setProjectCursor(summaryQuery.data!.next_cursor!);
-                }}
-              >
-                Projets suivants
-              </button>
-            )}
-          </div>
-        )}
-        {!independentScope && selectedProject && (
-          <div className="action-row" aria-label="Branch pages">
-            {branchCursor && (
-              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>
-                Première page de branches
-              </button>
-            )}
-            {branchesQuery.data?.next && (
-              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>
-                Branches suivantes
-              </button>
-            )}
-            {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
-          </div>
-        )}
-        {selectedProject && ['projects', 'issues'].includes(activeTab) && (historyCursor || analysesQuery.data?.next) && (
-          <div className="action-row" aria-label="Analysis history pages">
-            {historyCursor && (
-              <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>
-                Première page
-              </button>
-            )}
-            {analysesQuery.data?.next && (
-              <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>
-                Analyses précédentes
-              </button>
-            )}
-          </div>
-        )}
         {activeTab === 'projects' && scopeMode === 'overall' && (
           <Projects
             summaries={summaries}
@@ -1267,6 +1200,62 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
               </section>
             </div>
           </section>
+        )}
+
+        {!independentScope && (projectCursor || summaryQuery.data?.next_cursor) && (
+          <div className="action-row pagination-row" aria-label="Project pages">
+            {projectCursor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProject('');
+                  setProjectCursor('');
+                }}
+              >
+                First page
+              </button>
+            )}
+            {summaryQuery.data?.next_cursor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProject('');
+                  setProjectCursor(summaryQuery.data!.next_cursor!);
+                }}
+              >
+                Next
+              </button>
+            )}
+          </div>
+        )}
+        {!independentScope && selectedProject && (branchCursor || branchesQuery.data?.next || branchesQuery.error) && (
+          <div className="action-row pagination-row" aria-label="Branch pages">
+            {branchCursor && (
+              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>
+                First page
+              </button>
+            )}
+            {branchesQuery.data?.next && (
+              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>
+                Next
+              </button>
+            )}
+            {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
+          </div>
+        )}
+        {selectedProject && ['projects', 'issues'].includes(activeTab) && (historyCursor || analysesQuery.data?.next) && (
+          <div className="action-row pagination-row" aria-label="Analysis history pages">
+            {historyCursor && (
+              <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>
+                First page
+              </button>
+            )}
+            {analysesQuery.data?.next && (
+              <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>
+                Next
+              </button>
+            )}
+          </div>
         )}
       </div>
 

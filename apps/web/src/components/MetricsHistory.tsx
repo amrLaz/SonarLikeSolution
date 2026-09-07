@@ -23,7 +23,7 @@ const LINE_COLORS = ['var(--primary)', 'var(--primary-dark)', 'var(--severity-lo
 export default function MetricsHistory({ history }: { history: AnalysisRecord[] }) {
   const [selectedGroup, setSelectedGroup] = useState<MetricGroup['id']>('scores');
   const analyses = [...history].sort((left, right) => left.created_at.localeCompare(right.created_at));
-  if (!analyses.length) return <p className="empty-state">Aucune analyse disponible pour cette branche.</p>;
+  if (!analyses.length) return <p className="empty-state">No analysis is available for this branch.</p>;
 
   const group = GROUPS.find(({ id }) => id === selectedGroup) ?? GROUPS[0];
   const maximum = group.maximum ?? Math.max(1, ...group.metrics.flatMap((key) => analyses.map((analysis) => analysis.metrics[key])).filter(isFiniteNumber));
@@ -31,10 +31,10 @@ export default function MetricsHistory({ history }: { history: AnalysisRecord[] 
   return (
     <section className="metrics-history" aria-labelledby="metrics-history-title">
       <h3 id="metrics-history-title">
-        Évolution des métriques{' '}
-        <InfoHint>Les métriques qui partagent la même unité et la même échelle sont regroupées. Une donnée absente ou un changement de version interrompt sa courbe.</InfoHint>
+        Metric trends{' '}
+        <InfoHint>Metrics with the same unit and scale are grouped. Missing data or a version change interrupts a line.</InfoHint>
       </h3>
-      <div className="metric-history-tabs" role="tablist" aria-label="Groupe de métriques">
+      <div className="metric-history-tabs" role="tablist" aria-label="Metric group">
         {GROUPS.map(({ id, label }) => (
           <button
             key={id}
@@ -55,7 +55,7 @@ export default function MetricsHistory({ history }: { history: AnalysisRecord[] 
           <span>{maximum}{group.unit === '%' ? '%' : group.unit}</span>
           <span>0{group.unit === '%' ? '%' : ''}</span>
         </div>
-        <svg viewBox="0 0 360 150" className="trend-chart grouped-trend-chart" role="img" aria-label={`Évolution groupée : ${group.label}.`}>
+        <svg viewBox="0 0 360 150" className="trend-chart grouped-trend-chart" role="img" aria-label={`Grouped trend: ${group.label}.`}>
           {[10, 75, 140].map((y) => <line key={y} x1="8" y1={y} x2="352" y2={y} className="chart-grid-line" />)}
           {group.metrics.map((key, metricIndex) => {
             const [, label, unit] = METRIC_FIELDS.find(([field]) => field === key)!;
@@ -73,7 +73,7 @@ export default function MetricsHistory({ history }: { history: AnalysisRecord[] 
             ));
           })}
         </svg>
-        <ul className="metric-history-legend" aria-label="Légende">
+        <ul className="metric-history-legend" aria-label="Legend">
           {group.metrics.map((key, index) => {
             const [, label] = METRIC_FIELDS.find(([field]) => field === key)!;
             return <li key={key}><span style={{ backgroundColor: LINE_COLORS[index % LINE_COLORS.length] }} />{label}</li>;

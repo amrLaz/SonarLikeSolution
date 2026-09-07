@@ -64,7 +64,7 @@ const markup = renderToStaticMarkup(
     },
   }),
 );
-for (const text of ['Nouveau code', 'Non applicable', '0 / 0', 'baseline-123', 'base123', 'head456', 'normalized-reports/git-diff/v2', 'no_changed_executable_lines'])
+for (const text of ['New Code', 'Not applicable', '0 / 0', 'baseline-123', 'base123', 'head456', 'normalized-reports/git-diff/v2', 'no_changed_executable_lines'])
   assert.ok(markup.includes(text), `Gate evidence renders ${text}`);
 assert.ok(!markup.includes('100%'), 'No coverage percentage is invented for non applicable conditions');
 console.log('Evidence links checks passed.');

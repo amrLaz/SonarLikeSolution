@@ -240,15 +240,6 @@ public static class AnalysisHttpChecks
                 "CSV export"
             );
         }
-        using (var pdf = await Send(HttpMethod.Get, $"/api/v1/analyses/{id}/export/pdf"))
-        {
-            Require(pdf.StatusCode == HttpStatusCode.OK, "PDF HTTP status");
-            Require(
-                System.Text.Encoding.ASCII.GetString(await pdf.Content.ReadAsByteArrayAsync(), 0, 5)
-                    == "%PDF-",
-                "PDF bytes"
-            );
-        }
         using (
             var redirectClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             {

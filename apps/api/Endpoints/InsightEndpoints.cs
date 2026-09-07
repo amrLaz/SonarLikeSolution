@@ -61,7 +61,7 @@ public static class InsightEndpoints
         routes.MapGet("/branches", BranchesAsync);
         routes.MapGet("/rules", RulesAsync);
         routes.MapGet("/analyses/{id}/findings", FindingsAsync);
-        routes.MapGet("/analyses/{id}/findings/export/{format}", FindingsExportAsync);
+        routes.MapGet("/analyses/{id}/findings/export/csv", FindingsExportAsync);
         routes.MapGet("/analyses/{id}/components", ComponentsAsync);
         routes.MapGet(
             "/analyses/{id}/comparison",
@@ -428,17 +428,13 @@ public static class InsightEndpoints
     }
 
     private static async Task<IResult> FindingsExportAsync(
-        string id, string format, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
+        string id, HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct)
     {
-        if (format is not ("csv" or "pdf")) throw new ApiException(404, "Unsupported issues export format");
         var (ingestion, query) = await FilteredFindingsAsync(id, context, db, auth, ct);
         var rows = await query.OrderBy(finding => finding.Id).ToListAsync(ct);
-        var analysis = await db.Set<AnalysisRecord>().AsNoTracking().SingleAsync(item => item.AnalysisId == id, ct);
         var manifest = ingestion is null ? null : JsonSerializer.Deserialize<IngestionManifest>(ingestion.Manifest, ApiJson.Options);
         var prefix = id[..Math.Min(id.Length, 8)];
-        return format == "csv"
-            ? Results.File(ExportService.FindingsCsv(rows, manifest), "text/csv", $"issues-{prefix}.csv")
-            : Results.File(ExportService.FindingsPdf(analysis, rows, manifest), "application/pdf", $"issues-{prefix}.pdf");
+        return Results.File(ExportService.FindingsCsv(rows, manifest), "text/csv", $"issues-{prefix}.csv");
     }
 
     private static async Task<IResult> ComponentsAsync(

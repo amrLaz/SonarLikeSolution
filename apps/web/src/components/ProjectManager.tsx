@@ -418,7 +418,7 @@ export const ProjectManager: React.FC = () => {
                   ] as const).map(([label, value, unit]) => (
                     <div key={label}>
                       <span style={{ color: 'var(--text-secondary)' }}>{label}: </span>
-                      <strong>{value == null ? 'Non disponible' : `${value}${unit}`}</strong>
+                <strong>{value == null ? 'Not available' : `${value}${unit}`}</strong>
                     </div>
                   ))}
                 </div>

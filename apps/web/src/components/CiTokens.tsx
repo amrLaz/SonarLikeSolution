@@ -159,12 +159,12 @@ export default function CiTokens({ authToken }: { authToken?: string }) {
           </div>
           {platformTokenConfigured && (
             <label>
-              Current token (requis pour rotation)
+              Current token (required for rotation)
               <input
                 type="password"
                 value={platformTokenInput}
                 onChange={(event) => setPlatformTokenInput(event.target.value)}
-                placeholder="Coller le token actuel pour rotation sécurisée"
+              placeholder="Paste the current token for secure rotation"
                 autoComplete="off"
               />
             </label>
@@ -173,7 +173,7 @@ export default function CiTokens({ authToken }: { authToken?: string }) {
 
         {platformTokenExpiresAt && (
           <p style={{ fontSize: '0.85rem', color: platformTokenExpired ? 'var(--danger)' : 'var(--text-secondary)', margin: '0.5rem 0 0' }}>
-            {platformTokenExpired ? '⚠ Expiré le' : 'Expire le'} {new Date(platformTokenExpiresAt).toLocaleString()}
+                {platformTokenExpired ? '⚠ Expired on' : 'Expires on'} {new Date(platformTokenExpiresAt).toLocaleString()}
           </p>
         )}
       </div>

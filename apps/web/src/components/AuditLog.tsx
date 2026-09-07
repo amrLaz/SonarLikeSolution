@@ -26,7 +26,6 @@ export default function AuditLog({ authToken }: { authToken?: string }) {
     },
   });
   const auditLogs = auditQuery.data?.pages.flatMap((page) => page.entries) ?? [];
-  const auditLogTotal = auditQuery.data?.pages[0]?.total ?? 0;
   const auditLogLoading = auditQuery.isFetching;
 
   return (
@@ -131,7 +130,7 @@ export default function AuditLog({ authToken }: { authToken?: string }) {
         {auditQuery.hasNextPage && (
           <div style={{ padding: '0.75rem', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
             <button type="button" onClick={() => void auditQuery.fetchNextPage()} disabled={auditLogLoading} style={{ fontSize: '0.85rem' }}>
-              {auditLogLoading ? 'Loading...' : `Load more (${auditLogs.length} / ${auditLogTotal})`}
+              {auditLogLoading ? 'Loading...' : 'Next'}
             </button>
           </div>
         )}

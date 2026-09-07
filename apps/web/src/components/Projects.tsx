@@ -63,7 +63,7 @@ export default function Projects({
     <section className="content-grid">
       <aside className="left-filters">
         <h3>
-          Filters <InfoHint>Dernière analyse par projet de cette page et projet sélectionné, toutes branches.</InfoHint>
+        Filters <InfoHint>Latest analysis for each project on this page and the selected project, across all branches.</InfoHint>
         </h3>
         <p>Projects: {filteredSummaries.length}</p>
         <p>Passed: {filteredSummaries.filter((item) => item.latest.completeness != null && item.latest.quality_gate === 'pass').length}</p>
@@ -148,7 +148,7 @@ export default function Projects({
                       ))}
                     </select>
                     {branchUrl && (
-                      <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${activeBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">
+                    <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Open branch ${activeBranch} in the repository`} title="Open branch in the repository">
                         ↗
                       </a>
                     )}
@@ -227,7 +227,7 @@ export default function Projects({
                               <code>{detailedBranch.latest.commit_sha}</code> ↗
                             </a>
                           ) : (
-                            <code>{detailedBranch.latest.commit_sha || 'Non disponible'}</code>
+                    <code>{detailedBranch.latest.commit_sha || 'Not available'}</code>
                           )}
                         </p>
                         {pullRequestUrl && (

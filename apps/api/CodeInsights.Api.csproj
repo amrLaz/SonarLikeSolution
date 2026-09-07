@@ -8,13 +8,11 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="$(NpgsqlVersion)" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="$(EntityFrameworkVersion)" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="$(IdentityModelVersion)" />
-    <PackageReference Include="PDFsharp-MigraDoc" Version="$(PdfSharpVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="$(AspNetCoreVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="$(AspNetCoreVersion)" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="$(EntityFrameworkVersion)" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Fonts/*.ttf" />
     <Content Include="Docs/*.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

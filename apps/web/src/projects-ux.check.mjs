@@ -23,7 +23,7 @@ const ordered = [
 assert.deepEqual(ordered.map((project) => project.projectKey), ['b-favorite', 'd-favorite', 'a-plain'], 'Favorites sort before plain projects and remain alphabetical');
 assert.deepEqual(favoriteExports.filterFavoriteProjects(ordered, true, 'D-').map((project) => project.projectKey), ['d-favorite'], 'Favorite and search filters compose');
 
-for (const removed of ['Focus API', 'Voir toutes les issues', '<AnalysisEvidence', 'Export all history', 'Valeurs exactes', 'All branches', 'issue-severity-links']) {
+for (const removed of ['Focus API', 'View all issues', '<AnalysisEvidence', 'Export all history', 'Exact values', 'All branches', 'issue-severity-links']) {
   assert.ok(!projects.includes(removed) && !history.includes(removed), `${removed} is removed from Projects`);
 }
 assert.ok(!app.includes('<IngestionDetails'), 'Projects no longer renders the reports and SBOM administration panel');
@@ -51,6 +51,10 @@ assert.ok(app.includes("setProjectCursor('')") && styles.includes('.project-favo
 for (const filter of ['severity', 'category', 'rule', 'path', 'mine', 'state', 'team_id']) {
   assert.ok(new RegExp(`(?:${filter}:|\\b${filter},)`).test(issues), `Issue exports include active ${filter} filter`);
 }
-assert.ok(issues.includes('/findings/export/pdf?') && issues.includes('/findings/export/csv?'), 'Issue exports use the filtered findings endpoints');
+assert.ok(issues.includes('/findings/export/csv?') && (issues.match(/\/findings\/export\//g) ?? []).length === 1, 'Issues expose one filtered CSV export');
+assert.ok(issues.includes('className="icon-button"') && issues.includes('aria-label="Export filtered issues as CSV"'), 'CSV export is a named icon button');
+assert.ok(!issues.includes('sur cette page') && !issues.includes('issues-toolbar-summary">\n            <p>'), 'Issues omit the per-page technical summary');
+assert.ok(issues.indexOf('aria-label="Issue pages"') > issues.indexOf('className="issues-list"'), 'Issue pagination follows the list');
+assert.ok(!app.includes('workspace-heading') && app.includes('`CodeInsights - ${pageName}`'), 'The app avoids a duplicate view heading and synchronizes the document title');
 
 console.log('Projects UX checks passed.');

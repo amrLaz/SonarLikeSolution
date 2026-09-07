@@ -103,21 +103,6 @@ public static class AnalysisEndpoints
                     $"sast-{analysis_id[..Math.Min(8, analysis_id.Length)]}.csv"
                 )
         );
-        routes.MapGet(
-            "/{analysis_id}/export/pdf",
-            async (
-                string analysis_id,
-                HttpContext context,
-                AppDbContext db,
-                AuthService auth,
-                CancellationToken ct
-            ) =>
-                Results.File(
-                    ExportService.Pdf(await FindAsync(analysis_id, context, db, auth, ct)),
-                    "application/pdf",
-                    $"sast-report-{analysis_id[..Math.Min(8, analysis_id.Length)]}.pdf"
-                )
-        );
         routes.MapDelete(
             "/projects/{project_key}",
             async (

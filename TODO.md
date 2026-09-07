@@ -18,7 +18,7 @@
 - [x] La navigation et les filtres métier persistent dans l'URL
 - [x] Décoration des PR avec les résultats de l'analyse et les échecs du Quality Gate. C'est une fonctionnalité activable depuis la vue d'administration.
 - [ ] Sur les issues, donner une estimation de temps nécessaire pour les résoudre.
-- [ ] Mode sombre activable par utilisateur
+- [ ] Mode sombre activable par utilisateur et persisté dans le local storage
 - [ ] Downsampling des métriques pour les vues historiques afin d'améliorer les performances.
 
 ## Prochaines étapes Sonar-like

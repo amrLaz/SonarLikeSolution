@@ -59,7 +59,7 @@ export default function Rules({
   });
   const rules = rulesQuery.data?.items ?? [];
   const selectedRule = useMemo(() => rules.find((rule) => (rule.key ?? `${rule.tool}/${rule.rule_id}`) === selectedRuleId) ?? rules[0] ?? null, [rules, selectedRuleId]);
-  const languages = useMemo(() => [...new Set(rules.map((rule) => rule.language).filter((language) => language && language !== 'Non disponible'))].sort(), [rules]);
+  const languages = useMemo(() => [...new Set(rules.map((rule) => rule.language).filter((language) => language && language !== 'Not available'))].sort(), [rules]);
 
   useEffect(() => {
     if (rulesQuery.isSuccess && selectedRuleId && !rules.some((rule) => (rule.key ?? `${rule.tool}/${rule.rule_id}`) === selectedRuleId)) onSelectedRuleChange('');
@@ -162,7 +162,7 @@ export default function Rules({
             })}
             <div className="rules-pagination">
               {cursor && <button type="button" onClick={() => setPage({ key, cursor: '' })}>First page</button>}
-              {rulesQuery.data?.next && <button type="button" onClick={() => setPage({ key, cursor: rulesQuery.data!.next! })}>Next rules</button>}
+              {rulesQuery.data?.next && <button type="button" onClick={() => setPage({ key, cursor: rulesQuery.data!.next! })}>Next</button>}
             </div>
           </div>
 
@@ -201,5 +201,5 @@ function ProducerCatalogue({ api, token }: { api: string; token?: string }) {
   </form>{query.isLoading && <p role="status">Loading catalogue…</p>}{query.error && <p role="alert">{query.error.message}</p>}{query.isSuccess && <><p>{selection.profile} / {selection.version} · {query.data.items.length} rules on this page.</p>{query.data.items.length > 0 && <div className="table-wrap" tabIndex={0} role="region" aria-label="Producer rule catalogue"><table><thead><tr><th>Rule</th><th>Producer</th><th>Classification</th><th>Documentation</th></tr></thead><tbody>{query.data.items.map((rule) => {
     const link = evidenceLink(rule.documentation_url); const remediationLink = evidenceLink(rule.remediation?.documentation_url);
     return <tr key={`${rule.tool}/${rule.tool_version}/${rule.rule_id}`}><th scope="row"><code>{rule.rule_id}</code></th><td>{rule.tool} {rule.tool_version}</td><td>{rule.language} · {rule.category}</td><td>{link ? <a href={link} target="_blank" rel="noreferrer">Producer documentation</a> : 'Not available'}{remediationLink && <><br /><a href={remediationLink} target="_blank" rel="noreferrer">Remediation model</a></>}<details><summary>Parameters</summary><pre>{JSON.stringify(rule.parameters, null, 2)}</pre></details></td></tr>;
-  })}</tbody></table></div>}<div className="action-row">{selection.cursor && <button type="button" onClick={() => setSelection({ ...selection, cursor: '' })}>First page</button>}{query.data.next && <button type="button" onClick={() => setSelection({ ...selection, cursor: query.data!.next! })}>Next page</button>}</div></>}</section>;
+  })}</tbody></table></div>}<div className="action-row">{selection.cursor && <button type="button" onClick={() => setSelection({ ...selection, cursor: '' })}>First page</button>}{query.data.next && <button type="button" onClick={() => setSelection({ ...selection, cursor: query.data!.next! })}>Next</button>}</div></>}</section>;
 }

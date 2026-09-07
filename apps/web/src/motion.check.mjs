@@ -11,8 +11,9 @@ assert.match(index, /id="root" inert aria-hidden="true"/, 'The application stays
 assert.match(main, /SPLASH_MIN_MS = 600/, 'Startup splash remains visible for the agreed minimum');
 assert.match(main, /root\.removeAttribute\('inert'\)/, 'The application becomes interactive when startup completes');
 assert.match(main, /prefers-reduced-motion: reduce/, 'Startup dismissal handles reduced motion without a fade');
-assert.match(app, /<div key=\{activeTab\} className="workspace-view">/, 'Primary view changes remount the transition surface');
-assert.match(styles, /\.workspace-view\s*\{[^}]*animation: workspace-view-enter 150ms/s, 'Primary views use the 150 ms motion contract');
+assert.match(app, /<div key=\{activeTab\} className="workspace-view" id="workspace-content"/, 'Primary view changes remount the transition surface');
+assert.match(styles, /\.workspace-view\s*\{[^}]*animation: workspace-view-enter 220ms/s, 'Primary views use a visible but restrained motion contract');
+assert.match(styles, /@keyframes workspace-view-enter\s*\{[\s\S]*opacity: 0\.35;[\s\S]*transform: translateY\(10px\)/, 'Primary views combine fade and short translation');
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none !important/, 'The global reduced-motion guard disables animations');
 
 console.log('Startup splash and primary view motion checks passed.');

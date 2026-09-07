@@ -26,11 +26,11 @@ type Decision = { id: string; actor_email: string; action: string; reason: strin
 type ReviewDraft = { assignee_user_id: string; team_id: string; state: string; hotspot_review: string; reason: string; expires_at: string };
 
 export const FINDING_STATES: Record<string, string> = {
-  open: 'Ouvert',
-  confirmed: 'Confirmé',
-  resolved: 'Résolu',
-  false_positive: 'Faux positif',
-  accepted_risk: 'Risque accepté',
+  open: 'Open',
+  confirmed: 'Confirmed',
+  resolved: 'Resolved',
+  false_positive: 'False positive',
+  accepted_risk: 'Accepted risk',
 };
 
 const json = (method: string, body: unknown) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -68,13 +68,13 @@ export function FindingReview({
   });
 
   return (
-    <section className="issue-review" aria-label="Traitement de l’issue">
+    <section className="issue-review" aria-label="Issue review">
       {!id && (
         <button type="button" disabled={!occurrenceId || adopt.isPending} onClick={() => adopt.mutate()}>
-          Traiter cette issue
+          Review this issue
         </button>
       )}
-      {(finding.isLoading || adopt.isPending) && <p role="status">Chargement du traitement…</p>}
+      {(finding.isLoading || adopt.isPending) && <p role="status">Loading review…</p>}
       {(finding.error ?? adopt.error) && (
         <p className="feedback error" role="alert">
           {(finding.error ?? adopt.error)?.message}
@@ -136,11 +136,11 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
 
   return (
     <>
-      <h3>Traitement</h3>
+      <h3>Review</h3>
       <p>
-        <strong>{FINDING_STATES[finding.effective_state] ?? finding.effective_state}</strong> · {branchUrl ? <a href={branchUrl} target="_blank" rel="noreferrer">{finding.branch} ↗</a> : finding.branch} · vu le {new Date(finding.last_seen_at).toLocaleString()}
+        <strong>{FINDING_STATES[finding.effective_state] ?? finding.effective_state}</strong> · {branchUrl ? <a href={branchUrl} target="_blank" rel="noreferrer">{finding.branch} ↗</a> : finding.branch} · last seen {new Date(finding.last_seen_at).toLocaleString()}
       </p>
-      {finding.state !== finding.effective_state && <p role="status">L’exception a expiré : l’issue est de nouveau ouverte.</p>}
+      {finding.state !== finding.effective_state && <p role="status">The exception expired: the issue is open again.</p>}
       {[teams.error, people.error, decisions.error, save.error].filter(Boolean).map((error, index) => (
         <p className="feedback error" role="alert" key={index}>
           {error!.message}
@@ -148,11 +148,11 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
       ))}
       <form className="issue-review-form" onSubmit={submit}>
         <label htmlFor={`${prefix}-owner`}>
-          Responsable
+          Assignee
           <select id={`${prefix}-owner`} value={draft.assignee_user_id} onChange={(event) => change('assignee_user_id', event.target.value)}>
-            <option value="">Non assigné</option>
+            <option value="">Unassigned</option>
             {!!draft.assignee_user_id && !people.data?.items.some((person) => person.user_id === draft.assignee_user_id) && (
-              <option value={draft.assignee_user_id}>Responsable actuel (hors de cette page)</option>
+              <option value={draft.assignee_user_id}>Current assignee from another page</option>
             )}
             {people.data?.items.map((person) => (
               <option key={person.user_id} value={person.user_id}>
@@ -162,10 +162,10 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
           </select>
         </label>
         <label htmlFor={`${prefix}-team`}>
-          Équipe
+          Team
           <select id={`${prefix}-team`} value={draft.team_id} onChange={(event) => change('team_id', event.target.value)}>
-            <option value="">Aucune équipe</option>
-            {!!draft.team_id && !teams.data?.items.some((team) => team.id === draft.team_id) && <option value={draft.team_id}>Équipe actuelle (hors de cette page)</option>}
+            <option value="">No team</option>
+            {!!draft.team_id && !teams.data?.items.some((team) => team.id === draft.team_id) && <option value={draft.team_id}>Current team from another page</option>}
             {teams.data?.items.map((team) => (
               <option key={team.id} value={team.id}>
                 {team.name}
@@ -174,7 +174,7 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
           </select>
         </label>
         <label htmlFor={`${prefix}-state`}>
-          État
+          Status
           <select id={`${prefix}-state`} value={draft.state} onChange={(event) => change('state', event.target.value)}>
             {Object.entries(FINDING_STATES).map(([value, label]) => (
               <option key={value} value={value} disabled={!isAdmin && (value === 'false_positive' || value === 'accepted_risk')}>
@@ -185,16 +185,16 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
         </label>
         {finding.category === 'security_hotspot' && (
           <label htmlFor={`${prefix}-hotspot`}>
-            Revue du hotspot
+            Hotspot review
             <select id={`${prefix}-hotspot`} value={draft.hotspot_review} onChange={(event) => change('hotspot_review', event.target.value)}>
-              <option value="not_reviewed">Non revu</option>
-              <option value="safe">Sûr</option>
-              <option value="to_fix">À corriger</option>
+              <option value="not_reviewed">Not reviewed</option>
+              <option value="safe">Safe</option>
+              <option value="to_fix">To fix</option>
             </select>
           </label>
         )}
         <label htmlFor={`${prefix}-reason`}>
-          Motif
+          Reason
           <textarea
             id={`${prefix}-reason`}
             maxLength={4000}
@@ -205,7 +205,7 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
         </label>
         {exception && (
           <label htmlFor={`${prefix}-expiry`}>
-            Expiration de l’exception
+            Exception expiry
             <input
               id={`${prefix}-expiry`}
               type="text"
@@ -218,7 +218,7 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
           </label>
         )}
         <button type="submit" disabled={save.isPending || !teams.isSuccess || !people.isSuccess || !validExpiry}>
-          Enregistrer
+          Save
         </button>
       </form>
       <form
@@ -228,20 +228,20 @@ function IssueEditor({ finding, projectKey, authToken, isAdmin, branchUrl }: { f
         }}
       >
         <label htmlFor={`${prefix}-comment`}>
-          Commentaire
+          Comment
           <textarea id={`${prefix}-comment`} maxLength={4000} required value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
         <button type="submit" disabled={save.isPending || !comment.trim()}>
-          Ajouter
+          Add
         </button>
       </form>
-      <h4>Historique</h4>
-      {!decisions.isLoading && !decisions.data?.items.length && <p>Aucune décision enregistrée.</p>}
+      <h4>History</h4>
+      {!decisions.isLoading && !decisions.data?.items.length && <p>No decisions recorded.</p>}
       <ol>
         {decisions.data?.items.map((decision) => (
           <li key={decision.id}>
             <time>{new Date(decision.created_at).toLocaleString()}</time> · {decision.actor_email} · {decision.action}
-            <p>{decision.reason || 'Sans commentaire'}</p>
+            <p>{decision.reason || 'No comment'}</p>
           </li>
         ))}
       </ol>

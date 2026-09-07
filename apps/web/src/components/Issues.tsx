@@ -86,7 +86,7 @@ export default function Issues({
       const result = await apiJson<{ prompt: string }>(`${API_BASE}/v1/issues/${encodeURIComponent(issueId)}/prompt`, authToken);
       setPromptState({ issueId, prompt: result.prompt, loading: false, error: null, copied: false });
     } catch (error) {
-      setPromptState({ issueId, prompt: '', loading: false, error: error instanceof Error ? error.message : 'Impossible de générer le prompt.', copied: false });
+      setPromptState({ issueId, prompt: '', loading: false, error: error instanceof Error ? error.message : 'Unable to generate the prompt.', copied: false });
     }
   };
   const { severity: issueSeverityFilter, category: issueTypeFilter, rule: issueRuleFilter, file: issueFileFilter, mine, state, team: teamId } = filters;
@@ -177,12 +177,12 @@ export default function Issues({
         <h3>Filters</h3>
         <div className="issue-filter-group">
           <label className="collaboration-checkbox">
-            <input type="checkbox" checked={mine} onChange={(event) => updateFilters({ mine: event.target.checked })} /> Mes problèmes
+            <input type="checkbox" checked={mine} onChange={(event) => updateFilters({ mine: event.target.checked })} /> Assigned to me
           </label>
           <label>
-            État collaboratif
+            Review status
             <select value={state} onChange={(event) => updateFilters({ state: event.target.value })}>
-              <option value="">Tous les états</option>
+              <option value="">Any status</option>
               {Object.entries(FINDING_STATES).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -191,10 +191,10 @@ export default function Issues({
             </select>
           </label>
           <label>
-            Équipe
+            Assigned team
             <select value={teamId} disabled={!teams.isSuccess} onChange={(event) => updateFilters({ team: event.target.value })}>
-              <option value="">Toutes les équipes</option>
-              {teamId && !teams.data?.items.some((item) => item.id === teamId) && <option value={teamId}>Équipe sélectionnée hors page</option>}
+              <option value="">Any team</option>
+              {teamId && !teams.data?.items.some((item) => item.id === teamId) && <option value={teamId}>Selected team from another page</option>}
               {teams.data?.items.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -205,21 +205,21 @@ export default function Issues({
           {teams.error && <p role="alert">{teams.error.message}</p>}
           {teamCursor && (
             <button type="button" onClick={() => setTeamPage({ project: selectedProject, cursor: '' })}>
-              Premières équipes
+              First page
             </button>
           )}
           {teams.data?.next && (
             <button type="button" onClick={() => setTeamPage({ project: selectedProject, cursor: teams.data!.next! })}>
-              Équipes suivantes
+              Next
             </button>
           )}
         </div>
 
         <div className="issue-filter-group">
-          <p className="issue-filter-label">Catégorie</p>
+          <p className="issue-filter-label">Category</p>
           {(['all', 'bug', 'code_smell', 'vulnerability', 'security_hotspot', 'secret', 'dependency', 'code', 'ioc', 'unknown'] as IssueTypeFilter[]).map((t) => (
             <button key={t} type="button" aria-pressed={issueTypeFilter === t} className={`issue-filter-btn${issueTypeFilter === t ? ' active' : ''}`} onClick={() => updateFilters({ category: t })}>
-              {t === 'all' ? 'Toutes' : findingCategoryLabel(t)}
+              {t === 'all' ? 'All categories' : findingCategoryLabel(t)}
             </button>
           ))}
         </div>
@@ -263,47 +263,27 @@ export default function Issues({
 
       {/* ── Right issues list ─────────────────────────────────── */}
       <div className="issues-main">
-        <div className="action-row">
-          {cursor && (
-            <button type="button" onClick={() => setPage({ key: filterKey, cursor: '' })}>
-              Première page
-            </button>
-          )}
-          {issuesQuery.data?.next && (
-            <button type="button" onClick={() => setPage({ key: filterKey, cursor: issuesQuery.data!.next! })}>
-              Page suivante
-            </button>
-          )}
-        </div>
         <header className="issues-toolbar">
           <div className="issues-toolbar-summary">
             <h2>
               Issues{' '}
               <InfoHint>
-                Problèmes détectés dans l’analyse sélectionnée. Les compteurs et la liste portent uniquement sur ses findings détaillés ; un résumé par fichier ne crée aucune issue artificielle. Le lien
-                de code ouvre le commit exact dans le dépôt.
+                Findings detected in the selected analysis. The list contains only detailed findings; a file summary never creates an artificial issue. Code links open the exact analyzed commit.
               </InfoHint>
             </h2>
-            <p>
-              {filteredIssueDetails.length} sur cette page · issue{filteredIssueDetails.length !== 1 ? 's' : ''}
-              {allIssueDetails.length > 0 && filteredIssueDetails.length < allIssueDetails.length ? ` (filtered from ${allIssueDetails.length})` : ''}
-            </p>
           </div>
-          <div className="issues-export-actions" aria-label="Exporter les issues filtrées">
+          <div className="issues-export-actions">
             <button
               type="button"
-              className="primary"
-              disabled={!selectedAnalysisId}
-              onClick={() => void downloadExport(`${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings/export/pdf?${exportQuery}`, `${selectedProject}-${selectedAnalysisId}-issues.pdf`)}
-            >
-              ↓ Export PDF
-            </button>
-            <button
-              type="button"
+              className="icon-button"
+              aria-label="Export filtered issues as CSV"
+              title="Export CSV"
               disabled={!selectedAnalysisId}
               onClick={() => void downloadExport(`${API_BASE}/v1/insights/analyses/${encodeURIComponent(selectedAnalysisId)}/findings/export/csv?${exportQuery}`, `${selectedProject}-${selectedAnalysisId}-issues.csv`)}
             >
-              ↓ Export CSV
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 18v2h14v-2" />
+              </svg>
             </button>
           </div>
         </header>
@@ -336,7 +316,7 @@ export default function Issues({
                         ? 'sev-low'
                         : 'sev-info';
               const shortFile = issue.file_path.split('/').slice(-2).join('/');
-              const lineLabel = issue.end_line && issue.end_line !== issue.line ? `L${issue.line}–${issue.end_line}` : issue.line == null ? 'Ligne indisponible' : `L${issue.line}`;
+              const lineLabel = issue.end_line && issue.end_line !== issue.line ? `L${issue.line}–${issue.end_line}` : issue.line == null ? 'Line not available' : `L${issue.line}`;
               const isExpanded = expandedIssueId === issue.id;
 
               const definitionUrl = issue.documentation_url ?? ruleDefinitionLink(issue.tool, issue.rule);
@@ -358,7 +338,7 @@ export default function Issues({
                         <span className="issue-revision">
                           {issueBranchUrl ? <a href={issueBranchUrl} target="_blank" rel="noreferrer"><code>{issue.branch}</code></a> : <code>{issue.branch}</code>}
                           {' @ '}
-                          {issueCommitUrl ? <a href={issueCommitUrl} target="_blank" rel="noreferrer"><code>{issue.commit_sha.slice(0, 7)}</code></a> : <code>{issue.commit_sha.slice(0, 7) || 'Non disponible'}</code>}
+                          {issueCommitUrl ? <a href={issueCommitUrl} target="_blank" rel="noreferrer"><code>{issue.commit_sha.slice(0, 7)}</code></a> : <code>{issue.commit_sha.slice(0, 7) || 'Not available'}</code>}
                         </span>
                         <span className="issue-sep">·</span>
                         {issue.source_url ? (
@@ -398,66 +378,66 @@ export default function Issues({
                         <code className="file-path">{issue.file_path}</code>
                         <span className="line-info">{lineLabel}</span>
                       </div>
-                      <p>Message du rapport : {issue.message}</p>
+                      <p>Report message: {issue.message}</p>
                       {issue.source_url ? (
                         <div className="issue-actions">
                           <a href={issue.source_url} target="_blank" rel="noreferrer" className="btn-open-repo">
-                            Ouvrir au commit analysé
+                            Open at analyzed commit
                           </a>
                         </div>
                       ) : (
-                        <p>Lien vers le code au commit analysé indisponible.</p>
+                        <p>Code link for the analyzed commit is not available.</p>
                       )}
                       <div className="issue-actions">
                         <button
                           type="button"
                           disabled={!issue.prompt_available}
-                          title={issue.prompt_available ? undefined : `Prompt indisponible : ${issue.prompt_unavailable_reason ?? 'source absente'}`}
+                          title={issue.prompt_available ? undefined : `Prompt not available: ${issue.prompt_unavailable_reason ?? 'source missing'}`}
                           onClick={() => void loadPrompt(issue.id)}
                         >
-                          Générer le prompt
+                          Generate prompt
                         </button>
-                        {!issue.prompt_available && <span>Prompt indisponible ({issue.prompt_unavailable_reason ?? 'source absente'}).</span>}
+                        {!issue.prompt_available && <span>Prompt not available ({issue.prompt_unavailable_reason ?? 'source missing'}).</span>}
                       </div>
-                      <section aria-label="Documentation de la règle">
-                        <h4>Pourquoi cette issue ? Comment la résoudre ?</h4>
+                      <section aria-label="Rule documentation">
+                        <h4>Why was this issue raised? How can it be fixed?</h4>
                         <p>
-                          Producteur : {issue.producer} · règle <code>{issue.rule}</code> · analyseur {issue.tool_version ?? 'version inconnue'}.
+                          Producer: {issue.producer} · rule <code>{issue.rule}</code> · analyzer {issue.tool_version ?? 'unknown version'}.
                         </p>
                         {definitionUrl ? (
                           <>
                             <a href={definitionUrl} target="_blank" rel="noreferrer">
-                              Consulter la définition externe
+                              View external definition
                             </a>
                             <InfoHint>
                               {issue.documentation_url
-                                ? `Lien fourni par le producteur dans le rapport (${issue.evidence?.documentation_source ?? 'provenance non précisée'}). Version documentaire : ${issue.evidence?.documentation_version ?? 'inconnue'}.`
-                                : 'Lien construit vers le référentiel public officiel reconnu pour cet identifiant. Aucune définition de règle n’est stockée dans CodeInsights.'}
+                                ? `Link supplied by the producer in the report (${issue.evidence?.documentation_source ?? 'unspecified provenance'}). Documentation version: ${issue.evidence?.documentation_version ?? 'unknown'}.`
+                                : 'Link built from the recognized official public registry for this identifier. CodeInsights does not store rule definitions.'}
                             </InfoHint>
                           </>
                         ) : (
-                          <p>Documentation de la règle indisponible.</p>
+                          <p>Rule documentation is not available.</p>
                         )}
                       </section>
-                      <section aria-label="Localisations et flux du rapport">
-                        <h4>Preuves contextualisées</h4>
+                      <section aria-label="Report locations and flows">
+                        <h4>Contextual evidence</h4>
                         {['related', 'flow'].map((kind) => {
                           const locations = issue.evidence?.locations?.filter((location) => location.kind === kind) ?? [];
                           return (
                             <div key={kind}>
                               <p>
-                                {kind === 'related' ? 'Localisations secondaires' : 'Chemins de flux'} : {locations.length ? `${locations.length} localisations reçues` : 'non fournis'}.
+                                {kind === 'related' ? 'Related locations' : 'Code flows'}: {locations.length ? `${locations.length} locations received` : 'none provided'}.
                               </p>
                               {locations.length > 0 && (
                                 <ol>
                                   {locations.map((location, index) => {
                                     const link = evidenceLink(location.source_url);
-                                    const label = `${location.path ?? 'Fichier indisponible'} · ${location.line == null ? 'ligne indisponible' : `L${location.line}${location.end_line ? `–${location.end_line}` : ''}`}`;
+                                    const label = `${location.path ?? 'File not available'} · ${location.line == null ? 'line not available' : `L${location.line}${location.end_line ? `–${location.end_line}` : ''}`}`;
                                     return (
                                       <li key={index}>
                                         {kind === 'flow' && (
                                           <span>
-                                            Flux {location.flow} · fil {location.thread} · étape {location.step} :{' '}
+                                            Flow {location.flow} · thread {location.thread} · step {location.step}:{' '}
                                           </span>
                                         )}
                                         {link ? (
@@ -475,7 +455,7 @@ export default function Issues({
                             </div>
                           );
                         })}
-                        {issue.evidence?.locations_truncated && <p role="status">Liste de preuves tronquée à la limite d’import.</p>}
+                        {issue.evidence?.locations_truncated && <p role="status">Evidence list truncated at the import limit.</p>}
                       </section>
                       <FindingReview
                         key={`${selectedAnalysisId}:${issue.id}`}
@@ -493,16 +473,30 @@ export default function Issues({
             })}
           </div>
         )}
+        {(cursor || issuesQuery.data?.next) && (
+          <div className="action-row pagination-row" aria-label="Issue pages">
+            {cursor && (
+              <button type="button" onClick={() => setPage({ key: filterKey, cursor: '' })}>
+                First page
+              </button>
+            )}
+            {issuesQuery.data?.next && (
+              <button type="button" onClick={() => setPage({ key: filterKey, cursor: issuesQuery.data!.next! })}>
+                Next
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {promptState && (
         <dialog ref={promptDialog} className="config-modal prompt-modal" aria-labelledby="prompt-dialog-title" onCancel={(event) => { event.preventDefault(); closePrompt(); }}>
           <div className="config-modal-header">
-            <h3 id="prompt-dialog-title">Prompt IA contextualisé</h3>
-            <button type="button" aria-label="Fermer" onClick={closePrompt}>×</button>
+            <h3 id="prompt-dialog-title">Contextual AI prompt</h3>
+            <button type="button" aria-label="Close" onClick={closePrompt}>×</button>
           </div>
-          {promptState.loading && <p role="status">Génération du prompt…</p>}
+          {promptState.loading && <p role="status">Generating prompt…</p>}
           {promptState.error && <p className="feedback error" role="alert">{promptState.error}</p>}
-          {promptState.prompt && <textarea aria-label="Prompt IA" readOnly value={promptState.prompt} rows={18} />}
+          {promptState.prompt && <textarea aria-label="AI prompt" readOnly value={promptState.prompt} rows={18} />}
           <div className="action-row">
             <button
               type="button"
@@ -512,14 +506,14 @@ export default function Issues({
                   await navigator.clipboard.writeText(promptState.prompt);
                   setPromptState({ ...promptState, copied: true, error: null });
                 } catch {
-                  setPromptState({ ...promptState, copied: false, error: 'La copie dans le presse-papiers a échoué.' });
+                  setPromptState({ ...promptState, copied: false, error: 'Could not copy to the clipboard.' });
                 }
               }}
             >
-              Copier
+              Copy
             </button>
-            <button type="button" onClick={closePrompt}>Fermer</button>
-            {promptState.copied && <span role="status">Copié</span>}
+            <button type="button" onClick={closePrompt}>Close</button>
+            {promptState.copied && <span role="status">Copied</span>}
           </div>
         </dialog>
       )}

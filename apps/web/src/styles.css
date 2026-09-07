@@ -152,12 +152,17 @@ main {
 
 .workspace-view {
   min-width: 0;
-  animation: workspace-view-enter 150ms cubic-bezier(0.25, 1, 0.5, 1);
+  animation: workspace-view-enter 220ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 @keyframes workspace-view-enter {
   from {
-    opacity: 0.86;
+    opacity: 0.35;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -557,6 +562,10 @@ button:disabled,
   flex-wrap: wrap;
 }
 
+.pagination-row {
+  margin-top: 1rem;
+}
+
 .action-row button {
   padding: 10px 20px;
   border: 1px solid var(--border);
@@ -712,6 +721,15 @@ button:disabled,
   margin: 0 0 0.75rem 0;
 }
 
+.issue-filter-group > label:not(.collaboration-checkbox) {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .issue-filter-group select,
 .issue-filter-group input:not([type='checkbox']) {
   width: 100%;
@@ -803,8 +821,34 @@ button:disabled,
 
 .issues-export-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-lighter);
+  color: var(--primary);
+}
+
+.icon-button:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .issues-list {
@@ -1889,28 +1933,6 @@ button:disabled,
   align-items: center;
   gap: 0.75rem;
 }
-.workspace-header {
-  width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 1.75rem 2rem 1rem;
-}
-.workspace-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.workspace-heading h1 {
-  font-size: clamp(1.4rem, 2vw, 1.85rem);
-  font-weight: 650;
-  letter-spacing: -0.035em;
-  line-height: 1.25;
-}
-.workspace-header p {
-  margin-top: 0.4rem;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
 .skip-link {
   position: absolute;
   left: 1rem;
@@ -2632,9 +2654,6 @@ button.primary:hover:not(:disabled) {
   }
   .main-tab {
     padding: 10px;
-  }
-  .workspace-header {
-    padding: 1.25rem 1rem 0.75rem;
   }
   .global-tools,
   .tab-project-bar {
