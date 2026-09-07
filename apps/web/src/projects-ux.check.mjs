@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+import vm from 'node:vm';
 
 const projects = readFileSync(new URL('./components/Projects.tsx', import.meta.url), 'utf8');
 const history = readFileSync(new URL('./components/MetricsHistory.tsx', import.meta.url), 'utf8');
@@ -8,6 +10,18 @@ const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 const projectHeader = readFileSync(new URL('./components/ProjectHeader.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 const newCode = readFileSync(new URL('./components/IngestionDetails.tsx', import.meta.url), 'utf8');
+const favoritesSource = readFileSync(new URL('./project-favorites.ts', import.meta.url), 'utf8');
+const favoritesOutput = ts.transpileModule(favoritesSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const favoriteExports = {};
+vm.runInNewContext(favoritesOutput, { exports: favoriteExports });
+
+const ordered = [
+  { projectKey: 'a-plain', isFavorite: false },
+  { projectKey: 'd-favorite', isFavorite: true },
+  { projectKey: 'b-favorite', isFavorite: true },
+].sort(favoriteExports.compareFavoriteProjects);
+assert.deepEqual(ordered.map((project) => project.projectKey), ['b-favorite', 'd-favorite', 'a-plain'], 'Favorites sort before plain projects and remain alphabetical');
+assert.deepEqual(favoriteExports.filterFavoriteProjects(ordered, true, 'D-').map((project) => project.projectKey), ['d-favorite'], 'Favorite and search filters compose');
 
 for (const removed of ['Focus API', 'Voir toutes les issues', '<AnalysisEvidence', 'Export all history', 'Valeurs exactes', 'All branches', 'issue-severity-links']) {
   assert.ok(!projects.includes(removed) && !history.includes(removed), `${removed} is removed from Projects`);
@@ -29,6 +43,10 @@ assert.ok(projects.includes('repositoryCommitLink') && projects.includes('reposi
 assert.ok(newCode.includes('repositoryCommitLink') && newCode.includes('baseUrl') && newCode.includes('headUrl'), 'New Code links both comparison commits');
 assert.ok(styles.includes("input:not([type='checkbox'])") && styles.includes('.collaboration-checkbox input'), 'Issue checkbox keeps its native compact layout');
 assert.ok(styles.includes('.metric-card:has(.metric-card-link):hover') && styles.includes('box-shadow: inset 0 0 0 2px var(--primary)'), 'Clickable metric hover has a clear bounded state');
+assert.ok(projects.includes('Favorite projects only') && projects.includes('aria-pressed={summary.isFavorite}'), 'Favorite controls expose native filter and pressed state');
+assert.ok(projects.includes('No favorite projects yet.') && projects.includes('No favorite projects match the current search.'), 'Favorite empty states remain explicit');
+assert.ok(app.includes("method: isFavorite ? 'DELETE' : 'PUT'") && app.includes("['analyses', 'summary-project']"), 'Favorite mutation uses idempotent methods and refreshes both summary caches');
+assert.ok(app.includes("setProjectCursor('')") && styles.includes('.project-favorite.active'), 'Favorite changes reset pagination and use the shared visual tokens');
 
 for (const filter of ['severity', 'category', 'rule', 'path', 'mine', 'state', 'team_id']) {
   assert.ok(new RegExp(`(?:${filter}:|\\b${filter},)`).test(issues), `Issue exports include active ${filter} filter`);

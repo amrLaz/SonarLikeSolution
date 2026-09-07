@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Mise en favori des projets par utilisateur
+- [x] Mise en favori des projets par utilisateur
 - [x] Affichage de l'évolution de toutes les métriques dans le dashboard projet et suppression de la vue Evolution. Les métriques de même repère partagent une courbe ; les autres groupes utilisent des onglets.
 
 - [x] Ajouter un splash screen futuriste à l'application pour améliorer l'expérience utilisateur au démarrage.
@@ -16,7 +16,7 @@
   - [x] supprimer le scroll imbriqué et conserver un seul défilement de page
   - [x] activer et désactiver les règles prises en charge par une nouvelle version de profil
 - [x] La navigation et les filtres métier persistent dans l'URL
-- [ ] Décoration des PR avec les résultats de l'analyse et les échecs du Quality Gate. C'est une fonctionnalité activable depuis la vue d'administration.
+- [x] Décoration des PR avec les résultats de l'analyse et les échecs du Quality Gate. C'est une fonctionnalité activable depuis la vue d'administration.
 - [ ] Sur les issues, donner une estimation de temps nécessaire pour les résoudre.
 - [ ] Mode sombre activable par utilisateur
 - [ ] Downsampling des métriques pour les vues historiques afin d'améliorer les performances.

@@ -207,6 +207,13 @@ public sealed class UserGrant
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+public sealed class UserProjectFavorite
+{
+    public string UserId { get; set; } = string.Empty;
+    public string ProjectId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public sealed class TokenProjectAccess
 {
     public string TokenId { get; set; } = string.Empty;

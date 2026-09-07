@@ -3,15 +3,13 @@
 [![Application](https://dev.azure.com/up-group/c1dd9043-ad8d-467e-9cf6-646b6381ef0f/_apis/build/status/969?branchName=master&label=Application)](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=969)
 [![Infrastructure](https://dev.azure.com/up-group/c1dd9043-ad8d-467e-9cf6-646b6381ef0f/_apis/build/status/963?branchName=master&label=Infrastructure)](https://dev.azure.com/up-group/Up.France.ODI/_build?definitionId=963)
 
-L'application **CodeInsights** consolide les analyses de code de plusieurs projets et expose leurs métriques, quality gates, issues et historiques. Le [parcours d'ingestion](docs/p1-ingestion.md) importe SARIF, couverture, CycloneDX et SPDX via Blob et une file PostgreSQL durable ; il ajoute profils versionnés, comparaison Git et retours PR. La publication directe `POST /api/v1/analyses` reste disponible pour le runner partagé. La validation locale ne remplace pas la campagne complète de capacité ni le pilote Azure DevOps.
+L'application **CodeInsights** consolide les analyses de code de plusieurs projets et expose leurs métriques, quality gates, issues et historiques. Le parcours d'ingestion importe SARIF, couverture, CycloneDX et SPDX via Blob et une file PostgreSQL durable ; il ajoute profils versionnés, comparaison Git et retours PR. La publication directe `POST /api/v1/analyses` reste disponible pour le runner partagé. La validation locale ne remplace pas la campagne complète de capacité ni le pilote Azure DevOps.
 
 Le runtime est ASP.NET Core 10 / Entity Framework Core 10 / Npgsql / PostgreSQL avec une interface React. Le [Dockerfile](Dockerfile) embarque l'API et le frontend dans une image Linux ; `src/` contient des sources d'analyse et ne constitue pas le runtime de la plateforme.
 
 - [Documentation et audit des capacités](docs/index.md)
 - [Intégration des builds](docs/integration.md)
 - [Exploitation et développement local](docs/exploitation.md)
-- [Validation de l’application](docs/validation.md)
-- [Roadmap produit priorisée](docs/roadmap.md)
 - [Infrastructure Terraform Azure](infra/PLATFORM_SAST.md)
 
 La solution [CodeInsights.slnx](CodeInsights.slnx) regroupe l'API et ses checks ; [Directory.Build.props](Directory.Build.props) centralise .NET 10 et les versions des dépendances. Depuis la racine :

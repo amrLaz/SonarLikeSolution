@@ -667,10 +667,11 @@ public static class InsightEndpoints
         HttpContext context,
         AppDbContext db,
         AuthService auth,
-        CancellationToken ct
+        CancellationToken ct,
+        Principal? principal = null
     )
     {
-        var user = await auth.RequireAsync(context, ct: ct);
+        var user = principal ?? await auth.RequireAsync(context, ct: ct);
         var visible = await auth.AllowedProjectKeysAsync(user, ct: ct);
         var key = context.Request.Query["project_key"].ToString();
         if (key.Length > 0)
@@ -711,24 +712,59 @@ public static class InsightEndpoints
         CancellationToken ct
     )
     {
-        var query = await VisibleAsync(context, db, auth, ct);
+        var principal = await auth.RequireAsync(context, ct: ct);
+        var query = await VisibleAsync(context, db, auth, ct, principal);
         var size = PageSize(context.Request);
-        var cursor = DecodeCursor(context.Request, 1)?[0];
-        var projects = await query
-            .Select(x => x.ProjectKey)
-            .Distinct()
-            .Where(x => cursor == null || string.Compare(x, cursor) > 0)
-            .OrderBy(x => x)
+        var favoritesOnly = context.Request.Query["favorites_only"].ToString().ToLowerInvariant() switch
+        {
+            "" or "false" or "0" or "no" or "off" => false,
+            "true" or "1" or "yes" or "on" => true,
+            _ => throw new ApiException(422, "Invalid favorites_only filter"),
+        };
+        var cursor = DecodeCursor(context.Request, 2);
+        bool? cursorFavorite = cursor?[0] switch
+        {
+            null => null,
+            "1" => true,
+            "0" => false,
+            _ => throw new ApiException(422, "Invalid cursor"),
+        };
+        var cursorKey = cursor?[1] ?? string.Empty;
+        var analysisProjectKeys = query.Select(x => x.ProjectKey).Distinct();
+        var projectQuery = db.Set<Project>()
+            .AsNoTracking()
+            .Where(x => analysisProjectKeys.Contains(x.Key))
+            .Select(x => new
+            {
+                ProjectKey = x.Key,
+                IsFavorite = principal.Kind == "user"
+                    && db.Set<UserProjectFavorite>()
+                        .Any(f => f.UserId == principal.Sub && f.ProjectId == x.Id),
+            });
+        if (favoritesOnly)
+            projectQuery = projectQuery.Where(x => x.IsFavorite);
+        if (cursorFavorite.HasValue)
+            projectQuery = cursorFavorite.Value
+                ? projectQuery.Where(x => !x.IsFavorite || string.Compare(x.ProjectKey, cursorKey) > 0)
+                : projectQuery.Where(x => !x.IsFavorite && string.Compare(x.ProjectKey, cursorKey) > 0);
+        var projects = await projectQuery
+            .OrderByDescending(x => x.IsFavorite)
+            .ThenBy(x => x.ProjectKey)
             .Take(size + 1)
             .ToListAsync(ct);
         string? next = null;
         if (projects.Count > size)
         {
             projects.RemoveAt(size);
-            next = EncodeCursor(projects[^1]);
+            next = EncodeCursor(projects[^1].IsFavorite ? "1" : "0", projects[^1].ProjectKey);
             Continuation(context, next);
         }
-        query = query.Where(x => projects.Contains(x.ProjectKey));
+        var projectKeys = projects.Select(x => x.ProjectKey).ToArray();
+        var favoriteKeys = projects
+            .Where(x => x.IsFavorite)
+            .Select(x => x.ProjectKey)
+            .ToHashSet();
+        query = query.Where(x => projectKeys.Contains(x.ProjectKey));
         var counts = await query
             .GroupBy(x => x.ProjectKey)
             .Select(g => new
@@ -799,6 +835,7 @@ public static class InsightEndpoints
                     .Select(g => new
                     {
                         project_key = g.ProjectKey,
+                        is_favorite = favoriteKeys.Contains(g.ProjectKey),
                         total_count = g.Count,
                         pass_count = g.Pass,
                         fail_count = g.Fail,
@@ -817,7 +854,8 @@ public static class InsightEndpoints
                         branches_truncated = g.BranchCount > 0,
                         branches = Array.Empty<object>(),
                     })
-                    .OrderBy(x => x.project_key),
+                    .OrderByDescending(x => x.is_favorite)
+                    .ThenBy(x => x.project_key),
             }
         );
     }

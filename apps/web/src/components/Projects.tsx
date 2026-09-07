@@ -12,9 +12,14 @@ type ProjectsProps = {
   selectedProject: string;
   selectedBranch: string;
   projectSearch: string;
+  favoritesOnly: boolean;
+  favoritePending: boolean;
+  favoriteError?: string | null;
   setSelectedProject: (project: string) => void;
   setSelectedBranch: (branch: string) => void;
   setProjectSearch: (search: string) => void;
+  setFavoritesOnly: (favoriteOnly: boolean) => void;
+  onToggleFavorite: (summary: ProjectSummary) => void;
   loading: boolean;
   error?: string | null;
   projectMeta: Record<string, ProjectMeta>;
@@ -41,9 +46,14 @@ export default function Projects({
   selectedProject,
   selectedBranch,
   projectSearch,
+  favoritesOnly,
+  favoritePending,
+  favoriteError,
   setSelectedProject,
   setSelectedBranch,
   setProjectSearch,
+  setFavoritesOnly,
+  onToggleFavorite,
   loading,
   error,
   projectMeta,
@@ -63,11 +73,16 @@ export default function Projects({
           Search projects
           <input type="search" value={projectSearch} placeholder="Project name" onChange={(event) => setProjectSearch(event.target.value)} />
         </label>
+        <label className="favorite-projects-filter">
+          <input type="checkbox" checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.target.checked)} />
+          Favorite projects only
+        </label>
         <div className="action-row">
           <button
             type="button"
             onClick={() => {
               setProjectSearch('');
+              setFavoritesOnly(false);
               setSelectedProject('');
               setSelectedBranch('');
             }}
@@ -77,34 +92,34 @@ export default function Projects({
         </div>
       </aside>
       <div className="project-list">
+        {favoriteError && (
+          <p className="feedback error" role="alert">
+            Favorite could not be updated: {favoriteError}
+          </p>
+        )}
         {/* Always visible dropdowns */}
         <div className="project-context-selectors">
           <div style={{ flex: 1 }}>
             <label htmlFor="dashboard-project">PROJECT</label>
-            <select
-              id="dashboard-project"
-              aria-label="Project"
-              value={selectedProject}
-              onChange={(e) => {
-                setSelectedProject(e.target.value);
-                setSelectedBranch('');
-              }}
-              style={{
-                padding: '10px 12px',
-                borderRadius: '4px',
-                border: '1px solid var(--border)',
-                fontSize: '14px',
-                width: '100%',
-                backgroundColor: 'var(--bg-lighter)',
-              }}
-            >
-              <option value="">-- Select a project --</option>
-              {filteredSummaries.map((summary) => (
-                <option key={summary.projectKey} value={summary.projectKey}>
-                  {summary.projectKey}
-                </option>
-              ))}
-            </select>
+            <div className="project-favorite-select">
+              <select
+                id="dashboard-project"
+                aria-label="Project"
+                value={selectedProject}
+                onChange={(e) => {
+                  setSelectedProject(e.target.value);
+                  setSelectedBranch('');
+                }}
+              >
+                <option value="">-- Select a project --</option>
+                {filteredSummaries.map((summary) => (
+                  <option key={summary.projectKey} value={summary.projectKey}>
+                    {summary.projectKey}
+                  </option>
+                ))}
+              </select>
+              {selectedSummary && <FavoriteButton summary={selectedSummary} pending={favoritePending} onToggle={onToggleFavorite} />}
+            </div>
           </div>
 
           <div style={{ flex: 1 }}>
@@ -126,9 +141,17 @@ export default function Projects({
                 return (
                   <div className="reference-select">
                     <select id="dashboard-branch" value={activeBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
-                      {branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                      {branches.map((branch) => (
+                        <option key={branch} value={branch}>
+                          {branch}
+                        </option>
+                      ))}
                     </select>
-                    {branchUrl && <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${activeBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">↗</a>}
+                    {branchUrl && (
+                      <a href={branchUrl} target="_blank" rel="noreferrer" aria-label={`Ouvrir la branche ${activeBranch} dans le dépôt`} title="Ouvrir la branche dans le dépôt">
+                        ↗
+                      </a>
+                    )}
                   </div>
                 );
               })()
@@ -199,9 +222,22 @@ export default function Projects({
                         </p>
                         <p>
                           <strong>Commit:</strong>{' '}
-                          {commitUrl ? <a className="repository-reference" href={commitUrl} target="_blank" rel="noreferrer"><code>{detailedBranch.latest.commit_sha}</code> ↗</a> : <code>{detailedBranch.latest.commit_sha || 'Non disponible'}</code>}
+                          {commitUrl ? (
+                            <a className="repository-reference" href={commitUrl} target="_blank" rel="noreferrer">
+                              <code>{detailedBranch.latest.commit_sha}</code> ↗
+                            </a>
+                          ) : (
+                            <code>{detailedBranch.latest.commit_sha || 'Non disponible'}</code>
+                          )}
                         </p>
-                        {pullRequestUrl && <p><strong>PR:</strong>{' '}<a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">#{detailedBranch.latest.pr_id} ↗</a></p>}
+                        {pullRequestUrl && (
+                          <p>
+                            <strong>PR:</strong>{' '}
+                            <a className="repository-reference" href={pullRequestUrl} target="_blank" rel="noreferrer">
+                              #{detailedBranch.latest.pr_id} ↗
+                            </a>
+                          </p>
+                        )}
                         <p>
                           <strong>Last:</strong> {new Date(detailedBranch.latest.created_at).toLocaleString()}
                         </p>
@@ -220,7 +256,6 @@ export default function Projects({
                       <MetricsHistory history={selectedProjectAnalyses(selectedSummary.history, activeBranch)} />
                     </div>
                   )}
-
                 </>
               );
             })()}
@@ -230,16 +265,27 @@ export default function Projects({
             <h2>All Projects</h2>
             {!loading && !filteredSummaries.length && (
               <p className="empty-state" role="status">
-                {error ? 'Analysis data could not be loaded. Use Refresh to retry.' : summaries.length ? 'No projects match the current filters.' : 'No analyses available yet.'}
+                {error
+                  ? 'Analysis data could not be loaded. Use Refresh to retry.'
+                  : favoritesOnly
+                    ? summaries.some((summary) => summary.isFavorite)
+                      ? 'No favorite projects match the current search.'
+                      : 'No favorite projects yet.'
+                    : summaries.length
+                      ? 'No projects match the current filters.'
+                      : 'No analyses available yet.'}
               </p>
             )}
             <div className="project-overview-grid">
               {filteredSummaries.map((summary) => (
                 <article key={summary.projectKey} className="project-overview-card">
-                  <button type="button" className="project-open-issues" onClick={() => setSelectedProject(summary.projectKey)}>
-                    <strong>{summary.projectKey}</strong>
-                    <span>Open metrics →</span>
-                  </button>
+                  <div className="project-card-header">
+                    <button type="button" className="project-open-issues" onClick={() => setSelectedProject(summary.projectKey)}>
+                      <strong>{summary.projectKey}</strong>
+                      <span>Open metrics →</span>
+                    </button>
+                    <FavoriteButton summary={summary} pending={favoritePending} onToggle={onToggleFavorite} />
+                  </div>
                   <span>Analysis history</span>
                   <span className="project-overview-counts">
                     <span>Passed: {summary.passCount}</span>
@@ -255,6 +301,23 @@ export default function Projects({
         )}
       </div>
     </section>
+  );
+}
+
+function FavoriteButton({ summary, pending, onToggle }: { summary: ProjectSummary; pending: boolean; onToggle: (summary: ProjectSummary) => void }) {
+  const action = summary.isFavorite ? 'Remove from favorites' : 'Add to favorites';
+  return (
+    <button
+      type="button"
+      className={`project-favorite${summary.isFavorite ? ' active' : ''}`}
+      aria-label={`${action}: ${summary.projectKey}`}
+      aria-pressed={summary.isFavorite}
+      title={action}
+      disabled={pending}
+      onClick={() => onToggle(summary)}
+    >
+      <span aria-hidden="true">{summary.isFavorite ? '★' : '☆'}</span>
+    </button>
   );
 }
 

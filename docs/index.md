@@ -5,8 +5,6 @@ description: Parcours de lecture pour utiliser, intégrer et faire évoluer le h
 
 # Documentation Up.France.CodeInsights
 
-- [Validation de l’application](validation.md)
-
 Le code versionné fait autorité sur les capacités disponibles. Les recommandations sont explicitement séparées de cet existant ; la présence d'un écran ou d'une configuration ne prouve pas une intégration opérationnelle.
 
 | Document                                      | Public et contenu                                                              |

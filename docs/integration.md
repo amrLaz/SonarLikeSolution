@@ -33,7 +33,7 @@ La publication exige `project_key`, `commit_sha`, `branch`, `ci_provider`, `prof
 
 Le catalogue version 1 attend Semgrep, Trivy et Gitleaks pour les profils `p0-dotnet` et `p0-react`. Le profil `p0-iac` attend Checkov, Trivy et Gitleaks, avec le score sécurité et les vulnérabilités comme dimensions obligatoires. `platform-sast` attend les quatre outils et les sept dimensions du gate. Chaque projet reçoit explicitement un profil et sa version.
 
-## Parcours multi-rapports P1 disponible localement
+## Parcours multi-rapports
 
 Le template canonique `platform-publish-reports-tpl.yml` publie les rapports déjà
 produits sans réinstaller les scanners ni relancer les tests. Le contexte ADO est
@@ -52,8 +52,6 @@ les contributions complémentaires enrichissent la même analyse. Le gate suit l
 finalisation et le traitement, puis les retours ADO/notifications ont leurs propres
 jobs. Le client échoue sur `unknown`, échec technique, état incomplet ou timeout.
 
-Voir le [contrat P1 détaillé](p1-ingestion.md) pour les formats, profils,
-permissions, limites, états, diff Git, idempotence, pagination et configuration.
 Les [routes](../apps/api/Endpoints/IngestionEndpoints.cs) et
 [DTO](../apps/api/Contracts/IngestionContracts.cs) sont la source exacte.
 
@@ -77,15 +75,10 @@ secrète de queue `CodeInsightsEntraClientSecret` ; la connexion de service la
 place dans Key Vault pour les exécutions suivantes. Elle ne doit jamais être
 ajoutée au YAML, aux logs ou à une variable non secrète.
 
-Le parcours P1 a été exercé localement sur PostgreSQL/Azurite/API .NET : import,
-consultation, client canonique et republication idempotente avec gate `pass`.
-Le [smoke](p1-load.md) a réussi 75 publications et 6 064 lectures. Il ne valide
-pas la capacité A/B/C ni l'ensemble des matrices de rapports.
-
 Le pilote Azure DevOps reste nécessaire : dépôt/organisation autorisés, droits
 PAT, statut rattaché à l'itération, commentaire mis à jour et branch policy requise.
 Le `POST /analyses` historique reste compatible, mais sa décoration rejoint désormais le même outbox durable que l’ingestion.
-Voir les [lots P1 restant à accepter](roadmap.md) et les [budgets](performances.md).
+Voir les [budgets](performances.md).
 
 ## Cycle explicite, sources et décorations
 

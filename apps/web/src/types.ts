@@ -240,6 +240,7 @@ export type SessionUser = {
 
 export type ProjectSummary = {
   projectKey: string;
+  isFavorite: boolean;
   latest: AnalysisRecord;
   history: AnalysisRecord[];
   passCount: number;
@@ -254,6 +255,7 @@ export type DashboardSummary = {
   next_cursor?: string | null;
   projects: {
     project_key: string;
+    is_favorite: boolean;
     total_count: number;
     pass_count: number;
     fail_count: number;

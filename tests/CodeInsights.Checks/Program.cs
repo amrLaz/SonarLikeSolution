@@ -1,4 +1,5 @@
 await AuthChecks.RunAsync();
+await ProjectFavoriteChecks.RunAsync();
 
 AnalysisChecks.Run();
 ExecutableProfileChecks.Run();

@@ -188,6 +188,50 @@ public static class AuthEndpoints
                 }
             )
             .Accepts<ChangePasswordRequest>("application/json");
+        group.MapPut(
+            "/me/favorite-projects/{project_key}",
+            async (
+                string project_key,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+            {
+                var principal = await Self(auth, context, ct);
+                var visible = await auth.AllowedProjectKeysAsync(principal, ct: ct);
+                var project = await db.Set<Project>()
+                    .Where(p => p.Key == project_key && visible.Contains(p.Key))
+                    .Where(p => db.Set<AnalysisRecord>().Any(a => a.ProjectKey == p.Key))
+                    .Select(p => new { p.Id })
+                    .SingleOrDefaultAsync(ct);
+                if (project is null)
+                    throw new ApiException(404, "Authorized analyzed project not found");
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO user_project_favorites (user_id, project_id, created_at) VALUES ({principal.Sub}, {project.Id}, {DateTime.UtcNow}) ON CONFLICT (user_id, project_id) DO NOTHING",
+                    ct
+                );
+                return Results.NoContent();
+            }
+        );
+        group.MapDelete(
+            "/me/favorite-projects/{project_key}",
+            async (
+                string project_key,
+                HttpContext context,
+                AppDbContext db,
+                AuthService auth,
+                CancellationToken ct
+            ) =>
+            {
+                var principal = await Self(auth, context, ct);
+                await db.Set<UserProjectFavorite>()
+                    .Where(x => x.UserId == principal.Sub)
+                    .Where(x => db.Set<Project>().Any(p => p.Id == x.ProjectId && p.Key == project_key))
+                    .ExecuteDeleteAsync(ct);
+                return Results.NoContent();
+            }
+        );
         group.MapGet(
             "/users",
             async (HttpContext context, AppDbContext db, AuthService auth, CancellationToken ct) =>

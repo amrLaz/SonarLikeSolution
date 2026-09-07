@@ -19,12 +19,25 @@ import InfoHint from './components/InfoHint';
 import MainNavigation from './components/MainNavigation';
 import { createSessionQueryClient } from './query-client';
 import { defaultIssueFilters, parseWorkspaceUrl, workspaceSearch, type IssueFilters, type WorkspaceUrlState } from './navigation-state';
+import { compareFavoriteProjects, filterFavoriteProjects } from './project-favorites';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '/api');
 const LOCAL_STORAGE_GATE_LIBRARY_KEY = 'sast-quality-gates-v1';
 const LOCAL_STORAGE_SESSION_KEY = 'sast-platform-session-v1';
 
-import type { ScopeMode, AppTab, AdminPrimaryTab, AdminSection, ProjectMeta, ProjectIntegrationRecord, LocalUserRole, SessionUser, ProjectSummary, IssueSeverityFilter, IssueTypeFilter } from './types';
+import type {
+  ScopeMode,
+  AppTab,
+  AdminPrimaryTab,
+  AdminSection,
+  ProjectMeta,
+  ProjectIntegrationRecord,
+  LocalUserRole,
+  SessionUser,
+  ProjectSummary,
+  IssueSeverityFilter,
+  IssueTypeFilter,
+} from './types';
 
 const TABS: Array<{ id: AppTab; label: string }> = [
   { id: 'projects', label: 'Projects' },
@@ -127,6 +140,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   const [scopeMode, setScopeMode] = useState<ScopeMode>(initialUrlState.scope);
   const independentScope = activeTab === 'administration';
   const [projectSearch, setProjectSearch] = useState(initialUrlState.projectSearch);
+  const [favoritesOnly, setFavoritesOnly] = useState(initialUrlState.favoritesOnly);
   const [selectedProject, setSelectedProject] = useState(initialUrlState.project);
   const [selectedBranch, setSelectedBranch] = useState(initialUrlState.branch);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState(initialUrlState.analysis);
@@ -193,6 +207,10 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
   const [branchPage, setBranchPage] = useState({ project: '', cursor: '' });
   const branchCursor = branchPage.project === selectedProject ? branchPage.cursor : '';
   const [projectCursor, setProjectCursor] = useState('');
+  useEffect(() => {
+    if (favoritesOnly && (activeTab !== 'projects' || scopeMode !== 'overall'))
+      setProjectCursor('');
+  }, [activeTab, favoritesOnly, scopeMode]);
   const [historyPage, setHistoryPage] = useState({ project: '', branch: '', cursor: '' });
   const historyCursor = historyPage.project === selectedProject && historyPage.branch === selectedBranch ? historyPage.cursor : '';
   const {
@@ -208,7 +226,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
     gatesQuery,
     assignmentsQuery,
     devOpsQuery,
-  } = useWorkspaceData(sessionUser?.token, activeTab, activeAdminSection, selectedProject, selectedBranch, historyCursor, projectCursor, branchCursor);
+  } = useWorkspaceData(sessionUser?.token, activeTab, activeAdminSection, selectedProject, selectedBranch, historyCursor, projectCursor, branchCursor, favoritesOnly && scopeMode === 'overall');
   const canAccessAdministration = !meQuery.isError && meQuery.data?.permissions?.is_admin === true;
   const apiFetch = (url: string, init?: RequestInit) => request(url, sessionUser?.token, init);
 
@@ -260,6 +278,16 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       queryClient.invalidateQueries({ queryKey: ['integrations'] }),
       queryClient.invalidateQueries({ queryKey: ['projects'] }),
     ]);
+  const favoriteMutation = useMutation({
+    mutationFn: ({ projectKey, isFavorite }: { projectKey: string; isFavorite: boolean }) =>
+      apiFetch(`${API_BASE}/v1/auth/me/favorite-projects/${encodeURIComponent(projectKey)}`, {
+        method: isFavorite ? 'DELETE' : 'PUT',
+      }),
+    onSuccess: async () => {
+      setProjectCursor('');
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['analyses', 'summary'] }), queryClient.invalidateQueries({ queryKey: ['analyses', 'summary-project'] })]);
+    },
+  });
   const visibleTabs = useMemo(() => {
     return canAccessAdministration ? TABS : TABS.filter((tab) => tab.id !== 'administration');
   }, [canAccessAdministration]);
@@ -270,6 +298,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
         .filter((item) => item.latest)
         .map((item) => ({
           projectKey: item.project_key,
+          isFavorite: item.is_favorite,
           latest: item.latest,
           history: item.project_key === selectedProject ? analyses : [item.latest],
           passCount: item.pass_count,
@@ -281,17 +310,14 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
             item.project_key === selectedProject
               ? [...new Map([...(branchesQuery.data?.items ?? []), ...(selectedBranchQuery.data?.items ?? [])].map((branch) => [branch.name, branch])).values()]
               : item.branches,
-        })),
+        }))
+        .sort(compareFavoriteProjects),
     [summaryQuery.data, selectedSummaryQuery.data, branchesQuery.data, selectedBranchQuery.data, analyses, selectedProject],
   );
 
   const filteredSummaries = useMemo(() => {
-    const query = projectSearch.trim().toLowerCase();
-    if (!query) {
-      return summaries;
-    }
-    return summaries.filter((summary) => summary.projectKey.toLowerCase().includes(query));
-  }, [projectSearch, summaries]);
+    return filterFavoriteProjects(summaries, favoritesOnly, projectSearch);
+  }, [favoritesOnly, projectSearch, summaries]);
 
   const selectedSummary = useMemo(() => {
     return summaries.find((summary) => summary.projectKey === selectedProject) ?? null;
@@ -304,6 +330,14 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       setSelectedAnalysisId('');
     }
   }, [selectedProject, selectedSummary, summaryQuery.isSuccess, selectedSummaryQuery.isSuccess, selectedSummaryQuery.isError]);
+
+  useEffect(() => {
+    if (activeTab === 'projects' && scopeMode === 'overall' && favoritesOnly && selectedSummaryQuery.isSuccess && selectedSummary && !selectedSummary.isFavorite) {
+      setSelectedProject('');
+      setSelectedBranch('');
+      setSelectedAnalysisId('');
+    }
+  }, [activeTab, favoritesOnly, scopeMode, selectedSummary, selectedSummaryQuery.isSuccess]);
 
   useEffect(() => {
     if (selectedBranch && branchesQuery.isSuccess && selectedBranchQuery.isSuccess && selectedSummary && !(selectedSummary.branches ?? []).some((branch) => branch.name === selectedBranch)) {
@@ -364,12 +398,13 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       branch: selectedBranch,
       analysis: selectedAnalysisId,
       projectSearch,
+      favoritesOnly,
       gate: selectedGateId,
       selectedRule: selectedRuleId,
       issues: issueFilters,
       rules: ruleFilters,
     }),
-    [activeTab, scopeMode, selectedProject, selectedBranch, selectedAnalysisId, projectSearch, selectedGateId, selectedRuleId, issueFilters, ruleFilters],
+    [activeTab, scopeMode, selectedProject, selectedBranch, selectedAnalysisId, projectSearch, favoritesOnly, selectedGateId, selectedRuleId, issueFilters, ruleFilters],
   );
   const pushWorkspaceState = (next: WorkspaceUrlState) => window.history.pushState({}, '', `${window.location.pathname}${workspaceSearch(next)}`);
 
@@ -387,6 +422,7 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       setSelectedAnalysisId(restored.analysis);
       setLinkedAnalysisId(restored.analysis);
       setProjectSearch(restored.projectSearch);
+      setFavoritesOnly(restored.favoritesOnly);
       setSelectedGateId(restored.gate);
       setSelectedRuleId(restored.selectedRule);
       setIssueFilters(restored.issues);
@@ -790,433 +826,448 @@ function Workspace({ initialUser, onSessionChange }: SessionProps) {
       )}
 
       <div key={activeTab} className="workspace-view">
-      {!independentScope && scopeMode === 'new-code' && <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} repoProvider={projectMeta[selectedProject]?.repoProvider} repoUrl={projectMeta[selectedProject]?.repoUrl} />}
-      {!independentScope && loading && (
-        <p className="feedback" role="status">
-          Loading analysis data…
-        </p>
-      )}
-      {!independentScope && error && (
-        <p className="feedback error" role="alert">
-          Failed to load data: {error}. Previously loaded results may be out of date.
-        </p>
-      )}
-      {adminMessage && (
-        <p className="feedback" role="status">
-          {adminMessage}
-        </p>
-      )}
+        {!independentScope && scopeMode === 'new-code' && (
+          <NewCode analysisId={selectedAnalysisId} token={sessionUser?.token} repoProvider={projectMeta[selectedProject]?.repoProvider} repoUrl={projectMeta[selectedProject]?.repoUrl} />
+        )}
+        {!independentScope && loading && (
+          <p className="feedback" role="status">
+            Loading analysis data…
+          </p>
+        )}
+        {!independentScope && error && (
+          <p className="feedback error" role="alert">
+            Failed to load data: {error}. Previously loaded results may be out of date.
+          </p>
+        )}
+        {adminMessage && (
+          <p className="feedback" role="status">
+            {adminMessage}
+          </p>
+        )}
 
-      {!independentScope && (projectCursor || summaryQuery.data?.next_cursor) && (
-        <div className="action-row" aria-label="Project pages">
-          {projectCursor && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedProject('');
-                setProjectCursor('');
-              }}
-            >
-              Première page de projets
-            </button>
-          )}
-          {summaryQuery.data?.next_cursor && (
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedProject('');
-                setProjectCursor(summaryQuery.data!.next_cursor!);
-              }}
-            >
-              Projets suivants
-            </button>
-          )}
-        </div>
-      )}
-      {!independentScope && selectedProject && (
-        <div className="action-row" aria-label="Branch pages">
-          {branchCursor && (
-            <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>
-              Première page de branches
-            </button>
-          )}
-          {branchesQuery.data?.next && (
-            <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>
-              Branches suivantes
-            </button>
-          )}
-          {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
-        </div>
-      )}
-      {selectedProject && ['projects', 'issues'].includes(activeTab) && (historyCursor || analysesQuery.data?.next) && (
-        <div className="action-row" aria-label="Analysis history pages">
-          {historyCursor && (
-            <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>
-              Première page
-            </button>
-          )}
-          {analysesQuery.data?.next && (
-            <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>
-              Analyses précédentes
-            </button>
-          )}
-        </div>
-      )}
-      {activeTab === 'projects' && scopeMode === 'overall' && (
-        <Projects
-          summaries={summaries}
-          filteredSummaries={filteredSummaries}
-          selectedSummary={selectedSummary}
-          selectedProject={selectedProject}
-          selectedBranch={selectedBranch}
-          projectSearch={projectSearch}
-          setSelectedProject={(project) => {
-            pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
-            setSelectedProject(project);
-          }}
-          setSelectedBranch={(branch) => {
-            if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
-            setSelectedBranch(branch);
-          }}
-          setProjectSearch={setProjectSearch}
-          loading={loading}
-          error={error}
-          projectMeta={projectMeta}
-          onOpenIssues={(summary, severity: IssueSeverityFilter = 'all', category: IssueTypeFilter = 'all') => {
-            const nextIssues = { ...defaultIssueFilters, severity, category };
-            pushWorkspaceState({ ...workspaceUrlState, tab: 'issues', project: summary.projectKey, branch: summary.latest.branch, analysis: summary.latest.analysis_id, issues: nextIssues });
-            setSelectedProject(summary.projectKey);
-            setSelectedBranch(summary.latest.branch);
-            setSelectedAnalysisId(summary.latest.analysis_id);
-            setIssueFilters(nextIssues);
-            setActiveTab('issues');
-          }}
-        />
-      )}
-      {activeTab === 'issues' && scopeMode === 'overall' && (
-        <Issues
-          authToken={sessionUser?.token}
-          isAdmin={canAccessAdministration}
-          selectedProject={selectedProject}
-          selectedBranch={selectedBranch}
-          selectedAnalysisId={selectedAnalysisId}
-          selectedSummary={selectedSummary}
-          summaries={summaries}
-          setSelectedProject={(project) => {
-            pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
-            setSelectedProject(project);
-          }}
-          setSelectedBranch={(branch) => {
-            if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
-            setSelectedBranch(branch);
-          }}
-          setSelectedAnalysisId={(analysis) => {
-            pushWorkspaceState({ ...workspaceUrlState, analysis });
-            setSelectedAnalysisId(analysis);
-          }}
-          projectMeta={projectMeta}
-          filters={issueFilters}
-          onFiltersChange={setIssueFilters}
-          downloadExport={downloadExport}
-        />
-      )}
-
-      {activeTab === 'rules' && (
-        <>
-          <Rules
-            apiBase={API_BASE}
-            authToken={sessionUser?.token}
-            selectedProject={selectedProject}
-            onProjectChange={(project) => {
-              pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
-              setSelectedProject(project);
-              setSelectedBranch('');
-            }}
-            summaries={summaries}
-            canManageRules={canAccessAdministration}
-            filters={ruleFilters}
-            onFiltersChange={setRuleFilters}
-            selectedRuleId={selectedRuleId}
-            onSelectedRuleChange={setSelectedRuleId}
-          />
-          <details className="advanced-rules-panel profile-administration">
-            <summary>Advanced profile administration</summary>
-            <AnalysisProfiles key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />
-          </details>
-        </>
-      )}
-
-      {activeTab === 'quality-gates' && (
-        <>
-          {(gatesQuery.error ?? assignmentsQuery.error) && (
-            <p className="feedback error" role="alert">
-              {(gatesQuery.error ?? assignmentsQuery.error)?.message}
-              <button type="button" onClick={() => void loadGates()}>
-                Retry quality gates
-              </button>
-            </p>
-          )}
-          {(gatesQuery.isLoading || assignmentsQuery.isLoading) && <p role="status">Loading quality gates and assignments…</p>}
-          {gatesQuery.data !== undefined && assignmentsQuery.data !== undefined && (
-            <QualityGates
-              gateLibrary={gateLibrary}
-              gateAssignments={gateAssignments}
-              summaries={summaries}
-              scopeMode={scopeMode}
-              canAccessAdministration={canAccessAdministration && !gatesQuery.isError && !assignmentsQuery.isError}
-              apiBase={API_BASE}
-              apiFetch={apiFetch}
-              selectedGateId={selectedGateId}
-              onSelectedGateChange={setSelectedGateId}
-            />
-          )}
-        </>
-      )}
-
-      {activeTab === 'administration' && canAccessAdministration && (
-        <section className="admin-screen">
-          <div className="admin-top-nav">
-            {ADMIN_PRIMARY_TABS.map((tab) => (
+        {!independentScope && (projectCursor || summaryQuery.data?.next_cursor) && (
+          <div className="action-row" aria-label="Project pages">
+            {projectCursor && (
               <button
                 type="button"
-                key={tab.id}
-                className={activeAdminTab === tab.id ? 'active' : ''}
                 onClick={() => {
-                  setActiveAdminTab(tab.id);
-                  setActiveAdminSection(ADMIN_NAV_BY_TAB[tab.id][0].id);
+                  setSelectedProject('');
+                  setProjectCursor('');
                 }}
               >
-                {tab.label}
+                Première page de projets
               </button>
-            ))}
+            )}
+            {summaryQuery.data?.next_cursor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProject('');
+                  setProjectCursor(summaryQuery.data!.next_cursor!);
+                }}
+              >
+                Projets suivants
+              </button>
+            )}
           </div>
+        )}
+        {!independentScope && selectedProject && (
+          <div className="action-row" aria-label="Branch pages">
+            {branchCursor && (
+              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: '' })}>
+                Première page de branches
+              </button>
+            )}
+            {branchesQuery.data?.next && (
+              <button type="button" onClick={() => setBranchPage({ project: selectedProject, cursor: branchesQuery.data!.next! })}>
+                Branches suivantes
+              </button>
+            )}
+            {branchesQuery.error && <p role="alert">{branchesQuery.error.message}</p>}
+          </div>
+        )}
+        {selectedProject && ['projects', 'issues'].includes(activeTab) && (historyCursor || analysesQuery.data?.next) && (
+          <div className="action-row" aria-label="Analysis history pages">
+            {historyCursor && (
+              <button type="button" onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: '' })}>
+                Première page
+              </button>
+            )}
+            {analysesQuery.data?.next && (
+              <button type="button" disabled={analysesQuery.isFetching} onClick={() => setHistoryPage({ project: selectedProject, branch: selectedBranch, cursor: analysesQuery.data!.next! })}>
+                Analyses précédentes
+              </button>
+            )}
+          </div>
+        )}
+        {activeTab === 'projects' && scopeMode === 'overall' && (
+          <Projects
+            summaries={summaries}
+            filteredSummaries={filteredSummaries}
+            selectedSummary={selectedSummary}
+            selectedProject={selectedProject}
+            selectedBranch={selectedBranch}
+            projectSearch={projectSearch}
+            favoritesOnly={favoritesOnly}
+            favoritePending={favoriteMutation.isPending}
+            favoriteError={favoriteMutation.error?.message}
+            setSelectedProject={(project) => {
+              pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+              setSelectedProject(project);
+            }}
+            setSelectedBranch={(branch) => {
+              if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
+              setSelectedBranch(branch);
+            }}
+            setProjectSearch={setProjectSearch}
+            setFavoritesOnly={(value) => {
+              setFavoritesOnly(value);
+              setProjectCursor('');
+              if (value && selectedSummary && !selectedSummary.isFavorite) {
+                setSelectedProject('');
+                setSelectedBranch('');
+                setSelectedAnalysisId('');
+              }
+            }}
+            onToggleFavorite={(summary) => favoriteMutation.mutate({ projectKey: summary.projectKey, isFavorite: summary.isFavorite })}
+            loading={loading}
+            error={error}
+            projectMeta={projectMeta}
+            onOpenIssues={(summary, severity: IssueSeverityFilter = 'all', category: IssueTypeFilter = 'all') => {
+              const nextIssues = { ...defaultIssueFilters, severity, category };
+              pushWorkspaceState({ ...workspaceUrlState, tab: 'issues', project: summary.projectKey, branch: summary.latest.branch, analysis: summary.latest.analysis_id, issues: nextIssues });
+              setSelectedProject(summary.projectKey);
+              setSelectedBranch(summary.latest.branch);
+              setSelectedAnalysisId(summary.latest.analysis_id);
+              setIssueFilters(nextIssues);
+              setActiveTab('issues');
+            }}
+          />
+        )}
+        {activeTab === 'issues' && scopeMode === 'overall' && (
+          <Issues
+            authToken={sessionUser?.token}
+            isAdmin={canAccessAdministration}
+            selectedProject={selectedProject}
+            selectedBranch={selectedBranch}
+            selectedAnalysisId={selectedAnalysisId}
+            selectedSummary={selectedSummary}
+            summaries={summaries}
+            setSelectedProject={(project) => {
+              pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+              setSelectedProject(project);
+            }}
+            setSelectedBranch={(branch) => {
+              if (branch) pushWorkspaceState({ ...workspaceUrlState, branch, analysis: '' });
+              setSelectedBranch(branch);
+            }}
+            setSelectedAnalysisId={(analysis) => {
+              pushWorkspaceState({ ...workspaceUrlState, analysis });
+              setSelectedAnalysisId(analysis);
+            }}
+            projectMeta={projectMeta}
+            filters={issueFilters}
+            onFiltersChange={setIssueFilters}
+            downloadExport={downloadExport}
+          />
+        )}
 
-          <div className="admin-body">
-            <aside className="admin-side-menu">
-              {ADMIN_NAV_BY_TAB[activeAdminTab].map((item) => (
-                <button type="button" key={item.id} className={activeAdminSection === item.id ? 'active' : ''} onClick={() => setActiveAdminSection(item.id)}>
-                  {item.label}
+        {activeTab === 'rules' && (
+          <>
+            <Rules
+              apiBase={API_BASE}
+              authToken={sessionUser?.token}
+              selectedProject={selectedProject}
+              onProjectChange={(project) => {
+                pushWorkspaceState({ ...workspaceUrlState, project, branch: '', analysis: '' });
+                setSelectedProject(project);
+                setSelectedBranch('');
+              }}
+              summaries={summaries}
+              canManageRules={canAccessAdministration}
+              filters={ruleFilters}
+              onFiltersChange={setRuleFilters}
+              selectedRuleId={selectedRuleId}
+              onSelectedRuleChange={setSelectedRuleId}
+            />
+            <details className="advanced-rules-panel profile-administration">
+              <summary>Advanced profile administration</summary>
+              <AnalysisProfiles key={selectedProject} api={API_BASE} token={sessionUser?.token} project={selectedProject} admin={canAccessAdministration} />
+            </details>
+          </>
+        )}
+
+        {activeTab === 'quality-gates' && (
+          <>
+            {(gatesQuery.error ?? assignmentsQuery.error) && (
+              <p className="feedback error" role="alert">
+                {(gatesQuery.error ?? assignmentsQuery.error)?.message}
+                <button type="button" onClick={() => void loadGates()}>
+                  Retry quality gates
+                </button>
+              </p>
+            )}
+            {(gatesQuery.isLoading || assignmentsQuery.isLoading) && <p role="status">Loading quality gates and assignments…</p>}
+            {gatesQuery.data !== undefined && assignmentsQuery.data !== undefined && (
+              <QualityGates
+                gateLibrary={gateLibrary}
+                gateAssignments={gateAssignments}
+                summaries={summaries}
+                scopeMode={scopeMode}
+                canAccessAdministration={canAccessAdministration && !gatesQuery.isError && !assignmentsQuery.isError}
+                apiBase={API_BASE}
+                apiFetch={apiFetch}
+                selectedGateId={selectedGateId}
+                onSelectedGateChange={setSelectedGateId}
+              />
+            )}
+          </>
+        )}
+
+        {activeTab === 'administration' && canAccessAdministration && (
+          <section className="admin-screen">
+            <div className="admin-top-nav">
+              {ADMIN_PRIMARY_TABS.map((tab) => (
+                <button
+                  type="button"
+                  key={tab.id}
+                  className={activeAdminTab === tab.id ? 'active' : ''}
+                  onClick={() => {
+                    setActiveAdminTab(tab.id);
+                    setActiveAdminSection(ADMIN_NAV_BY_TAB[tab.id][0].id);
+                  }}
+                >
+                  {tab.label}
                 </button>
               ))}
-            </aside>
+            </div>
 
-            <section className="admin-content">
-              {adminReadError && (
-                <p className="feedback error" role="alert">
-                  {adminReadError}
-                </p>
-              )}
-              {(activeAdminSection === 'general-settings' || activeAdminSection === 'analysis-scope' || activeAdminSection === 'data-retention') && (
-                <PlatformSettingsPanel authToken={sessionUser?.token} activeSection={activeAdminSection} />
-              )}
+            <div className="admin-body">
+              <aside className="admin-side-menu">
+                {ADMIN_NAV_BY_TAB[activeAdminTab].map((item) => (
+                  <button type="button" key={item.id} className={activeAdminSection === item.id ? 'active' : ''} onClick={() => setActiveAdminSection(item.id)}>
+                    {item.label}
+                  </button>
+                ))}
+              </aside>
 
-              {activeAdminSection === 'access-management' && (
-                <>
-                  <AuthProviderSettings authToken={sessionUser?.token} />
-                  <UsersAccess apiBase={API_BASE} authToken={sessionUser?.token} />
-                </>
-              )}
+              <section className="admin-content">
+                {adminReadError && (
+                  <p className="feedback error" role="alert">
+                    {adminReadError}
+                  </p>
+                )}
+                {(activeAdminSection === 'general-settings' || activeAdminSection === 'analysis-scope' || activeAdminSection === 'data-retention') && (
+                  <PlatformSettingsPanel authToken={sessionUser?.token} activeSection={activeAdminSection} />
+                )}
 
-              {activeAdminSection === 'pat-management' && <CiTokens authToken={sessionUser?.token} />}
+                {activeAdminSection === 'access-management' && (
+                  <>
+                    <AuthProviderSettings authToken={sessionUser?.token} />
+                    <UsersAccess apiBase={API_BASE} authToken={sessionUser?.token} />
+                  </>
+                )}
 
-              {activeAdminSection === 'audit-log' && <AuditLog authToken={sessionUser?.token} />}
-              {activeAdminSection === 'notifications' && <Notifications authToken={sessionUser?.token} />}
+                {activeAdminSection === 'pat-management' && <CiTokens authToken={sessionUser?.token} />}
 
-              {activeAdminSection === 'devops-integrations' && <DevOpsIntegrations authToken={sessionUser?.token} />}
+                {activeAdminSection === 'audit-log' && <AuditLog authToken={sessionUser?.token} />}
+                {activeAdminSection === 'notifications' && <Notifications authToken={sessionUser?.token} />}
 
-              {activeAdminSection === 'project-links' && (
-                <>
-                  <h2>Project Links</h2>
-                  <p>Connect repository URLs and triggered pipeline URLs for each project.</p>
-                  <div className="form-grid compact">
-                    <label>
-                      Project
-                      <select
-                        value={adminForm.project_key}
-                        onChange={(event) =>
-                          setAdminForm((current) => ({
-                            ...current,
-                            project_key: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select a project</option>
-                        {filteredSummaries.map((summary) => (
-                          <option key={summary.projectKey} value={summary.projectKey}>
-                            {summary.projectKey}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Repository URL
-                      <select
-                        value={adminForm.repoProvider}
-                        onChange={(event) =>
-                          setAdminForm((current) => ({
-                            ...current,
-                            repoProvider: event.target.value as ProjectIntegrationRecord['repo_provider'],
-                          }))
-                        }
-                      >
-                        <option value="github">GitHub</option>
-                        <option value="azure-devops">Azure Repos</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <input
-                        placeholder="https://github.com/org/repo"
-                        value={adminForm.repoUrl}
-                        onChange={(event) =>
-                          setAdminForm((current) => ({
-                            ...current,
-                            repoUrl: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Pipeline URL
-                      <select
-                        value={adminForm.pipelineProvider}
-                        onChange={(event) =>
-                          setAdminForm((current) => ({
-                            ...current,
-                            pipelineProvider: event.target.value as ProjectIntegrationRecord['pipeline_provider'],
-                          }))
-                        }
-                      >
-                        <option value="azure-devops">Azure DevOps</option>
-                        <option value="github-actions">GitHub Actions</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <input
-                        placeholder="https://dev.azure.com/..."
-                        value={adminForm.pipelineUrl}
-                        onChange={(event) =>
-                          setAdminForm((current) => ({
-                            ...current,
-                            pipelineUrl: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="action-row">
-                    <button type="button" onClick={presetGitHubRepo} disabled={!adminForm.project_key}>
-                      Preset GitHub
-                    </button>
-                    <button type="button" onClick={presetAzurePipeline} disabled={!adminForm.project_key}>
-                      Preset Azure DevOps
-                    </button>
-                    <button type="button" onClick={() => void saveProjectMeta()} disabled={!adminForm.project_key || savingProjectMeta}>
-                      {savingProjectMeta ? 'Saving...' : 'Save links'}
-                    </button>
-                    <button type="button" disabled={!adminForm.repoUrl} onClick={() => window.open(adminForm.repoUrl, '_blank', 'noopener,noreferrer')}>
-                      Open repo
-                    </button>
-                    <button type="button" disabled={!adminForm.pipelineUrl} onClick={() => window.open(adminForm.pipelineUrl, '_blank', 'noopener,noreferrer')}>
-                      Open pipeline
-                    </button>
-                  </div>
+                {activeAdminSection === 'devops-integrations' && <DevOpsIntegrations authToken={sessionUser?.token} />}
 
-                  <div className="auth-card" style={{ marginTop: '1rem' }}>
-                    <h4>Azure DevOps organization context</h4>
-                    <p style={{ margin: 0, opacity: 0.75 }}>
-                      {azureDevOpsConfigs.length > 0
-                        ? `Current organization configuration: ${azureDevOpsConfigs[0].config_name}`
-                        : 'No Azure DevOps organization configured yet. Go to Configuration > DevOps Platform Integrations first.'}
-                    </p>
-                  </div>
-                </>
-              )}
-
-              {activeAdminSection === 'project-management' && (
-                <>
-                  <h2>Projects &amp; Branches Management</h2>
-
-                  <div className="auth-card" style={{ marginBottom: '2rem' }}>
-                    <h3>Delete analyses by project or branch</h3>
-                    <p style={{ marginTop: 0, opacity: 0.8 }}>Permanently delete all analyses for a project or specific branch. This action cannot be undone.</p>
-
+                {activeAdminSection === 'project-links' && (
+                  <>
+                    <h2>Project Links</h2>
+                    <p>Connect repository URLs and triggered pipeline URLs for each project.</p>
                     <div className="form-grid compact">
                       <label>
-                        Select Project
+                        Project
                         <select
-                          value={deleteTarget?.project ?? ''}
-                          onChange={(e) => {
-                            setDeleteTarget(e.target.value ? { type: 'project', project: e.target.value } : null);
-                          }}
+                          value={adminForm.project_key}
+                          onChange={(event) =>
+                            setAdminForm((current) => ({
+                              ...current,
+                              project_key: event.target.value,
+                            }))
+                          }
                         >
-                          <option value="">-- Choose a project --</option>
-                          {filteredSummaries.map((s) => (
-                            <option key={s.projectKey} value={s.projectKey}>
-                              {s.projectKey}
+                          <option value="">Select a project</option>
+                          {filteredSummaries.map((summary) => (
+                            <option key={summary.projectKey} value={summary.projectKey}>
+                              {summary.projectKey}
                             </option>
                           ))}
                         </select>
                       </label>
+                      <label>
+                        Repository URL
+                        <select
+                          value={adminForm.repoProvider}
+                          onChange={(event) =>
+                            setAdminForm((current) => ({
+                              ...current,
+                              repoProvider: event.target.value as ProjectIntegrationRecord['repo_provider'],
+                            }))
+                          }
+                        >
+                          <option value="github">GitHub</option>
+                          <option value="azure-devops">Azure Repos</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <input
+                          placeholder="https://github.com/org/repo"
+                          value={adminForm.repoUrl}
+                          onChange={(event) =>
+                            setAdminForm((current) => ({
+                              ...current,
+                              repoUrl: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        Pipeline URL
+                        <select
+                          value={adminForm.pipelineProvider}
+                          onChange={(event) =>
+                            setAdminForm((current) => ({
+                              ...current,
+                              pipelineProvider: event.target.value as ProjectIntegrationRecord['pipeline_provider'],
+                            }))
+                          }
+                        >
+                          <option value="azure-devops">Azure DevOps</option>
+                          <option value="github-actions">GitHub Actions</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <input
+                          placeholder="https://dev.azure.com/..."
+                          value={adminForm.pipelineUrl}
+                          onChange={(event) =>
+                            setAdminForm((current) => ({
+                              ...current,
+                              pipelineUrl: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="action-row">
+                      <button type="button" onClick={presetGitHubRepo} disabled={!adminForm.project_key}>
+                        Preset GitHub
+                      </button>
+                      <button type="button" onClick={presetAzurePipeline} disabled={!adminForm.project_key}>
+                        Preset Azure DevOps
+                      </button>
+                      <button type="button" onClick={() => void saveProjectMeta()} disabled={!adminForm.project_key || savingProjectMeta}>
+                        {savingProjectMeta ? 'Saving...' : 'Save links'}
+                      </button>
+                      <button type="button" disabled={!adminForm.repoUrl} onClick={() => window.open(adminForm.repoUrl, '_blank', 'noopener,noreferrer')}>
+                        Open repo
+                      </button>
+                      <button type="button" disabled={!adminForm.pipelineUrl} onClick={() => window.open(adminForm.pipelineUrl, '_blank', 'noopener,noreferrer')}>
+                        Open pipeline
+                      </button>
                     </div>
 
-                    {deleteTarget?.project && (
-                      <div style={{ marginTop: '1rem', padding: '12px', backgroundColor: 'var(--danger-light)', borderRadius: '4px', border: '1px solid var(--danger)' }}>
-                        <p style={{ margin: '0 0 12px 0', fontWeight: 'bold', color: 'var(--danger)' }}>
-                          ⚠️ Delete all analyses for project: <strong>{deleteTarget.project}</strong>
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeleteTarget({ type: 'project', project: deleteTarget.project });
-                            setShowDeleteModal(true);
-                          }}
-                          style={{ backgroundColor: 'var(--danger)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                        >
-                          Delete all analyses for this project
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                    <div className="auth-card" style={{ marginTop: '1rem' }}>
+                      <h4>Azure DevOps organization context</h4>
+                      <p style={{ margin: 0, opacity: 0.75 }}>
+                        {azureDevOpsConfigs.length > 0
+                          ? `Current organization configuration: ${azureDevOpsConfigs[0].config_name}`
+                          : 'No Azure DevOps organization configured yet. Go to Configuration > DevOps Platform Integrations first.'}
+                      </p>
+                    </div>
+                  </>
+                )}
 
-                  {deleteTarget?.project &&
-                    (() => {
-                      const proj = summaries.find((s) => s.projectKey === deleteTarget.project);
-                      const branches = proj ? Array.from(new Set(proj.history.map((a) => a.branch).filter(Boolean))) : [];
-                      return proj && branches.length > 0 ? (
-                        <div className="auth-card">
-                          <h3>Delete analyses by branch</h3>
-                          <p style={{ marginTop: 0, opacity: 0.8 }}>
-                            For project: <strong>{proj.projectKey}</strong>
-                          </p>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: '8px', marginTop: '12px' }}>
-                            {branches.map((branch) => (
-                              <div
-                                key={branch}
-                                style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                              >
-                                <div>
-                                  <p style={{ margin: '0 0 4px 0', fontWeight: 'bold' }}>{branch}</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteTarget({ type: 'branch', project: proj.projectKey, branch });
-                                    setShowDeleteModal(true);
-                                  }}
-                                  style={{ backgroundColor: 'var(--danger)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                {activeAdminSection === 'project-management' && (
+                  <>
+                    <h2>Projects &amp; Branches Management</h2>
+
+                    <div className="auth-card" style={{ marginBottom: '2rem' }}>
+                      <h3>Delete analyses by project or branch</h3>
+                      <p style={{ marginTop: 0, opacity: 0.8 }}>Permanently delete all analyses for a project or specific branch. This action cannot be undone.</p>
+
+                      <div className="form-grid compact">
+                        <label>
+                          Select Project
+                          <select
+                            value={deleteTarget?.project ?? ''}
+                            onChange={(e) => {
+                              setDeleteTarget(e.target.value ? { type: 'project', project: e.target.value } : null);
+                            }}
+                          >
+                            <option value="">-- Choose a project --</option>
+                            {filteredSummaries.map((s) => (
+                              <option key={s.projectKey} value={s.projectKey}>
+                                {s.projectKey}
+                              </option>
                             ))}
-                          </div>
+                          </select>
+                        </label>
+                      </div>
+
+                      {deleteTarget?.project && (
+                        <div style={{ marginTop: '1rem', padding: '12px', backgroundColor: 'var(--danger-light)', borderRadius: '4px', border: '1px solid var(--danger)' }}>
+                          <p style={{ margin: '0 0 12px 0', fontWeight: 'bold', color: 'var(--danger)' }}>
+                            ⚠️ Delete all analyses for project: <strong>{deleteTarget.project}</strong>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget({ type: 'project', project: deleteTarget.project });
+                              setShowDeleteModal(true);
+                            }}
+                            style={{ backgroundColor: 'var(--danger)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            Delete all analyses for this project
+                          </button>
                         </div>
-                      ) : null;
-                    })()}
-                </>
-              )}
-            </section>
-          </div>
-        </section>
-      )}
+                      )}
+                    </div>
+
+                    {deleteTarget?.project &&
+                      (() => {
+                        const proj = summaries.find((s) => s.projectKey === deleteTarget.project);
+                        const branches = proj ? Array.from(new Set(proj.history.map((a) => a.branch).filter(Boolean))) : [];
+                        return proj && branches.length > 0 ? (
+                          <div className="auth-card">
+                            <h3>Delete analyses by branch</h3>
+                            <p style={{ marginTop: 0, opacity: 0.8 }}>
+                              For project: <strong>{proj.projectKey}</strong>
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: '8px', marginTop: '12px' }}>
+                              {branches.map((branch) => (
+                                <div
+                                  key={branch}
+                                  style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                >
+                                  <div>
+                                    <p style={{ margin: '0 0 4px 0', fontWeight: 'bold' }}>{branch}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteTarget({ type: 'branch', project: proj.projectKey, branch });
+                                      setShowDeleteModal(true);
+                                    }}
+                                    style={{ backgroundColor: 'var(--danger)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                  </>
+                )}
+              </section>
+            </div>
+          </section>
+        )}
       </div>
 
       {showDeleteModal && deleteTarget && (

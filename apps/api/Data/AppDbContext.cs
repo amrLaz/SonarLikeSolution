@@ -623,6 +623,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .IsRequired();
             e.HasKey(x => x.Id);
         });
+        modelBuilder.Entity<UserProjectFavorite>(e =>
+        {
+            e.ToTable("user_project_favorites");
+            e.Property(x => x.UserId)
+                .HasColumnName("user_id")
+                .HasColumnType("character varying(36)")
+                .IsRequired();
+            e.Property(x => x.ProjectId)
+                .HasColumnName("project_id")
+                .HasColumnType("character varying(36)")
+                .IsRequired();
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone")
+                .IsRequired();
+            e.HasKey(x => new { x.UserId, x.ProjectId });
+        });
         modelBuilder.Entity<TokenProjectAccess>(e =>
         {
             e.ToTable("token_project_access");
@@ -792,6 +809,18 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder
+            .Entity<UserProjectFavorite>()
+            .HasOne<PlatformUser>()
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder
+            .Entity<UserProjectFavorite>()
+            .HasOne<Project>()
+            .WithMany()
+            .HasForeignKey(x => x.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder
             .Entity<TokenProjectAccess>()
             .HasOne<PlatformApiToken>()
             .WithMany()
@@ -838,6 +867,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 x.ScopeId,
             })
             .IsUnique();
+        modelBuilder.Entity<UserProjectFavorite>().HasIndex(x => x.ProjectId);
         modelBuilder.Entity<TokenProjectAccess>().HasIndex(x => x.ProjectKey);
         modelBuilder.Entity<OidcTransaction>().HasIndex(x => x.CookieHash);
         modelBuilder.Entity<PlatformSetting>().HasIndex(x => x.Key).IsUnique();

@@ -7,20 +7,20 @@ description: Risques vérifiés, priorités d'optimisation et protocole de charg
 
 ## État implémenté et limites à mesurer
 
-| Surface                | État du checkout P1                                                                       | Limite résiduelle                                                                                |
-| ---------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Historiques d'analyse  | Projections de synthèse paginées et curseurs déterministes                                | Tester les filtres/indices sur les volumes A/B/C                                                 |
-| Findings et composants | Tables normalisées et détails paginés ; rapports hors des listes                          | Mesurer les plans SQL et la densité réelle des rapports                                          |
-| Ingestion              | Upload Blob borné et queue PostgreSQL durable avec baux/retries                           | JSON en mémoire jusqu'à 50 MiB, 250 000 entrées normalisées par lot ; EF AddRange sans bulk COPY |
-| Retours externes       | Jobs durables ADO/notifications pour P1, hors transaction d'import                        | Livraison externe au moins une fois ; verrous par PR pendant les appels ADO                      |
-| Publication directe    | Contrat POST conservé, mesures et gate                                                    | Décoration synchrone et notifications mémoire distinctes de l'ingestion durable                  |
-| Rétention              | Maintenance horaire durable et conservation des synthèses P1                              | Lots de 100 détails ; mesurer retard de purge et scan des objets orphelins                       |
-| Coût CI                | Client publication seule disponible ; artefacts producteurs isolés                        | Ancien stage full reste coûteux ; ne pas superposer deux parcours par défaut                     |
+| Surface                | État du checkout P1                                                | Limite résiduelle                                                                                |
+| ---------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Historiques d'analyse  | Projections de synthèse paginées et curseurs déterministes         | Tester les filtres/indices sur les volumes A/B/C                                                 |
+| Findings et composants | Tables normalisées et détails paginés ; rapports hors des listes   | Mesurer les plans SQL et la densité réelle des rapports                                          |
+| Ingestion              | Upload Blob borné et queue PostgreSQL durable avec baux/retries    | JSON en mémoire jusqu'à 50 MiB, 250 000 entrées normalisées par lot ; EF AddRange sans bulk COPY |
+| Retours externes       | Jobs durables ADO/notifications pour P1, hors transaction d'import | Livraison externe au moins une fois ; verrous par PR pendant les appels ADO                      |
+| Publication directe    | Contrat POST conservé, mesures et gate                             | Décoration synchrone et notifications mémoire distinctes de l'ingestion durable                  |
+| Rétention              | Maintenance horaire durable et conservation des synthèses P1       | Lots de 100 détails ; mesurer retard de purge et scan des objets orphelins                       |
+| Coût CI                | Client publication seule disponible ; artefacts producteurs isolés | Ancien stage full reste coûteux ; ne pas superposer deux parcours par défaut                     |
 
 Les sources sont les [routes de consultation](../apps/api/Endpoints/InsightEndpoints.cs),
 le [worker](../apps/api/Services/IngestionWorker.cs), le
-[processeur](../apps/api/Services/IngestionProcessor.cs) et le
-[contrat P1](p1-ingestion.md). Une borne de requête ne prouve pas à elle seule un
+[processeur](../apps/api/Services/IngestionProcessor.cs).
+Une borne de requête ne prouve pas à elle seule un
 SLO sous concurrence.
 
 La configuration Terraform B1/B1ms est un point de départ, **pas une capacité validée pour 20 analyses simultanées ni pour plusieurs centaines de projets**. Le nombre de projets seul ne détermine pas la charge : fréquence, historique, concurrence et densité de findings comptent davantage.
@@ -48,8 +48,6 @@ Ces volumes sont des **jeux de test proposés**, pas la volumétrie constatée d
 
 Pour chaque palier, varier indépendamment taille de rapport (1, 10, 50 Mo), densité (100, 10 000, 100 000 findings) et concentration sur un projet. Ne pas remplir tous les rapports historiques au volume maximal par défaut : comparer une distribution réaliste puis une rafale défavorable. Les rapports au-delà d'une limite configurée doivent être rejetés explicitement ; le contrat accepte au maximum 50 MiB par rapport, sous réserve des bornes de parsing et du total de 250 MiB par lot. Une taille acceptée ne préjuge pas de sa latence.
 
-Après 5 minutes de chauffe, mesurer 30 minutes de charge stable puis une rafale de 5 minutes ; répéter trois fois avec la même configuration et noter les dispersions. Exécuter séparément le chargement à froid. Comparer avant/après sur le même jeu, même image, même région et mêmes SKU. Le [runner de charge](p1-load.md) existe dans `scripts/p1-load.py` et utilise seulement Python standard.
-
 ## Budgets initiaux à valider
 
 | Mesure                                  | Objectif provisoire                                              |
@@ -76,8 +74,7 @@ explication des dépassements et absence de perte de données. Le smoke local
 (PostgreSQL/Azurite/API .NET) a réussi 75 publications et 6 064 lectures : p95 stable
 publication 1,187 s, lecture 0,032 s. Il emploie 2 projets, 2 synthèses historiques
 par projet, 3 rapports de 4 096 octets et 10 findings par rapport. Il ne valide
-aucun palier A/B/C. Les essais initiaux refusés/interrompus restent séparés du
-passage propre ; [protocole et preuves](p1-load.md).
+aucun palier A/B/C.
 
 **La campagne A/B/C standard n'a pas été exécutée**, ni la matrice complète de
 formats/tailles/densités, ni la campagne de résilience distante. Les chiffres du

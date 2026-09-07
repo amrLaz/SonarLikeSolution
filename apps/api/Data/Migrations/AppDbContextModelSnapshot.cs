@@ -1936,6 +1936,27 @@ namespace CodeInsights.Api.Data.Migrations
                     b.ToTable("user_grants", (string)null);
                 });
 
+            modelBuilder.Entity("CodeInsights.Api.Data.UserProjectFavorite", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("character varying(36)")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("ProjectId")
+                        .HasColumnType("character varying(36)")
+                        .HasColumnName("project_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("UserId", "ProjectId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("user_project_favorites", (string)null);
+                });
+
             modelBuilder.Entity("CodeInsights.Api.Data.AnalysisSource", b =>
                 {
                     b.HasOne("CodeInsights.Api.Data.AnalysisRecord", null)
@@ -2004,6 +2025,21 @@ namespace CodeInsights.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CodeInsights.Api.Data.UserProjectFavorite", b =>
+                {
+                    b.HasOne("CodeInsights.Api.Data.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CodeInsights.Api.Data.PlatformUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618
